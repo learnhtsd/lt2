@@ -1,20 +1,39 @@
+-- Change this to your ACTUAL Raw GitHub link (Ending with a /)
 local BaseURL = "https://raw.githubusercontent.com/learnhtsd/lt2/main/"
 
--- 1. Load the Library
-local Lib = loadstring(game:HttpGet(BaseURL .. "UI_Library.lua"))()
+local function SafeLoad(FileName)
+    local url = BaseURL .. FileName
+    local success, content = pcall(function() return game:HttpGet(url) end)
+    
+    if not success or content == "404: Not Found" then
+        warn("Lumber Hub Error: Could not find file at " .. url)
+        return nil
+    end
+    
+    local func, err = loadstring(content)
+    if not func then
+        warn("Lumber Hub Error: Syntax error in " .. FileName .. " -> " .. tostring(err))
+        return nil
+    end
+    
+    return func()
+end
 
--- 2. Load the Modules
-local MoveMod = loadstring(game:HttpGet(BaseURL .. "Modules/Movement.lua"))()
-local TeleMod = loadstring(game:HttpGet(BaseURL .. "Modules/Teleports.lua"))()
+-- 1. Load the UI Library
+local Lib = SafeLoad("UI_Library.lua")
 
--- 3. Assemble the UI
-local MoveTab = Lib:CreateTab("Movement")
-local TeleTab = Lib:CreateTab("Teleports")
+if Lib then
+    -- 2. Load the Modules
+    local MoveMod = SafeLoad("Modules/Movement.lua")
+    local TeleMod = SafeLoad("Modules/Teleports.lua")
 
--- Add Movement Buttons
-Lib:CreateButton(MoveTab, "Speed (50)", function() MoveMod.SetSpeed(50) end)
-
--- Add Teleport Buttons using a loop
-for _, loc in pairs(TeleMod.Locations) do
-    Lib:CreateButton(TeleTab, loc[1], function() TeleMod.GoTo(loc[2]) end)
+    -- 3. Build the UI (Ensure Lib:CreateTab and Lib:CreateButton are defined in UI_Library.lua)
+    local MoveTab = Lib:CreateTab("Movement")
+    Lib:CreateButton(MoveTab, "Speed (50)", function()
+        if MoveMod then MoveMod.SetSpeed(50) end
+    end)
+    
+    print("Lumber Hub: Successfully Loaded!")
+else
+    warn("Lumber Hub: UI Library failed to load. Script stopping.")
 end
