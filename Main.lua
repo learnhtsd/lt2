@@ -1,5 +1,5 @@
 -- Change this to your ACTUAL Raw GitHub link (Ending with a /)
-local BaseURL = "https://raw.githubusercontent.com/learnhtsd/lt2/main/"
+local BaseURL = "https://github.com/learnhtsd/lt2/raw/refs/heads/main/UI_Library.lua"
 
 local function SafeLoad(FileName)
     local url = BaseURL .. FileName
