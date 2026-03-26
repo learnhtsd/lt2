@@ -2,217 +2,123 @@ local Lib = {}
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 
--- [1] ANTI-DUPLICATE
-if CoreGui:FindFirstChild("LT2Hub") then
-    CoreGui.LT2Hub:Destroy()
-end
+if CoreGui:FindFirstChild("LT2Hub") then CoreGui.LT2Hub:Destroy() end
 
--- [2] BASE UI SETUP
 local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local UICorner_Main = Instance.new("UICorner")
-local MainScale = Instance.new("UIScale")
-local Header = Instance.new("Frame")
-local Title = Instance.new("TextLabel")
-local TabScroll = Instance.new("ScrollingFrame")
-local TabUIList = Instance.new("UIListLayout")
-local ContentArea = Instance.new("Frame")
-
-local Pages = {}
-local TabButtons = {}
-
 ScreenGui.Name = "LT2Hub"
 ScreenGui.Parent = CoreGui
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-MainFrame.Name = "MainFrame"
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
-MainFrame.Position = UDim2.new(0.5, -200, 0.5, -175)
+local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 400, 0, 450)
-MainFrame.ClipsDescendants = true
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -175)
+MainFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+MainFrame.Parent = ScreenGui
 
-UICorner_Main.CornerRadius = UDim.new(0, 10)
-UICorner_Main.Parent = MainFrame
-
-MainScale.Parent = MainFrame
-
--- [3] DRAGGING SYSTEM
-local dragging, dragInput, dragStart, startPos
-local function update(input)
-    local delta = input.Position - dragStart
-    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-MainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
-    end
-end)
-
-MainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then update(input) end
-end)
-
--- [4] HEADER & NAVIGATION SETUP
-Header.Name = "Header"
-Header.Parent = MainFrame
-Header.BackgroundTransparency = 1.000
-Header.Size = UDim2.new(1, 0, 0, 45)
-
-Title.Name = "Title"
-Title.Parent = Header
-Title.BackgroundTransparency = 1.000
-Title.Position = UDim2.new(0, 15, 0, 10)
-Title.Size = UDim2.new(0, 200, 0, 25)
-Title.Font = Enum.Font.GothamBold
-Title.Text = "Lumber Tycoon 2 Hub"
-Title.TextColor3 = Color3.fromRGB(230, 230, 230)
-Title.TextSize = 15.000
-Title.TextXAlignment = Enum.TextXAlignment.Left
-
-TabScroll.Name = "TabScroll"
-TabScroll.Parent = MainFrame
-TabScroll.BackgroundTransparency = 1
-TabScroll.Position = UDim2.new(0, 10, 0, 50)
-TabScroll.Size = UDim2.new(1, -20, 0, 40)
-TabScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-TabScroll.ScrollBarThickness = 0
-TabScroll.AutomaticCanvasSize = Enum.AutomaticSize.X
-
-TabUIList.Parent = TabScroll
-TabUIList.FillDirection = Enum.FillDirection.Horizontal
-TabUIList.Padding = UDim.new(0, 8)
-TabUIList.VerticalAlignment = Enum.VerticalAlignment.Center
-TabUIList.SortOrder = Enum.SortOrder.LayoutOrder
-
+local UICorner = Instance.new("UICorner", MainFrame)
+local ContentArea = Instance.new("Frame")
 ContentArea.Name = "ContentArea"
-ContentArea.Parent = MainFrame
-ContentArea.BackgroundTransparency = 1
-ContentArea.Position = UDim2.new(0, 0, 0, 100)
 ContentArea.Size = UDim2.new(1, 0, 1, -100)
+ContentArea.Position = UDim2.new(0, 0, 0, 100)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
 
--- [5] EXPORTED FUNCTIONS (THE LIBRARY)
+local Pages = {}
 
-function Lib:ShowPage(name)
-    for pageName, frame in pairs(Pages) do
-        frame.Visible = (pageName == name)
-    end
-    for btnName, btn in pairs(TabButtons) do
-        if btnName == name then
-            btn.BackgroundColor3 = Color3.fromRGB(210, 210, 210)
-            btn.BackgroundTransparency = 0
-            btn.TextLabel.TextColor3 = Color3.fromRGB(30, 30, 30)
-        else
-            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-            btn.BackgroundTransparency = 0.5
-            btn.TextLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        end
-    end
-end
-
-function Lib:CreateTab(name)
-    local Tab = Instance.new("Frame")
-    local TabBtn = Instance.new("TextButton")
-    local TabCorner = Instance.new("UICorner")
-    local Label = Instance.new("TextLabel")
-    local TabPadding = Instance.new("UIPadding")
-
-    Tab.Name = name .. "TabFrame"
-    Tab.Parent = TabScroll
-    Tab.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    Tab.BackgroundTransparency = 0.5
-    Tab.Size = UDim2.new(0, 0, 0, 32)
-    Tab.AutomaticSize = Enum.AutomaticSize.X
-
-    TabCorner.CornerRadius = UDim.new(0, 16)
-    TabCorner.Parent = Tab
-
-    Label.Name = "TextLabel"
-    Label.Parent = Tab
-    Label.BackgroundTransparency = 1
-    Label.Position = UDim2.new(0, 15, 0, 0)
-    Label.Size = UDim2.new(0, 0, 1, 0)
-    Label.AutomaticSize = Enum.AutomaticSize.X
-    Label.Font = Enum.Font.GothamMedium
-    Label.Text = name
-    Label.TextColor3 = Color3.fromRGB(200, 200, 200)
-    Label.TextSize = 13
-
-    TabPadding.PaddingRight = UDim.new(0, 15)
-    TabPadding.Parent = Tab
-
-    TabBtn.Name = "Clicker"
-    TabBtn.Parent = Tab
-    TabBtn.BackgroundTransparency = 1
-    TabBtn.Size = UDim2.new(1, 0, 1, 0)
-    TabBtn.Text = ""
-
-    TabButtons[name] = Tab
-
-    local Page = Instance.new("ScrollingFrame")
-    Page.Name = name .. "Page"
-    Page.Parent = ContentArea
-    Page.BackgroundTransparency = 1
-    Page.Size = UDim2.new(1, 0, 1, 0)
-    Page.Visible = false
-    Page.ScrollBarThickness = 2
+-- [NEW] TOGGLE FUNCTION
+function Lib:CreateToggle(parent, name, default, callback)
+    local Enabled = default
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(0, 368, 0, 38)
+    Btn.BackgroundColor3 = Enabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(35, 35, 35)
+    Btn.Text = name .. ": " .. (Enabled and "ON" or "OFF")
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Font = Enum.Font.GothamMedium
+    Btn.Parent = parent
     
-    local Layout = Instance.new("UIListLayout")
-    Layout.Parent = Page
-    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    Layout.Padding = UDim.new(0, 6)
+    local Corner = Instance.new("UICorner", Btn)
 
-    Pages[name] = Page
-
-    TabBtn.MouseButton1Click:Connect(function()
-        self:ShowPage(name)
+    Btn.MouseButton1Click:Connect(function()
+        Enabled = not Enabled
+        Btn.BackgroundColor3 = Enabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(35, 35, 35)
+        Btn.Text = name .. ": " .. (Enabled and "ON" or "OFF")
+        callback(Enabled)
     end)
     
+    return function(val) -- External update function
+        Enabled = val
+        Btn.BackgroundColor3 = Enabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(35, 35, 35)
+        Btn.Text = name .. ": " .. (Enabled and "ON" or "OFF")
+    end
+end
+
+-- [NEW] SLIDER FUNCTION
+function Lib:CreateSlider(parent, name, min, max, default, callback)
+    local SliderFrame = Instance.new("Frame")
+    SliderFrame.Size = UDim2.new(0, 368, 0, 50)
+    SliderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    SliderFrame.Parent = parent
+    Instance.new("UICorner", SliderFrame)
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -20, 0, 20)
+    Label.Position = UDim2.new(0, 10, 0, 5)
+    Label.BackgroundTransparency = 1
+    Label.Text = name .. ": " .. default
+    Label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = SliderFrame
+
+    local Tray = Instance.new("Frame")
+    Tray.Size = UDim2.new(1, -20, 0, 6)
+    Tray.Position = UDim2.new(0, 10, 0, 35)
+    Tray.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    Tray.Parent = SliderFrame
+
+    local Fill = Instance.new("Frame")
+    Fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0)
+    Fill.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+    Fill.Parent = Tray
+
+    local function UpdateSlider()
+        local mousePos = UserInputService:GetMouseLocation().X
+        local trayPos = Tray.AbsolutePosition.X
+        local traySize = Tray.AbsoluteSize.X
+        local percent = math.clamp((mousePos - trayPos) / traySize, 0, 1)
+        local val = math.floor(min + (max - min) * percent)
+        Fill.Size = UDim2.new(percent, 0, 1, 0)
+        Label.Text = name .. ": " .. val
+        callback(val)
+    end
+
+    Tray.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local move; move = UserInputService.InputChanged:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseMovement then UpdateSlider() end
+            end)
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then move:Disconnect() end
+            end)
+            UpdateSlider()
+        end
+    end)
+end
+
+-- (Keep your existing CreateTab and ShowPage functions here)
+function Lib:CreateTab(name)
+    local Page = Instance.new("ScrollingFrame")
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.BackgroundTransparency = 1
+    Page.Visible = false
+    Page.Parent = ContentArea
+    local Layout = Instance.new("UIListLayout", Page)
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    Layout.Padding = UDim.new(0, 6)
+    Pages[name] = Page
     return Page
 end
 
-function Lib:CreateButton(parent, name, callback)
-    local BtnFrame = Instance.new("TextButton")
-    local BtnCorner = Instance.new("UICorner")
-    local BtnText = Instance.new("TextLabel")
-
-    BtnFrame.Parent = parent
-    BtnFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    BtnFrame.BackgroundTransparency = 0.5
-    BtnFrame.Size = UDim2.new(0, 368, 0, 38)
-    BtnFrame.AutoButtonColor = true
-    BtnFrame.Text = ""
-
-    BtnCorner.CornerRadius = UDim.new(0, 6)
-    BtnCorner.Parent = BtnFrame
-
-    BtnText.Parent = BtnFrame
-    BtnText.BackgroundTransparency = 1
-    BtnText.Position = UDim2.new(0, 12, 0, 0)
-    BtnText.Size = UDim2.new(1, -24, 1, 0)
-    BtnText.Font = Enum.Font.GothamMedium
-    BtnText.Text = name
-    BtnText.TextColor3 = Color3.fromRGB(220, 220, 220)
-    BtnText.TextSize = 13
-    BtnText.TextXAlignment = Enum.TextXAlignment.Left
-
-    BtnFrame.MouseButton1Click:Connect(callback)
-end
-
-function Lib:Notify(msg)
-    print("[LT2 Hub]: " .. msg)
+function Lib:ShowPage(name)
+    for k, v in pairs(Pages) do v.Visible = (k == name) end
 end
 
 return Lib
