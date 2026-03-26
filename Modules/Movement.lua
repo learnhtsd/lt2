@@ -1,6 +1,7 @@
 local Movement = {}
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 Movement.Sprinting = false
 Movement.Flying = false
@@ -24,22 +25,25 @@ end
 function Movement.ToggleFly()
     Movement.Flying = not Movement.Flying
     local char = Player.Character
-    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
     
     if Movement.Flying then
-        -- Create a loop to keep the player in the air
         flyConnection = RunService.Heartbeat:Connect(function()
-            if not Movement.Flying or not hrp then flyConnection:Disconnect() return end
+            if not Movement.Flying or not hrp then 
+                if flyConnection then flyConnection:Disconnect() end 
+                return 
+            end
             hrp.Velocity = Vector3.new(0, 0, 0)
             
-            -- Simple Fly Movement logic
             local cam = workspace.CurrentCamera
             local moveDir = Vector3.new(0,0,0)
             
-            if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + cam.CFrame.LookVector end
-            if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - cam.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + cam.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - cam.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - cam.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + cam.CFrame.RightVector end
             
-            hrp.CFrame = hrp.CFrame + (moveDir * (Movement.FlySpeed / 100))
+            hrp.CFrame = hrp.CFrame + (moveDir * (Movement.FlySpeed / 50))
         end)
     else
         if flyConnection then flyConnection:Disconnect() end
