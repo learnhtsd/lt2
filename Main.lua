@@ -1,4 +1,4 @@
-local BaseURL = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/"
+local BaseURL = "https://raw.githubusercontent.com/learnhtsd/lt2/main/"
 
 -- 1. Load the Library
 local Lib = loadstring(game:HttpGet(BaseURL .. "UI_Library.lua"))()
