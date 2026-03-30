@@ -410,6 +410,7 @@ local PlayerTab   = HubWindow:CreateTab("Player")
 local WorldTab    = HubWindow:CreateTab("World")
 local TeleportTab = HubWindow:CreateTab("Teleport")
 local BuildTab    = HubWindow:CreateTab("Build")
+local SettingsTab = HubWindow:CreateTab("Settings")
 
 local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s", 
@@ -430,3 +431,8 @@ if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) 
 
 local GhostModule = LoadModule("GhostSuite")
 if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
+
+local SettingsModule = LoadModule("Settings")
+if SettingsModule and SettingsModule.Init then  
+    SettingsModule.Init(SettingsTab, {User = User, Repo = Repo, Branch = Branch}) 
+end
