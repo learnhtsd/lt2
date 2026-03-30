@@ -2,19 +2,34 @@ local Settings = {}
 
 function Settings:Load(Tab, MainFrame, ScreenGui)
     local Hub = _G.Hub
-    
+    if not Hub then
+        warn("Settings: Hub not found")
+        return
+    end
+
     -- Category 1
     Hub:AddSection(Tab, "Configuration")
-    Hub:AddButton(Tab, "Toggle Key: Right Ctrl", function() print("Bind UI clicked") end)
+    Hub:AddButton(Tab, "Toggle Key: Right Ctrl", function()
+        print("Bind UI clicked")
+    end)
 
     -- Category 2
     Hub:AddSection(Tab, "UI Customization")
-    Hub:AddButton(Tab, "Increase Scale", function() MainFrame.Size += UDim2.fromOffset(20,15) end)
-    Hub:AddButton(Tab, "Decrease Scale", function() MainFrame.Size -= UDim2.fromOffset(20,15) end)
+
+    Hub:AddButton(Tab, "Increase Scale", function()
+        MainFrame.Size = MainFrame.Size + UDim2.fromOffset(20, 15)
+    end)
+
+    Hub:AddButton(Tab, "Decrease Scale", function()
+        MainFrame.Size = MainFrame.Size - UDim2.fromOffset(20, 15)
+    end)
 
     -- Category 3
     Hub:AddSection(Tab, "Danger Zone")
-    Hub:AddButton(Tab, "Unload Script", function() ScreenGui:Destroy() end)
+
+    Hub:AddButton(Tab, "Unload Script", function()
+        ScreenGui:Destroy()
+    end)
 end
 
 return Settings
