@@ -1,5 +1,5 @@
 -- ==========================================
--- 1. Theme Loading (The "Brain")
+-- 1. Theme Loading Logic
 -- ==========================================
 local UI_Theme_URL = "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/ui_theme.lua"
 
@@ -11,10 +11,7 @@ local function GetTheme()
     if not success then return nil end
     
     local func, err = loadstring(result)
-    if not func then 
-        warn("Theme Syntax Error: " .. tostring(err))
-        return nil 
-    end
+    if not func then return nil end
     
     local runSuccess, themeTable = pcall(func)
     if not runSuccess then return nil end
@@ -24,19 +21,18 @@ end
 
 local Theme = GetTheme()
 
--- Fallback Theme (If GitHub fails, the UI still loads so you can use it)
+-- Fallback if GitHub fails
 if not Theme then
-    warn("Using Fallback Theme: GitHub link failed or file is formatted incorrectly.")
     Theme = {
         Colors = {
-            MainBackground = Color3.fromRGB(25, 25, 25),
-            ElementBackground = Color3.fromRGB(35, 35, 35),
+            MainBackground = Color3.fromRGB(24, 25, 30),
+            ElementBackground = Color3.fromRGB(30, 31, 37),
             AccentColor = Color3.fromRGB(75, 120, 240),
             TextColor = Color3.fromRGB(255, 255, 255),
             SecondaryTextColor = Color3.fromRGB(200, 200, 200),
-            ButtonDefault = Color3.fromRGB(45, 45, 45),
+            ButtonDefault = Color3.fromRGB(35, 36, 42),
             ToggleOn = Color3.fromRGB(75, 120, 240),
-            ToggleOff = Color3.fromRGB(60, 60, 60),
+            ToggleOff = Color3.fromRGB(50, 50, 60),
         },
         Fonts = { Main = Enum.Font.Gotham, MainBold = Enum.Font.GothamBold },
         Sizes = { ElementHeight = 40, ElementCornerRadius = UDim.new(0, 8), UI_Size = UDim2.fromOffset(500, 400) }
@@ -44,12 +40,17 @@ if not Theme then
 end
 
 -- ==========================================
--- 2. Core UI Creation
+-- 2. Create UI Core
 -- ==========================================
+-- Check if UI already exists and delete it (prevents multiple menus opening)
+if game.CoreGui:FindFirstChild("MyModularHub") then
+    game.CoreGui.MyModularHub:Destroy()
+end
+
 local Hub_ScreenGui = Instance.new("ScreenGui")
 Hub_ScreenGui.Name = "MyModularHub"
 Hub_ScreenGui.ResetOnSpawn = false
-Hub_ScreenGui.Parent = game.CoreGui -- Changed to CoreGui so it stays if you reset
+Hub_ScreenGui.Parent = game.CoreGui 
 
 local Main_Frame = Instance.new("Frame", Hub_ScreenGui)
 Main_Frame.Name = "MainFrame"
@@ -61,13 +62,13 @@ Main_Frame.AnchorPoint = Vector2.new(0.5, 0.5)
 
 Instance.new("UICorner", Main_Frame).CornerRadius = Theme.Sizes.ElementCornerRadius
 
--- Page Container
+-- Scrolling Container for Buttons
 local PageContainer = Instance.new("ScrollingFrame", Main_Frame)
 PageContainer.Name = "PageContainer"
 PageContainer.Size = UDim2.new(1, -20, 1, -70)
 PageContainer.Position = UDim2.fromOffset(10, 60)
 PageContainer.BackgroundTransparency = 1
-PageContainer.ScrollBarThickness = 2
+PageContainer.ScrollBarThickness = 3
 PageContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
 PageContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
@@ -77,7 +78,7 @@ PageLayout.Padding = UDim.new(0, 8)
 
 -- Title
 local PageTitle = Instance.new("TextLabel", Main_Frame)
-PageTitle.Text = "Modular Hub v1.0"
+PageTitle.Text = "LT2 SlotTab"
 PageTitle.Size = UDim2.fromOffset(200, 30)
 PageTitle.Position = UDim2.fromOffset(15, 15)
 PageTitle.BackgroundTransparency = 1
@@ -87,7 +88,7 @@ PageTitle.Font = Theme.Fonts.MainBold
 PageTitle.TextXAlignment = Enum.TextXAlignment.Left
 
 -- ==========================================
--- 3. Feature API
+-- 3. The API Functions
 -- ==========================================
 local Hub = {}
 
@@ -151,17 +152,17 @@ function Hub:AddToggle(name, default, callback)
 end
 
 -- ==========================================
--- 4. Execution & Testing
+-- 4. Execute the UI creation
 -- ==========================================
+
+-- Adding your actual features here
+Hub:AddButton("Click Me", function()
+    print("Button pressed!")
+end)
+
+Hub:AddToggle("Test Toggle", false, function(val)
+    print("Toggle is: ", val)
+end)
+
+-- Make it accessible to other scripts if needed
 getgenv().Hub = Hub
-
--- Example Usage (This is what you'd put in your actual script):
-Hub:AddButton("Print Hello", function()
-    print("Hello from the menu!")
-end)
-
-Hub:AddToggle("God Mode", false, function(toggled)
-    print("God Mode is now: ", toggled)
-end)
-
-print("Menu Loaded Successfully!")
