@@ -523,7 +523,7 @@ if SettingsModule and SettingsModule.Init then
     SettingsModule.Init(SettingsTab, {User = User, Repo = Repo, Branch = Branch}) 
 end
 
-local GetWood = LoadModule("Wood")
-if GetWood and GetWood.Init then 
-    GetWood.Init(WoodTab) 
+local GetWoodModule = LoadModule("GetWood")
+if GetWoodModule and GetWood.Init then 
+    GetWoodModule.Init(WoodTab) 
 end
