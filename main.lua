@@ -9,6 +9,7 @@ local Branch = "main"
 local Library = {}
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 -- Destroy old instances for clean reloading
 for _, v in pairs(CoreGui:GetChildren()) do
@@ -48,12 +49,13 @@ function Library:CreateWindow()
     local SidebarList = Instance.new("UIListLayout")
     SidebarList.Parent = Sidebar
     SidebarList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    SidebarList.VerticalAlignment = Enum.VerticalAlignment.Top
     SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
-    SidebarList.Padding = UDim.new(0, 10)
+    SidebarList.Padding = UDim.new(0, 15) -- Adjusted padding for better spacing
     
     local UIPadding = Instance.new("UIPadding")
     UIPadding.Parent = Sidebar
-    UIPadding.PaddingTop = UDim.new(0, 15)
+    UIPadding.PaddingTop = UDim.new(0, 20)
 
     local ContentContainer = Instance.new("Frame")
     ContentContainer.Size = UDim2.new(1, -60, 1, -20)
@@ -89,29 +91,30 @@ function Library:CreateWindow()
         
         local TabBtn = Instance.new("ImageButton")
         TabBtn.Name = TabName
-        TabBtn.Size = UDim2.new(0, 30, 0, 30)
+        TabBtn.Size = UDim2.new(0, 32, 0, 32)
         TabBtn.Parent = Sidebar
         
-        -- If IconID is blank, make it a faintly visible square so you can click it
         if IconID == nil or IconID == "" then
-            TabBtn.BackgroundTransparency = 0.8
+            TabBtn.BackgroundTransparency = 0.85
             TabBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
             Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 6)
         else
             TabBtn.BackgroundTransparency = 1
             TabBtn.Image = IconID
         end
-        
         TabBtn.ImageColor3 = Color3.fromRGB(150, 150, 150)
 
-        local Indicator = Instance.new("Frame")
-        Indicator.Size = UDim2.new(0, 3, 0, 0)
-        Indicator.Position = UDim2.new(1, 5, 0.5, 0)
-        Indicator.AnchorPoint = Vector2.new(0, 0.5)
-        Indicator.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
-        Indicator.BorderSizePixel = 0
-        Indicator.Parent = TabBtn
-        Instance.new("UICorner", Indicator).CornerRadius = UDim.new(1, 0)
+        -- Animated Outline (UIStroke) instead of a line
+        local TabStroke = Instance.new("UIStroke")
+        TabStroke.Parent = TabBtn
+        TabStroke.Color = Color3.fromRGB(74, 120, 255)
+        TabStroke.Thickness = 0
+        TabStroke.Transparency = 1
+        TabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+        -- Tweens for the outline animation
+        local TweenIn = TweenService:Create(TabStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Thickness = 2, Transparency = 0})
+        local TweenOut = TweenService:Create(TabStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Thickness = 0, Transparency = 1})
 
         local TabPage = Instance.new("ScrollingFrame")
         TabPage.Size = UDim2.new(1, 0, 1, 0)
@@ -132,21 +135,21 @@ function Library:CreateWindow()
 
         TabBtn.MouseButton1Click:Connect(function()
             if CurrentTab then
-                CurrentTab.Indicator:TweenSize(UDim2.new(0, 3, 0, 0), "Out", "Quad", 0.2, true)
+                CurrentTab.TweenOut:Play()
                 CurrentTab.Btn.ImageColor3 = Color3.fromRGB(150, 150, 150)
                 CurrentTab.Page.Visible = false
             end
-            Indicator:TweenSize(UDim2.new(0, 3, 0, 20), "Out", "Quad", 0.2, true)
+            TweenIn:Play()
             TabBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
             TabPage.Visible = true
-            CurrentTab = {Btn = TabBtn, Indicator = Indicator, Page = TabPage}
+            CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
         end)
 
         if not CurrentTab then
             TabBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
-            Indicator.Size = UDim2.new(0, 3, 0, 20)
+            TweenIn:Play()
             TabPage.Visible = true
-            CurrentTab = {Btn = TabBtn, Indicator = Indicator, Page = TabPage}
+            CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
         end
 
         function Tab:CreateSection(Name)
@@ -181,8 +184,12 @@ function Library:CreateWindow()
             TitleLabel.Parent = ActionFrame
 
             local ActionBtn = Instance.new("TextButton")
-            ActionBtn.Size = UDim2.new(0, 70, 0, 24)
-            ActionBtn.Position = UDim2.new(1, -85, 0.5, -12)
+            ActionBtn.Size = UDim2.new(0, 70, 0, 26)
+            
+            -- FIX: Using AnchorPoint to keep it perfectly aligned to the right edge
+            ActionBtn.AnchorPoint = Vector2.new(1, 0.5)
+            ActionBtn.Position = UDim2.new(1, -15, 0.5, 0) 
+            
             ActionBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
             ActionBtn.Text = ButtonText
             ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
