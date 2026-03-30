@@ -10,6 +10,9 @@ function GhostSuite.Init(Tab)
     -- STATE & CONFIG
     -- ===========================
     _G.GhostSuiteEnabled = false
+    _G.GhostKey = Enum.UserInputType.MouseButton3 -- Default: Middle Click
+    _G.RestoreKey = Enum.KeyCode.Z
+    
     local ExtractedObjects = {}
     
     local BlacklistNames = {
@@ -21,6 +24,7 @@ function GhostSuite.Init(Tab)
     -- CORE LOGIC
     -- ===========================
     local function IsProtected(target)
+        if not target then return true end
         if BlacklistNames[target.Name] then return true end
         if target:FindFirstAncestor("Properties") or target:FindFirstAncestor("Owner") then
             return true
@@ -42,20 +46,17 @@ function GhostSuite.Init(Tab)
     end
 
     local function RestoreAll()
-        local count = 0
         for part, data in pairs(ExtractedObjects) do
             if part then
                 part.Parent = data.Parent
                 if data.Box then data.Box:Destroy() end
-                count = count + 1
             end
         end
         ExtractedObjects = {}
-        return count
     end
 
     -- ===========================
-    -- UI ELEMENTS
+    -- UI ELEMENTS (Fixed Labels)
     -- ===========================
     Tab:CreateSection("Ghost Suite")
     Tab:CreateToggle("Master Enable", false, function(s) 
@@ -63,15 +64,14 @@ function GhostSuite.Init(Tab)
         if not s then RestoreAll() end
     end)
 
-    Tab:CreateSection("Controls")
-    Tab:CreateAction("Restore All Objects", "Reset", function()
-        local count = RestoreAll()
-        print("Restored " .. count .. " objects.")
+    -- Now these are functional keybinds instead of static "INFO" buttons
+    Tab:CreateKeybind("Mass Restore Key", _G.RestoreKey, function()
+        if _G.GhostSuiteEnabled then RestoreAll() end
     end)
 
-    Tab:CreateSection("Help / Keybinds")
-    Tab:CreateAction("MB3: Ghost Object", "INFO", function() end)
-    Tab:CreateAction("Z: Mass Restore", "INFO", function() end)
+    Tab:CreateAction("Manual Restore All", "Reset Now", function()
+        RestoreAll()
+    end)
 
     -- ===========================
     -- INPUT HANDLER
@@ -79,8 +79,8 @@ function GhostSuite.Init(Tab)
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe or not _G.GhostSuiteEnabled then return end
 
-        -- MB3 (Middle Click): Toggle Ghost State
-        if input.UserInputType == Enum.UserInputType.MouseButton3 then
+        -- Ghost/Unghost Logic (Checks against the MouseButton3 or your custom bind)
+        if input.UserInputType == _G.GhostKey then
             local target = Mouse.Target
             
             if target and target:IsA("BasePart") then
@@ -95,13 +95,9 @@ function GhostSuite.Init(Tab)
                     local originalParent = target.Parent
                     local outline = CreateOutline(target)
                     ExtractedObjects[target] = { Parent = originalParent, Box = outline }
-                    target.Parent = nil -- This "ghosts" the object
+                    target.Parent = nil 
                 end
             end
-
-        -- Z: Mass Restore
-        elseif input.KeyCode == Enum.KeyCode.Z then
-            RestoreAll()
         end
     end)
 end
