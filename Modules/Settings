@@ -1,38 +1,30 @@
 local Settings = {}
 
 function Settings:Load(Tab, MainFrame, ScreenGui)
-    local UserInputService = game:GetService("UserInputService")
-    local Hub = _G.Hub -- Accessing the Hub API
+    local Hub = _G.Hub -- Get the API from the global table
     
-    -- CATEGORY 1: BINDINGS
-    Hub:AddSection(Tab, "Controls")
+    -- SECTION 1
+    Hub:AddSection(Tab, "Keybinds")
     
-    local CurrentKey = Enum.KeyCode.RightControl
-    Hub:AddButton(Tab, "Bind Menu Toggle (Current: R-Ctrl)", function()
-        print("Rebind logic goes here")
+    Hub:AddButton(Tab, "Toggle Key: Right Ctrl", function()
+        print("Rebind clicked")
     end)
 
-    -- CATEGORY 2: VISUALS
-    Hub:AddSection(Tab, "Interface")
+    -- SECTION 2
+    Hub:AddSection(Tab, "Menu Layout")
 
-    Hub:AddButton(Tab, "Increase Menu Scale", function()
-        MainFrame.Size = UDim2.new(0, MainFrame.AbsoluteSize.X + 20, 0, MainFrame.AbsoluteSize.Y + 15)
+    Hub:AddButton(Tab, "Scale Up", function()
+        MainFrame.Size += UDim2.fromOffset(20,15)
     end)
 
-    Hub:AddButton(Tab, "Decrease Menu Scale", function()
-        MainFrame.Size = UDim2.new(0, MainFrame.AbsoluteSize.X - 20, 0, MainFrame.AbsoluteSize.Y - 15)
+    Hub:AddButton(Tab, "Scale Down", function()
+        MainFrame.Size -= UDim2.fromOffset(20,15)
     end)
 
-    local IsDark = true
-    Hub:AddButton(Tab, "Toggle Dark/Light Mode", function()
-        IsDark = not IsDark
-        MainFrame.BackgroundColor3 = IsDark and Color3.fromRGB(24, 25, 30) or Color3.fromRGB(240, 240, 240)
-    end)
+    -- SECTION 3
+    Hub:AddSection(Tab, "Danger Zone")
 
-    -- CATEGORY 3: SYSTEM
-    Hub:AddSection(Tab, "System")
-
-    Hub:AddButton(Tab, "Destroy / Unload Menu", function()
+    Hub:AddButton(Tab, "Unload", function()
         ScreenGui:Destroy()
     end)
 end
