@@ -58,20 +58,17 @@ function GhostSuite.Init(Tab)
     -- UI ELEMENTS
     -- ===========================
     Tab:CreateSection("Ghost Suite")
+    
     Tab:CreateToggle("Master Enable", false, function(s) 
         _G.GhostSuiteEnabled = s 
         if not s then RestoreAll() end
     end)
 
-    Tab:CreateSection("Controls")
     Tab:CreateAction("Restore All Objects", "Reset", function()
         local count = RestoreAll()
         print("Restored " .. count .. " objects.")
     end)
 
-    Tab:CreateSection("Keybinds")
-    
-    -- Dynamic Keybinds instead of static Actions
     Tab:CreateKeybind("Ghost Object Key", Enum.UserInputType.MouseButton3, function()
         if not _G.GhostSuiteEnabled then return end
         
