@@ -1,15 +1,13 @@
--- Inside your module's Init function
+local Module = {}
+
 function Module.Init(Tab)
-    Tab:CreateToggle("Speed Hack", false, function(state)
-        print("Speed is now: ", state)
+    Tab:CreateSlider("WalkSpeed", 16, 250, 16, function(v)
+        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = v
+    end)
+    
+    Tab:CreateToggle("Infinite Jump", false, function(state)
         -- logic here
     end)
-
-    Tab:CreateSlider("WalkSpeed", 16, 200, 16, function(value)
-        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = value
-    end)
-
-    Tab:CreateKeybind("Quick Teleport", Enum.KeyCode.E, function()
-        print("E was pressed!")
-    end)
 end
+
+return Module -- <--- THIS LINE IS THE MOST IMPORTANT!
