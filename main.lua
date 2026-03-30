@@ -1,153 +1,182 @@
--- [[ Load Theme First ]]
-local UI_Theme_URL = "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/ui_theme.lua"
-local Theme = loadstring(game:HttpGet(UI_Theme_URL))()
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
--- [[ Cleanup Old UI ]]
-if game.CoreGui:FindFirstChild("MyModularHub") then
-    game.CoreGui.MyModularHub:Destroy()
+-- [[ Load Theme ]]
+local Theme = {
+    ["Colors"] = {
+        MainBackground = Color3.fromRGB(24, 25, 30),
+        NavbarBackground = Color3.fromRGB(18, 19, 23),
+        ElementBackground = Color3.fromRGB(30, 31, 37),
+        AccentColor = Color3.fromRGB(75, 120, 240),
+        TextColor = Color3.fromRGB(255, 255, 255),
+        SecondaryTextColor = Color3.fromRGB(200, 200, 200),
+        ButtonDefault = Color3.fromRGB(35, 36, 42),
+        SliderBar = Color3.fromRGB(50, 50, 60),
+        SliderHandle = Color3.fromRGB(255, 255, 255),
+        ToggleOn = Color3.fromRGB(75, 120, 240),
+        ToggleOff = Color3.fromRGB(50, 50, 60),
+    },
+    ["Fonts"] = {
+        Main = Enum.Font.Gotham,
+        MainBold = Enum.Font.GothamBold,
+        Secondary = Enum.Font.GothamMedium,
+    },
+    ["Sizes"] = {
+        ElementHeight = 40,
+        ElementCornerRadius = UDim.new(0, 8),
+        UI_Size = UDim2.fromOffset(550, 380)
+    }
+}
+
+-- [[ Utility Functions ]]
+local function MakeDraggable(frame, parent)
+    local dragging, dragInput, dragStart, startPos
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = parent.Position
+        end
+    end)
+    frame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            parent.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
 end
 
--- [[ Base Frames ]]
+-- [[ Cleanup ]]
+if game.CoreGui:FindFirstChild("ModernHub") then game.CoreGui.ModernHub:Destroy() end
+
+-- [[ Main UI Construction ]]
 local Hub_ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-Hub_ScreenGui.Name = "MyModularHub"
-Hub_ScreenGui.ResetOnSpawn = false
+Hub_ScreenGui.Name = "ModernHub"
 
 local Main_Frame = Instance.new("Frame", Hub_ScreenGui)
-Main_Frame.Size = UDim2.fromOffset(600, 400)
+Main_Frame.Size = Theme.Sizes.UI_Size
 Main_Frame.Position = UDim2.fromScale(0.5, 0.5)
 Main_Frame.AnchorPoint = Vector2.new(0.5, 0.5)
 Main_Frame.BackgroundColor3 = Theme.Colors.MainBackground
+Main_Frame.BorderSizePixel = 0
 Instance.new("UICorner", Main_Frame).CornerRadius = Theme.Sizes.ElementCornerRadius
 
--- [[ Sidebar Construction ]]
+-- Subtle Border (UIStroke)
+local MainStroke = Instance.new("UIStroke", Main_Frame)
+MainStroke.Thickness = 1.2
+MainStroke.Color = Theme.Colors.AccentColor
+MainStroke.Transparency = 0.6
+
+-- Drag Handle / Top Bar
+local TopBar = Instance.new("Frame", Main_Frame)
+TopBar.Size = UDim2.new(1, 0, 0, 30)
+TopBar.BackgroundTransparency = 1
+MakeDraggable(TopBar, Main_Frame)
+
+-- Sidebar
 local Sidebar = Instance.new("Frame", Main_Frame)
-Sidebar.Name = "Sidebar"
-Sidebar.Size = UDim2.new(0, 140, 1, -20)
-Sidebar.Position = UDim2.fromOffset(10, 10)
+Sidebar.Size = UDim2.new(0, 150, 1, -10)
+Sidebar.Position = UDim2.fromOffset(5, 5)
 Sidebar.BackgroundColor3 = Theme.Colors.NavbarBackground
-Instance.new("UICorner", Sidebar)
+Instance.new("UICorner", Sidebar).CornerRadius = Theme.Sizes.ElementCornerRadius
 
 local SidebarLayout = Instance.new("UIListLayout", Sidebar)
-SidebarLayout.Padding = UDim.new(0, 5)
+SidebarLayout.Padding = UDim.new(0, 4)
 SidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
--- [[ Page Holder Construction ]]
+-- Page Holder
 local PageHolder = Instance.new("Frame", Main_Frame)
-PageHolder.Name = "PageHolder"
-PageHolder.Size = UDim2.new(1, -170, 1, -20)
-PageHolder.Position = UDim2.fromOffset(160, 10)
+PageHolder.Size = UDim2.new(1, -165, 1, -40)
+PageHolder.Position = UDim2.fromOffset(160, 35)
 PageHolder.BackgroundTransparency = 1
 
--- [[ Tab System API ]]
-local Hub = { Tabs = {} }
-local TabCount = 0
+-- [[ Hub API ]]
+local Hub = { Tabs = {}, ActiveTab = nil }
 
 function Hub:CreateTab(name)
-    TabCount = TabCount + 1
+    local TabBtn = Instance.new("TextButton", Sidebar)
+    TabBtn.Size = UDim2.new(0.9, 0, 0, 32)
+    TabBtn.BackgroundColor3 = Theme.Colors.ButtonDefault
+    TabBtn.Text = name
+    TabBtn.TextColor3 = Theme.Colors.SecondaryTextColor
+    TabBtn.Font = Theme.Fonts.Secondary
+    TabBtn.TextSize = 13
+    Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 6)
     
-    -- Create the scrolling content area
+    local TabStroke = Instance.new("UIStroke", TabBtn)
+    TabStroke.Thickness = 1
+    TabStroke.Color = Theme.Colors.AccentColor
+    TabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    TabStroke.Transparency = 1 -- Hidden by default
+
     local Page = Instance.new("ScrollingFrame", PageHolder)
-    Page.Name = name .. "Tab"
     Page.Size = UDim2.fromScale(1, 1)
     Page.BackgroundTransparency = 1
     Page.Visible = false
-    Page.ScrollBarThickness = 2
+    Page.ScrollBarThickness = 0
     Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    
-    local Layout = Instance.new("UIListLayout", Page)
-    Layout.Padding = UDim.new(0, 8)
+    Instance.new("UIListLayout", Page).Padding = UDim.new(0, 6)
 
-    -- Create the Sidebar Button
-    local TabBtn = Instance.new("TextButton", Sidebar)
-    TabBtn.Size = UDim2.new(0.9, 0, 0, 35)
-    TabBtn.Text = name
-    TabBtn.BackgroundColor3 = Theme.Colors.ButtonDefault
-    TabBtn.TextColor3 = Theme.Colors.TextColor
-    TabBtn.Font = Theme.Fonts.Main
-    TabBtn.LayoutOrder = TabCount
-    Instance.new("UICorner", TabBtn)
-
-    -- Click Logic
     TabBtn.MouseButton1Click:Connect(function()
-        for _, p in pairs(PageHolder:GetChildren()) do
-            if p:IsA("ScrollingFrame") then p.Visible = false end
+        for _, otherPage in pairs(PageHolder:GetChildren()) do otherPage.Visible = false end
+        for _, otherBtn in pairs(Sidebar:GetChildren()) do 
+            if otherBtn:IsA("TextButton") then
+                TweenService:Create(otherBtn, TweenInfo.new(0.3), {BackgroundColor3 = Theme.Colors.ButtonDefault, TextColor3 = Theme.Colors.SecondaryTextColor}):Play()
+                otherBtn.UIStroke.Transparency = 1
+            end
         end
+        
         Page.Visible = true
+        TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundColor3 = Theme.Colors.AccentColor, TextColor3 = Theme.Colors.TextColor}):Play()
+        TabBtn.UIStroke.Transparency = 0
     end)
 
-    -- Default to the first tab created
-    if TabCount == 1 then Page.Visible = true end
+    if not Hub.ActiveTab then
+        Page.Visible = true
+        Hub.ActiveTab = TabBtn
+        TabBtn.BackgroundColor3 = Theme.Colors.AccentColor
+        TabBtn.TextColor3 = Theme.Colors.TextColor
+        TabStroke.Transparency = 0
+    end
 
     return Page
 end
 
--- [[ Element API ]]
 function Hub:AddButton(parent, name, callback)
-    local Btn = Instance.new("TextButton", parent)
-    Btn.Size = UDim2.new(1, -10, 0, 40)
-    Btn.BackgroundColor3 = Theme.Colors.ElementBackground
-    Btn.Text = "  " .. name
-    Btn.TextColor3 = Theme.Colors.TextColor
-    Btn.TextXAlignment = Enum.TextXAlignment.Left
-    Btn.Font = Theme.Fonts.Main
-    Instance.new("UICorner", Btn)
-    Btn.MouseButton1Click:Connect(callback)
-    return Btn
-end
-
--- [[ Settings Logic Implementation ]]
-local Settings = {}
-function Settings:Load(Tab, MainFrame, ScreenGui)
-    local UserInputService = game:GetService("UserInputService")
-    local CurrentKey = Enum.KeyCode.RightControl
+    local BtnFrame = Instance.new("Frame", parent)
+    BtnFrame.Size = UDim2.new(1, -10, 0, Theme.Sizes.ElementHeight)
+    BtnFrame.BackgroundColor3 = Theme.Colors.ElementBackground
+    Instance.new("UICorner", BtnFrame).CornerRadius = Theme.Sizes.ElementCornerRadius
     
-    -- 1. Menu Toggle Hotkey
-    Hub:AddButton(Tab, "Menu Toggle: [Right Control]", function()
-        print("To change key, edit the 'CurrentKey' variable in script.")
-    end)
+    local Btn = Instance.new("TextButton", BtnFrame)
+    Btn.Size = UDim2.fromScale(1, 1)
+    Btn.BackgroundTransparency = 1
+    Btn.Text = "   " .. name
+    Btn.TextColor3 = Theme.Colors.TextColor
+    Btn.Font = Theme.Fonts.Main
+    Btn.TextSize = 14
+    Btn.TextXAlignment = Enum.TextXAlignment.Left
 
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.KeyCode == CurrentKey then
-            ScreenGui.Enabled = not ScreenGui.Enabled
-        end
+    -- Hover Animation
+    Btn.MouseEnter:Connect(function()
+        TweenService:Create(BtnFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 41, 48)}):Play()
     end)
-
-    -- 2. Scale / UI Size
-    Hub:AddButton(Tab, "Increase Menu Scale", function()
-        MainFrame.Size = UDim2.fromOffset(MainFrame.AbsoluteSize.X + 20, MainFrame.AbsoluteSize.Y + 15)
+    Btn.MouseLeave:Connect(function()
+        TweenService:Create(BtnFrame, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Colors.ElementBackground}):Play()
     end)
-
-    Hub:AddButton(Tab, "Decrease Menu Scale", function()
-        MainFrame.Size = UDim2.fromOffset(MainFrame.AbsoluteSize.X - 20, MainFrame.AbsoluteSize.Y - 15)
-    end)
-
-    -- 3. Dark Mode / Light Mode Toggle
-    local IsDark = true
-    Hub:AddButton(Tab, "Toggle Dark/Light Mode", function()
-        IsDark = not IsDark
-        MainFrame.BackgroundColor3 = IsDark and Theme.Colors.MainBackground or Color3.fromRGB(240, 240, 240)
-    end)
-
-    -- 4. Unload Button
-    Hub:AddButton(Tab, "Unload UI / Stop Script", function()
-        ScreenGui:Destroy()
-    end)
+    
+    Btn.MouseButton1Click:Connect(callback)
 end
 
--- [[ Initialize Your Tabs ]]
-local HomeTab     = Hub:CreateTab("Home")
-local PlayerTab   = Hub:CreateTab("Player")
-local WorldTab    = Hub:CreateTab("World")
-local TeleportTab = Hub:CreateTab("Teleport")
-local TreeTab     = Hub:CreateTab("Tree")
+-- [[ Initialization ]]
+local HomeTab = Hub:CreateTab("Home")
+local PlayerTab = Hub:CreateTab("Player")
 local SettingsTab = Hub:CreateTab("Settings")
 
--- [[ Initialize Content ]]
-Hub:AddButton(HomeTab, "Welcome to the Hub", function() print("Home!") end)
-Hub:AddButton(PlayerTab, "Infinite Jump (Example)", function() print("Jump active") end)
+Hub:AddButton(HomeTab, "Welcome to Modern Hub", function() print("Hello!") end)
+Hub:AddButton(SettingsTab, "Unload Script", function() Hub_ScreenGui:Destroy() end)
 
--- RUN THE SETTINGS LOAD FUNCTION
-Settings:Load(SettingsTab, Main_Frame, Hub_ScreenGui)
-
-getgenv().Hub = Hub
+return Hub
