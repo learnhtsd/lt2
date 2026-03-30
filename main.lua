@@ -1,49 +1,65 @@
--- GitHub Config
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
 
--- 1. Load Orion Library First
-local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
+-- 1. Create the Screen UI
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local UIListLayout = Instance.new("UIListLayout")
 
--- 2. Create Main Window
-local Window = OrionLib:MakeWindow({
-    Name = "Custom Hub", 
-    HidePremium = false, 
-    SaveConfig = true, 
-    ConfigFolder = "OrionConfig",
-    IntroText = "Initializing..."
-})
+ScreenGui.Name = "CustomHub"
+ScreenGui.Parent = game.CoreGui
+ScreenGui.ResetOnSpawn = false
 
--- 3. Dynamic Module Loader with Cache-Buster
-local function LoadGithubModule(ModuleName)
-    -- Adding a random string at the end (?t=) prevents Roblox from loading a cached old version
-    local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s", 
-        User, Repo, Branch, ModuleName, tick())
-        
-    local Success, Result = pcall(function()
-        return loadstring(game:HttpGet(URL))()
+-- Minimalist Sidebar/Corner Design
+MainFrame.Name = "Container"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0, 10, 0.5, -100) -- Left side center
+MainFrame.Size = UDim2.new(0, 150, 0, 0) -- Starts small, expands with buttons
+MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+
+UIListLayout.Parent = MainFrame
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- 2. The "Bridge" Function
+-- This is what we pass to modules so they can add buttons
+local UI_API = {}
+function UI_API.CreateButton(text, callback)
+    local btn = Instance.new("TextButton")
+    btn.Name = text
+    btn.Parent = MainFrame
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.Font = Enum.Font.Offset
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.BorderSizePixel = 0
+    
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+-- 3. Module Loader
+local function LoadModule(name)
+    local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s", 
+        User, Repo, Branch, name, tick())
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
     end)
     
-    if Success and type(Result) == "table" then
-        return Result
+    if success and type(result) == "table" then
+        return result
     else
-        warn("Failed to load module: " .. ModuleName .. " | Error: " .. tostring(Result))
-        return nil
+        warn("Failed: " .. tostring(result))
     end
 end
 
--- 4. Initialize the Movement Module
-local Movement = LoadGithubModule("PlayerMovement")
+-- 4. Execute Module
+local Movement = LoadModule("PlayerMovement")
 if Movement then
-    Movement.Init(OrionLib, Window)
-else
-    OrionLib:MakeNotification({
-        Name = "Error",
-        Content = "Movement module failed to load. Check F9 console.",
-        Time = 5
-    })
+    Movement.Init(UI_API)
 end
-
--- 5. Finalize UI
-OrionLib:Init()
