@@ -1,21 +1,37 @@
 local PlayerMovement = {}
 
-function PlayerMovement.Init(Api)
-    -- Speed Toggle
+function PlayerMovement.Init(Window)
+    -- Create a Tab for Player Options (using a standard user icon ID)
+    local PlayerTab = Window:CreateTab("rbxassetid://7733674079")
+
+    -- Add a bold section title just like "Base Option" or "Land Option"
+    PlayerTab:CreateSection("Movement Options")
+
+    -- Add an action button layout (Text on left, button on right)
     _G.SpeedEnabled = false
-    Api.CreateButton("Toggle Speed", function()
+    PlayerTab:CreateAction("Speed Hack", "Toggle", function()
         _G.SpeedEnabled = not _G.SpeedEnabled
-        print("Speed is: " .. tostring(_G.SpeedEnabled))
+        print("Speed hack is now: " .. tostring(_G.SpeedEnabled))
     end)
 
-    -- Reset Button
-    Api.CreateButton("Reset Character", function()
-        if game.Players.LocalPlayer.Character then
-            game.Players.LocalPlayer.Character:BreakJoints()
+    PlayerTab:CreateAction("Reset Character", "Kill", function()
+        local char = game.Players.LocalPlayer.Character
+        if char then
+            char:BreakJoints()
         end
     end)
 
-    -- Speed Loop
+    -- Example of a second section
+    PlayerTab:CreateSection("Misc Options")
+    
+    PlayerTab:CreateAction("Print Position", "Print", function()
+        local char = game.Players.LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            print(char.HumanoidRootPart.Position)
+        end
+    end)
+
+    -- Background Loop for Speed
     task.spawn(function()
         while task.wait() do
             local char = game.Players.LocalPlayer.Character
