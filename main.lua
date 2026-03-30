@@ -1,3 +1,10 @@
+-- Force destroy any old UI instances
+for _, v in pairs(game.CoreGui:GetChildren()) do
+    if v:IsA("ScreenGui") and (v.Name:find("Rayfield") or v.Name:find("Orion")) then
+        v:Destroy()
+    end
+end
+
 -- GitHub Config
 local User = "learnhtsd"
 local Repo = "lt2"
