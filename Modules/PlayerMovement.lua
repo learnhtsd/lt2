@@ -32,7 +32,7 @@ function PlayerMovement.Init(Tab)
     local flyGyro = nil
 
     -- ===========================
-    -- HELPERS & PHYSICS
+    -- PHYSICS & UTILS
     -- ===========================
     local function UpdateFlyPhysics(state)
         local char = LocalPlayer.Character
@@ -61,7 +61,7 @@ function PlayerMovement.Init(Tab)
         end
     end
 
-    -- Click TP Logic
+    -- Click TP 
     UserInputService.InputBegan:Connect(function(input, processed)
         if not processed and _G.ClickTP and input.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             local Mouse = LocalPlayer:GetMouse()
@@ -72,7 +72,7 @@ function PlayerMovement.Init(Tab)
         end
     end)
 
-    -- Infinite Jump Logic
+    -- Inf Jump
     UserInputService.JumpRequest:Connect(function()
         if _G.InfJump then
             local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -81,30 +81,38 @@ function PlayerMovement.Init(Tab)
     end)
 
     -- ===========================
-    -- UI ELEMENTS
+    -- UI SECTIONS
     -- ===========================
     
-    Tab:CreateSection("Speed & Movement")
+    -- SPEED SECTION
+    Tab:CreateSection("Speed & Sprint")
     Tab:CreateToggle("Enable WalkSpeed", false, function(s) _G.SpeedEnabled = s end)
     Tab:CreateSlider("Walk Value", 16, 200, 50, function(v) _G.WalkSpeed = v end)
     Tab:CreateToggle("Enable Sprinting", false, function(s) _G.SprintEnabled = s end)
     Tab:CreateSlider("Sprint Value", 50, 300, 100, function(v) _G.SprintSpeed = v end)
     Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
 
-    Tab:CreateSection("Jumping & Flight")
+    -- JUMPING SECTION
+    Tab:CreateSection("Jumping")
     Tab:CreateToggle("Enable Jump Height", false, function(s) _G.JumpEnabled = s end)
     Tab:CreateSlider("Jump Power", 50, 300, 50, function(v) _G.JumpHeight = v end)
     Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
+
+    -- FLIGHT SECTION
+    Tab:CreateSection("Flight")
     Tab:CreateToggle("Enable Fly", false, function(s) _G.FlyEnabled = s UpdateFlyPhysics(s) end)
     Tab:CreateSlider("Fly Speed", 16, 300, 50, function(v) _G.FlySpeed = v end)
+    Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
+        _G.FlyEnabled = not _G.FlyEnabled 
+        UpdateFlyPhysics(_G.FlyEnabled) 
+    end)
 
-    Tab:CreateSection("Cheats & Protection")
-    Tab:CreateToggle("Noclip (Walk Through Walls)", false, function(s) _G.Noclip = s end)
+    -- UTILITY SECTION
+    Tab:CreateSection("Utility")
+    Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
     Tab:CreateToggle("Anti-Fling", false, function(s) _G.AntiFling = s end)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
-
-    Tab:CreateSection("Utility")
     Tab:CreateAction("Reset Character", "Kill", function()
         if LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
     end)
@@ -119,24 +127,22 @@ function PlayerMovement.Init(Tab)
         local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart")
 
-        -- Noclip Logic
+        -- Noclip
         if _G.Noclip then
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then v.CanCollide = false end
             end
         end
 
-        -- Water Walk Logic (LT2 Specific)
-        if _G.WaterWalk then
-            -- This checks if you are near the Y level of water in LT2
-            -- Or you can check the material/region
-            if hrp.Position.Y <= 0.5 and hrp.Position.Y >= -5 then
+        -- Water Walk
+        if _G.WaterWalk and hrp then
+            if hrp.Position.Y <= 1 and hrp.Position.Y >= -5 then
                 hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
                 hrp.CFrame = hrp.CFrame + Vector3.new(0, 0.1, 0)
             end
         end
 
-        -- Anti-Fling Logic
+        -- Anti-Fling
         if _G.AntiFling and hrp then
             hrp.RotVelocity = Vector3.new(0, 0, 0)
         end
@@ -154,7 +160,7 @@ function PlayerMovement.Init(Tab)
             end
         end
 
-        -- Fly Movement
+        -- Fly 
         if _G.FlyEnabled and hrp then
             if not hrp:FindFirstChild("ExploitFlyVelocity") then UpdateFlyPhysics(true) end
             if flyVelocity and flyGyro then
