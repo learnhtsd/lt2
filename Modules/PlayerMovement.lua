@@ -1,32 +1,35 @@
 local PlayerMovement = {}
 
--- Notice we receive "Tab" instead of "Window" now
 function PlayerMovement.Init(Tab)
     
     Tab:CreateSection("Movement Options")
 
+    -- Speed Hack Toggle (Using CreateAction since CreateToggle doesn't exist yet)
     _G.SpeedEnabled = false
     Tab:CreateAction("Speed Hack", "Toggle", function()
         _G.SpeedEnabled = not _G.SpeedEnabled
         print("Speed hack is now: " .. tostring(_G.SpeedEnabled))
--- Inside your module's Init function
-function Module.Init(Tab)
-    Tab:CreateToggle("Speed Hack", false, function(state)
-        print("Speed is now: ", state)
-        -- logic here
     end)
 
+    -- Reset Character
     Tab:CreateAction("Reset Character", "Kill", function()
         local char = game.Players.LocalPlayer.Character
         if char then
             char:BreakJoints()
         end
-    Tab:CreateSlider("WalkSpeed", 16, 200, 16, function(value)
-        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = value
+    end)
+
+    -- Fast WalkSpeed (Using CreateAction since CreateSlider doesn't exist yet)
+    Tab:CreateAction("Fast WalkSpeed (50)", "Apply", function()
+        local char = game.Players.LocalPlayer.Character
+        if char and char:FindFirstChildOfClass("Humanoid") then
+            char:FindFirstChildOfClass("Humanoid").WalkSpeed = 50
+        end
     end)
 
     Tab:CreateSection("Misc Options")
     
+    -- Print Position
     Tab:CreateAction("Print Position", "Print", function()
         local char = game.Players.LocalPlayer.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
@@ -34,17 +37,28 @@ function Module.Init(Tab)
         end
     end)
 
+    -- Background loop to maintain Speed Hack
     task.spawn(function()
         while task.wait() do
             local char = game.Players.LocalPlayer.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             if hum then
-                hum.WalkSpeed = _G.SpeedEnabled and 60 or 16
+                if _G.SpeedEnabled then
+                    hum.WalkSpeed = 60
+                end
+                -- Removed the "or 16" fallback here so it doesn't fight the "Fast WalkSpeed" button when the toggle is off
             end
         end
-    Tab:CreateKeybind("Quick Teleport", Enum.KeyCode.E, function()
-        print("E was pressed!")
     end)
+
+    -- Quick Teleport Keybind (Using native UserInputService since CreateKeybind doesn't exist yet)
+    local UserInputService = game:GetService("UserInputService")
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.E then
+            print("E was pressed! (Quick Teleport Placeholder)")
+        end
+    end)
+
 end
 
 return PlayerMovement
