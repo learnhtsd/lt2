@@ -114,7 +114,7 @@ function Library:CreateWindow()
         end
     end)
 
-    function Window:CreateTab(TabName, IconID)
+    function Window:CreateTab(TabName, IconName)
         local Tab = {}
         
         local TabBtn = Instance.new("ImageButton")
@@ -125,7 +125,16 @@ function Library:CreateWindow()
         TabBtn.BackgroundTransparency = 1
         Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 8)
         
-        if IconID == nil or IconID == "" then
+        if IconName and IconName ~= "" then
+            -- Construct the Raw GitHub URL using your existing config
+            -- Example: https://raw.githubusercontent.com/learnhtsd/lt2/main/Icons/home.png
+            local RawUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/Icons/%s", 
+                User, Repo, Branch, IconName)
+            
+            -- Use getcustomasset to handle the web image if your executor supports it
+            -- Most modern executors handle HttpGet images or direct URLs in ImageButtons
+            TabBtn.Image = RawUrl
+        else
             local FallbackText = Instance.new("TextLabel", TabBtn)
             FallbackText.Size = UDim2.new(1, 0, 1, 0)
             FallbackText.BackgroundTransparency = 1
@@ -133,10 +142,9 @@ function Library:CreateWindow()
             FallbackText.TextColor3 = Color3.fromRGB(255, 255, 255)
             FallbackText.Font = Enum.Font.GothamBold
             FallbackText.TextSize = 14
-        else
-            TabBtn.Image = IconID
         end
-        TabBtn.ImageColor3 = Color3.fromRGB(120, 120, 130)
+    
+        TabBtn.ImageColor3 = Color3.fromRGB(120, 120, 130) 
 
         local TweenIn = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0.85, ImageColor3 = Color3.fromRGB(255, 255, 255)})
         local TweenOut = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 1, ImageColor3 = Color3.fromRGB(120, 120, 130)})
@@ -442,11 +450,13 @@ end
 -- SCRIPT EXECUTION
 -- ==========================================
 local HubWindow = Library:CreateWindow()
-local HomeTab = HubWindow:CreateTab("Home", "")
-local PlayerTab = HubWindow:CreateTab("Player", "")
-local WorldTab = HubWindow:CreateTab("World", "")
-local TeleportTab = HubWindow:CreateTab("Teleport", "")
-local BuildTab = HubWindow:CreateTab("Build", "") -- NEW BUILD TAB
+
+-- Just pass the filename.ext; the script adds the GitHub path automatically
+local HomeTab     = HubWindow:CreateTab("Home",     "home.png")
+local PlayerTab   = HubWindow:CreateTab("Player",   "player.png")
+local WorldTab    = HubWindow:CreateTab("World",    "world.png")
+local TeleportTab = HubWindow:CreateTab("Teleport", "teleport.png")
+local BuildTab    = HubWindow:CreateTab("Build",    "build.png")
 
 local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s", 
