@@ -446,6 +446,7 @@ local HomeTab = HubWindow:CreateTab("Home", "")
 local PlayerTab = HubWindow:CreateTab("Player", "")
 local WorldTab = HubWindow:CreateTab("World", "")
 local TeleportTab = HubWindow:CreateTab("Teleport", "")
+local BuildTab = HubWindow:CreateTab("Build", "") -- NEW BUILD TAB
 
 local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s", 
@@ -469,5 +470,5 @@ if TeleportModule and TeleportModule.Init then
 end
 local GhostModule = LoadModule("GhostSuite")
 if GhostModule and GhostModule.Init then
-    GhostModule.Init(WorldTab) 
+    GhostModule.Init(BuildTab) -- MOVED TO BUILD TAB
 end
