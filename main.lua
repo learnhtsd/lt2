@@ -2,6 +2,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
+local Version = "v0.0.001"
 
 -- ==========================================
 -- UI ENGINE START
@@ -23,6 +24,7 @@ function Library:CreateWindow()
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "NexusCustomHub"
     ScreenGui.Parent = CoreGui
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     -- Main Frame
     local MainFrame = Instance.new("Frame")
@@ -48,12 +50,12 @@ function Library:CreateWindow()
     SideBlock.BorderSizePixel = 0
     SideBlock.Parent = Sidebar
 
-    -- Header
+    -- Header (Added Version Display)
     local HeaderTitle = Instance.new("TextLabel")
     HeaderTitle.Size = UDim2.new(1, -75, 0, 30)
     HeaderTitle.Position = UDim2.new(0, 65, 0, 10)
     HeaderTitle.BackgroundTransparency = 1
-    HeaderTitle.Text = "<b>NEXUS</b> <font color=\"#4a78ff\">HUB</font>"
+    HeaderTitle.Text = "<b>NEXUS</b> <font color=\"#4a78ff\">HUB</font> <font color=\"#555555\">" .. Version .. "</font>"
     HeaderTitle.RichText = true
     HeaderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     HeaderTitle.Font = Enum.Font.GothamMedium
@@ -78,10 +80,10 @@ function Library:CreateWindow()
     SidebarPadding.Parent = TabContainer
     SidebarPadding.PaddingTop = UDim.new(0, 20)
 
-    -- Content Container (Fixed positioning to prevent cutoffs)
+    -- Content Container Fixed (Moved right slightly to stop left cutoff)
     local ContentContainer = Instance.new("Frame")
-    ContentContainer.Size = UDim2.new(1, -70, 1, -55)
-    ContentContainer.Position = UDim2.new(0, 60, 0, 45)
+    ContentContainer.Size = UDim2.new(1, -85, 1, -60)
+    ContentContainer.Position = UDim2.new(0, 70, 0, 45)
     ContentContainer.BackgroundTransparency = 1
     ContentContainer.Parent = MainFrame
 
@@ -134,22 +136,22 @@ function Library:CreateWindow()
         TabPage.BorderSizePixel = 0
         TabPage.Visible = false
         TabPage.Parent = ContentContainer
-        TabPage.ClipsDescendants = false -- Allows strokes to show fully
+        TabPage.ClipsDescendants = false -- Prevents border cutoff
 
         local PageLayout = Instance.new("UIListLayout")
         PageLayout.Parent = TabPage
         PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
         PageLayout.Padding = UDim.new(0, 6) 
 
-        -- Element Padding (Fixes side cutoffs)
+        -- Internal Padding (Critical fix for left/bottom cutoff)
         local PagePadding = Instance.new("UIPadding")
         PagePadding.Parent = TabPage
-        PagePadding.PaddingLeft = UDim.new(0, 2)
-        PagePadding.PaddingRight = UDim.new(0, 10)
-        PagePadding.PaddingBottom = UDim.new(0, 10)
+        PagePadding.PaddingLeft = UDim.new(0, 5)   -- Gives border space on left
+        PagePadding.PaddingRight = UDim.new(0, 5)  -- Space on right
+        PagePadding.PaddingBottom = UDim.new(0, 15) -- Space at very bottom
 
         PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 20) -- Added bottom buffer
+            TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 20)
         end)
     
         TabBtn.MouseButton1Click:Connect(function()
@@ -193,7 +195,7 @@ function Library:CreateWindow()
 
         function Tab:CreateAction(Title, ButtonText, Callback)
             local ActionFrame = Instance.new("Frame")
-            ActionFrame.Size = UDim2.new(1, 0, 0, 28)
+            ActionFrame.Size = UDim2.new(1, -5, 0, 28)
             ActionFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             ActionFrame.Parent = TabPage
             Instance.new("UICorner", ActionFrame).CornerRadius = UDim.new(0, 6)
@@ -228,7 +230,7 @@ function Library:CreateWindow()
         function Tab:CreateToggle(Title, Default, Callback)
             local Toggled = Default
             local ToggleFrame = Instance.new("Frame")
-            ToggleFrame.Size = UDim2.new(1, 0, 0, 28)
+            ToggleFrame.Size = UDim2.new(1, -5, 0, 28)
             ToggleFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             ToggleFrame.Parent = TabPage
             Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 6)
@@ -274,7 +276,7 @@ function Library:CreateWindow()
 
         function Tab:CreateSlider(Title, Min, Max, Default, Callback)
             local SliderFrame = Instance.new("Frame")
-            SliderFrame.Size = UDim2.new(1, 0, 0, 38)
+            SliderFrame.Size = UDim2.new(1, -5, 0, 38)
             SliderFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             SliderFrame.Parent = TabPage
             Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
@@ -337,7 +339,7 @@ function Library:CreateWindow()
         function Tab:CreateKeybind(Title, Default, Callback)
             local KeyName = (typeof(Default) == "EnumItem") and Default.Name or Default.UserInputType.Name
             local KeybindFrame = Instance.new("Frame")
-            KeybindFrame.Size = UDim2.new(1, 0, 0, 28)
+            KeybindFrame.Size = UDim2.new(1, -5, 0, 28)
             KeybindFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             KeybindFrame.Parent = TabPage
             Instance.new("UICorner", KeybindFrame).CornerRadius = UDim.new(0, 6)
