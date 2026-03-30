@@ -24,7 +24,7 @@ function Library:CreateWindow()
     ScreenGui.Name = "NexusCustomHub"
     ScreenGui.Parent = CoreGui
 
-    -- Main Deep Slate Palette
+    -- Main Frame
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
     MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
@@ -33,7 +33,7 @@ function Library:CreateWindow()
     MainFrame.Parent = ScreenGui
     Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
 
-    -- Darker Sidebar
+    -- Sidebar
     local Sidebar = Instance.new("Frame")
     Sidebar.Size = UDim2.new(0, 50, 1, 0)
     Sidebar.BackgroundColor3 = Color3.fromRGB(14, 14, 17)
@@ -41,7 +41,6 @@ function Library:CreateWindow()
     Sidebar.Parent = MainFrame
     Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 6)
     
-    -- Hide corner overlap
     local SideBlock = Instance.new("Frame")
     SideBlock.Size = UDim2.new(0, 10, 1, 0)
     SideBlock.Position = UDim2.new(1, -10, 0, 0)
@@ -49,7 +48,7 @@ function Library:CreateWindow()
     SideBlock.BorderSizePixel = 0
     SideBlock.Parent = Sidebar
 
-    -- NEXUS HUB Header Text
+    -- Header
     local HeaderTitle = Instance.new("TextLabel")
     HeaderTitle.Size = UDim2.new(1, -75, 0, 30)
     HeaderTitle.Position = UDim2.new(0, 65, 0, 10)
@@ -75,40 +74,31 @@ function Library:CreateWindow()
     SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
     SidebarList.Padding = UDim.new(0, 15) 
     
-    local UIPadding = Instance.new("UIPadding")
-    UIPadding.Parent = TabContainer
-    UIPadding.PaddingTop = UDim.new(0, 20)
+    local SidebarPadding = Instance.new("UIPadding")
+    SidebarPadding.Parent = TabContainer
+    SidebarPadding.PaddingTop = UDim.new(0, 20)
 
-    -- Shifted content container down to make room for header
+    -- Content Container (Fixed positioning to prevent cutoffs)
     local ContentContainer = Instance.new("Frame")
-    ContentContainer.Size = UDim2.new(1, -75, 1, -55)
-    ContentContainer.Position = UDim2.new(0, 65, 0, 45)
+    ContentContainer.Size = UDim2.new(1, -70, 1, -55)
+    ContentContainer.Position = UDim2.new(0, 60, 0, 45)
     ContentContainer.BackgroundTransparency = 1
     ContentContainer.Parent = MainFrame
 
-    -- Fixed Draggable Logic
+    -- Draggable Logic
     local dragging, dragInput, dragStart, startPos
     MainFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
             dragStart = input.Position
             startPos = MainFrame.Position
-
-            -- Listens specifically to the click releasing, fixing the infinite drag bug
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
-    MainFrame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then 
-            dragInput = input 
-        end
-    end)
     UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             local delta = input.Position - dragStart
             MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
@@ -125,18 +115,17 @@ function Library:CreateWindow()
         TabBtn.BackgroundTransparency = 1
         Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 8)
         
-        -- Using the first letter of the Tab Name as the icon
         local FallbackText = Instance.new("TextLabel", TabBtn)
         FallbackText.Size = UDim2.new(1, 0, 1, 0)
         FallbackText.BackgroundTransparency = 1
-        FallbackText.Text = string.sub(TabName, 1, 1):upper() -- Forced uppercase for style
-        FallbackText.TextColor3 = Color3.fromRGB(120, 120, 130) -- Default dimmed color
+        FallbackText.Text = string.sub(TabName, 1, 1):upper()
+        FallbackText.TextColor3 = Color3.fromRGB(120, 120, 130)
         FallbackText.Font = Enum.Font.GothamBold
         FallbackText.TextSize = 14
         FallbackText.Name = "TabIconText"
     
-        local TweenIn = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0.85})
-        local TweenOut = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+        local TweenIn = TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundTransparency = 0.85})
+        local TweenOut = TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundTransparency = 1})
     
         local TabPage = Instance.new("ScrollingFrame")
         TabPage.Size = UDim2.new(1, 0, 1, 0)
@@ -145,14 +134,22 @@ function Library:CreateWindow()
         TabPage.BorderSizePixel = 0
         TabPage.Visible = false
         TabPage.Parent = ContentContainer
-    
+        TabPage.ClipsDescendants = false -- Allows strokes to show fully
+
         local PageLayout = Instance.new("UIListLayout")
         PageLayout.Parent = TabPage
         PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
         PageLayout.Padding = UDim.new(0, 6) 
-    
+
+        -- Element Padding (Fixes side cutoffs)
+        local PagePadding = Instance.new("UIPadding")
+        PagePadding.Parent = TabPage
+        PagePadding.PaddingLeft = UDim.new(0, 2)
+        PagePadding.PaddingRight = UDim.new(0, 10)
+        PagePadding.PaddingBottom = UDim.new(0, 10)
+
         PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y)
+            TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 20) -- Added bottom buffer
         end)
     
         TabBtn.MouseButton1Click:Connect(function()
@@ -162,7 +159,7 @@ function Library:CreateWindow()
                 CurrentTab.Page.Visible = false
             end
             TweenIn:Play()
-            TabBtn.TabIconText.TextColor3 = Color3.fromRGB(255, 255, 255)
+            FallbackText.TextColor3 = Color3.fromRGB(255, 255, 255)
             TabPage.Visible = true
             CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
         end)
@@ -174,10 +171,6 @@ function Library:CreateWindow()
             CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
         end
 
-        -- ===========================
-        -- UI COMPONENTS (Compacted)
-        -- ===========================
-        
         local function AddDepthStroke(frame)
             local Stroke = Instance.new("UIStroke")
             Stroke.Parent = frame
@@ -188,7 +181,6 @@ function Library:CreateWindow()
 
         function Tab:CreateSection(Name)
             local SectionLabel = Instance.new("TextLabel")
-            -- Shrunk height from 30 to 20
             SectionLabel.Size = UDim2.new(1, 0, 0, 20)
             SectionLabel.BackgroundTransparency = 1
             SectionLabel.Text = Name:upper()
@@ -201,8 +193,7 @@ function Library:CreateWindow()
 
         function Tab:CreateAction(Title, ButtonText, Callback)
             local ActionFrame = Instance.new("Frame")
-            -- Shrunk height from 42 to 28
-            ActionFrame.Size = UDim2.new(1, -5, 0, 28)
+            ActionFrame.Size = UDim2.new(1, 0, 0, 28)
             ActionFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             ActionFrame.Parent = TabPage
             Instance.new("UICorner", ActionFrame).CornerRadius = UDim.new(0, 6)
@@ -220,7 +211,6 @@ function Library:CreateWindow()
             TitleLabel.Parent = ActionFrame
 
             local ActionBtn = Instance.new("TextButton")
-            -- Compact button
             ActionBtn.Size = UDim2.new(0, 70, 0, 20)
             ActionBtn.AnchorPoint = Vector2.new(1, 0.5)
             ActionBtn.Position = UDim2.new(1, -8, 0.5, 0) 
@@ -232,15 +222,13 @@ function Library:CreateWindow()
             ActionBtn.Parent = ActionFrame
             Instance.new("UICorner", ActionBtn).CornerRadius = UDim.new(0, 4)
             AddDepthStroke(ActionBtn)
-
             ActionBtn.MouseButton1Click:Connect(Callback)
         end
 
         function Tab:CreateToggle(Title, Default, Callback)
             local Toggled = Default
             local ToggleFrame = Instance.new("Frame")
-            -- Shrunk height
-            ToggleFrame.Size = UDim2.new(1, -5, 0, 28)
+            ToggleFrame.Size = UDim2.new(1, 0, 0, 28)
             ToggleFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             ToggleFrame.Parent = TabPage
             Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 6)
@@ -258,7 +246,6 @@ function Library:CreateWindow()
             TitleLabel.Parent = ToggleFrame
 
             local ToggleBG = Instance.new("TextButton")
-            -- Compact Toggle
             ToggleBG.Size = UDim2.new(0, 34, 0, 18)
             ToggleBG.AnchorPoint = Vector2.new(1, 0.5)
             ToggleBG.Position = UDim2.new(1, -8, 0.5, 0)
@@ -279,7 +266,6 @@ function Library:CreateWindow()
                 Toggled = not Toggled
                 local targetPos = Toggled and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
                 local targetCol = Toggled and Color3.fromRGB(74, 120, 255) or Color3.fromRGB(35, 35, 42)
-                
                 TweenService:Create(ToggleDot, TweenInfo.new(0.2), {Position = targetPos}):Play()
                 TweenService:Create(ToggleBG, TweenInfo.new(0.2), {BackgroundColor3 = targetCol}):Play()
                 Callback(Toggled)
@@ -288,8 +274,7 @@ function Library:CreateWindow()
 
         function Tab:CreateSlider(Title, Min, Max, Default, Callback)
             local SliderFrame = Instance.new("Frame")
-            -- Shrunk height from 55 to 38
-            SliderFrame.Size = UDim2.new(1, -5, 0, 38)
+            SliderFrame.Size = UDim2.new(1, 0, 0, 38)
             SliderFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             SliderFrame.Parent = TabPage
             Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
@@ -312,7 +297,6 @@ function Library:CreateWindow()
             SliderBG.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
             SliderBG.Parent = SliderFrame
             Instance.new("UICorner", SliderBG)
-            AddDepthStroke(SliderBG)
 
             local SliderFill = Instance.new("Frame")
             SliderFill.Size = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
@@ -333,37 +317,27 @@ function Library:CreateWindow()
                 local barWidth = SliderBG.AbsoluteSize.X
                 local percentage = math.clamp((mousePos - barPos) / barWidth, 0, 1)
                 local value = math.floor(Min + (Max - Min) * percentage)
-                
                 SliderFill.Size = UDim2.new(percentage, 0, 1, 0)
                 TitleLabel.Text = Title .. ": " .. value
                 Callback(value)
             end
 
-            -- Fixed slider drag release bug as well
             local sliding = false
             SliderBtn.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then 
-                    sliding = true 
-                    
-                    input.Changed:Connect(function()
-                        if input.UserInputState == Enum.UserInputState.End then
-                            sliding = false
-                        end
-                    end)
-                end
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true end
+            end)
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end
             end)
             UserInputService.InputChanged:Connect(function(input)
-                if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then 
-                    UpdateSlider() 
-                end
+                if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then UpdateSlider() end
             end)
         end
 
-function Tab:CreateKeybind(Title, Default, Callback)
-            local KeyName = Default.Name
+        function Tab:CreateKeybind(Title, Default, Callback)
+            local KeyName = (typeof(Default) == "EnumItem") and Default.Name or Default.UserInputType.Name
             local KeybindFrame = Instance.new("Frame")
-            -- Shrunk height
-            KeybindFrame.Size = UDim2.new(1, -5, 0, 28)
+            KeybindFrame.Size = UDim2.new(1, 0, 0, 28)
             KeybindFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             KeybindFrame.Parent = TabPage
             Instance.new("UICorner", KeybindFrame).CornerRadius = UDim.new(0, 6)
@@ -397,14 +371,11 @@ function Tab:CreateKeybind(Title, Default, Callback)
                 BindBtn.Text = "..."
                 local connection
                 connection = UserInputService.InputBegan:Connect(function(input)
-                    local isKeyboard = input.UserInputType == Enum.UserInputType.Keyboard
-                    local isMouse = input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3
-                    
-                    if isKeyboard then
+                    if input.UserInputType == Enum.UserInputType.Keyboard then
                         KeyName = input.KeyCode.Name
                         BindBtn.Text = KeyName
                         connection:Disconnect()
-                    elseif isMouse then
+                    elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
                         KeyName = input.UserInputType.Name
                         BindBtn.Text = KeyName
                         connection:Disconnect()
@@ -433,17 +404,15 @@ end
 -- ==========================================
 local HubWindow = Library:CreateWindow()
 
--- Just pass the filename.ext; the script adds the GitHub path automatically
-local HomeTab     = HubWindow:CreateTab("Home",     "home.png")
-local PlayerTab   = HubWindow:CreateTab("Player",   "player.png")
-local WorldTab    = HubWindow:CreateTab("World",    "world.png")
-local TeleportTab = HubWindow:CreateTab("Teleport", "teleport.png")
-local BuildTab    = HubWindow:CreateTab("Build",    "build.png")
+local HomeTab     = HubWindow:CreateTab("Home")
+local PlayerTab   = HubWindow:CreateTab("Player")
+local WorldTab    = HubWindow:CreateTab("World")
+local TeleportTab = HubWindow:CreateTab("Teleport")
+local BuildTab    = HubWindow:CreateTab("Build")
 
 local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s", 
         User, Repo, Branch, ModuleName, tick())
-    
     local success, code = pcall(function() return game:HttpGet(URL) end)
     if success and code then
         local func = loadstring(code)
@@ -453,14 +422,10 @@ local function LoadModule(ModuleName)
 end
 
 local MovementModule = LoadModule("PlayerMovement")
-if MovementModule and MovementModule.Init then
-    MovementModule.Init(PlayerTab)
-end 
+if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end 
+
 local TeleportModule = LoadModule("Teleport")
-if TeleportModule and TeleportModule.Init then
-    TeleportModule.Init(TeleportTab)
-end
+if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) end
+
 local GhostModule = LoadModule("GhostSuite")
-if GhostModule and GhostModule.Init then
-    GhostModule.Init(BuildTab) -- MOVED TO BUILD TAB
-end
+if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
