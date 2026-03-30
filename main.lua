@@ -1,47 +1,40 @@
--- Configuration
-local GitHubUser = "YourUsername"
-local Repository = "YourRepo"
+-- GitHub Config
+local User = "learnhtsd"
+local Repo = "lt2"
 local Branch = "main"
 
--- Load a standard UI Library (Example: Rayfield or Kavo)
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Load Orion Library
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
 
-local Window = Rayfield:CreateWindow({
-    Name = "Project Nexus",
-    LoadingTitle = "Loading Systems...",
-    LoadingSubtitle = "by " .. GitHubUser,
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "NexusConfigs",
-        FileName = "MainConfig"
-    }
+-- Create Main Window
+local Window = OrionLib:MakeWindow({
+    Name = "Custom Hub", 
+    HidePremium = false, 
+    SaveConfig = true, 
+    ConfigFolder = "OrionConfig",
+    IntroText = "Initializing..."
 })
 
--- Function to load modules from GitHub
-local function LoadModule(ModuleName)
-    local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua", 
-        GitHubUser, Repository, Branch, ModuleName)
-    
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
+-- Dynamic Module Loader
+local function LoadGithubModule(Path)
+    local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua", User, Repo, Branch, Path)
+    local Success, Script = pcall(function()
+        return loadstring(game:HttpGet(URL))()
     end)
-
-    if success and type(result) == "table" then
-        return result
+    
+    if Success and type(Script) == "table" then
+        return Script
     else
-        warn("Failed to load module: " .. ModuleName .. " Error: " .. tostring(result))
+        warn("Could not load module: " .. Path)
         return nil
     end
 end
 
--- Initialize Modules
-local MovementModule = LoadModule("PlayerMovement")
-if MovementModule then
-    MovementModule.Init(Rayfield, Window)
+-- Initialize the Movement Module
+local Movement = LoadGithubModule("PlayerMovement")
+if Movement then
+    Movement.Init(OrionLib, Window)
 end
 
-Rayfield:Notify({
-    Title = "Success",
-    Content = "All modules loaded successfully.",
-    Duration = 5
-})
+-- Finalize
+OrionLib:Init()
