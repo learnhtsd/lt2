@@ -1,179 +1,47 @@
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
+-- Configuration
+local GitHubUser = "YourUsername"
+local Repository = "YourRepo"
+local Branch = "main"
 
--- [[ THEME ]]
-local Theme = {
-    Colors = {
-        MainBackground = Color3.fromRGB(20, 21, 26),
-        SecondaryBackground = Color3.fromRGB(28, 29, 35),
-        Sidebar = Color3.fromRGB(18, 19, 23),
-        Accent = Color3.fromRGB(90, 140, 255),
-        AccentDark = Color3.fromRGB(65, 110, 230),
-        Text = Color3.fromRGB(255,255,255),
-        SubText = Color3.fromRGB(180,180,180),
-        SectionText = Color3.fromRGB(140,145,160),
-        Element = Color3.fromRGB(35,36,42),
-        ElementHover = Color3.fromRGB(50,52,60)
-    },
-    Fonts = {
-        Main = Enum.Font.Gotham,
-        Bold = Enum.Font.GothamBold
+-- Load a standard UI Library (Example: Rayfield or Kavo)
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Project Nexus",
+    LoadingTitle = "Loading Systems...",
+    LoadingSubtitle = "by " .. GitHubUser,
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "NexusConfigs",
+        FileName = "MainConfig"
     }
-}
+})
 
--- Cleanup
-if game.CoreGui:FindFirstChild("ModernHub") then
-    game.CoreGui.ModernHub:Destroy()
-end
-
-local gui = Instance.new("ScreenGui", game.CoreGui)
-gui.Name = "ModernHub"
-gui.ResetOnSpawn = false
-
-local main = Instance.new("Frame", gui)
-main.Size = UDim2.fromOffset(600, 380)
-main.Position = UDim2.fromScale(0.5,0.5)
-main.AnchorPoint = Vector2.new(0.5,0.5)
-main.BackgroundColor3 = Theme.Colors.MainBackground
-main.BorderSizePixel = 0
-Instance.new("UICorner", main).CornerRadius = UDim.new(0,10)
-
--- Sidebar
-local sidebar = Instance.new("Frame", main)
-sidebar.Size = UDim2.new(0,150,1,-20)
-sidebar.Position = UDim2.fromOffset(10,10)
-sidebar.BackgroundColor3 = Theme.Colors.Sidebar
-Instance.new("UICorner", sidebar)
-
-local sLayout = Instance.new("UIListLayout", sidebar)
-sLayout.Padding = UDim.new(0,6)
-sLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
--- Page Holder
-local pages = Instance.new("Frame", main)
-pages.Size = UDim2.new(1,-180,1,-40)
-pages.Position = UDim2.fromOffset(170,30)
-pages.BackgroundTransparency = 1
-
--- API
-local Hub = {}
-_G.Hub = Hub 
-
-function Hub:CreateTab(name)
-    local btn = Instance.new("TextButton", sidebar)
-    btn.Size = UDim2.new(0.9,0,0,32)
-    btn.BackgroundColor3 = Theme.Colors.Element
-    btn.Text = name
-    btn.TextColor3 = Theme.Colors.SubText
-    btn.Font = Theme.Fonts.Main
-    btn.TextSize = 13
-    btn.AutoButtonColor = false
-    Instance.new("UICorner", btn)
-
-    local page = Instance.new("ScrollingFrame", pages)
-    page.Size = UDim2.fromScale(1,1)
-    page.BackgroundTransparency = 1
-    page.Visible = false
-    page.ScrollBarThickness = 0
-    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-
-    local list = Instance.new("UIListLayout", page)
-    list.Padding = UDim.new(0,8)
-    Instance.new("UIPadding", page).PaddingLeft = UDim.new(0,5)
-
-    btn.MouseButton1Click:Connect(function()
-        for _,p in pairs(pages:GetChildren()) do
-            if p:IsA("ScrollingFrame") then
-                p.Visible = false
-            end
-        end
-
-        for _,b in pairs(sidebar:GetChildren()) do
-            if b:IsA("TextButton") then
-                b.BackgroundColor3 = Theme.Colors.Element
-                b.TextColor3 = Theme.Colors.SubText
-            end
-        end
-
-        page.Visible = true
-        btn.BackgroundColor3 = Theme.Colors.Accent
-        btn.TextColor3 = Color3.new(1,1,1)
+-- Function to load modules from GitHub
+local function LoadModule(ModuleName)
+    local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua", 
+        GitHubUser, Repository, Branch, ModuleName)
+    
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
     end)
 
-    return page
-end
-
-function Hub:AddSection(parent, text)
-    local sectionFrame = Instance.new("Frame", parent)
-    sectionFrame.Size = UDim2.new(1, -10, 0, 35)
-    sectionFrame.BackgroundTransparency = 1
-    
-    local label = Instance.new("TextLabel", sectionFrame)
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.Position = UDim2.new(0, 5, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text:upper()
-    label.TextColor3 = Theme.Colors.SectionText
-    label.Font = Theme.Fonts.Bold
-    label.TextSize = 11
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    
-    local line = Instance.new("Frame", sectionFrame)
-    line.Size = UDim2.new(0.2, 0, 0, 1)
-    line.Position = UDim2.new(0, 5, 0.8, 0)
-    line.BackgroundColor3 = Theme.Colors.Accent
-    line.BorderSizePixel = 0
-    line.BackgroundTransparency = 0.4
-end
-
-function Hub:AddButton(parent, text, callback)
-    local frame = Instance.new("Frame", parent)
-    frame.Size = UDim2.new(1,-10,0,38)
-    frame.BackgroundColor3 = Theme.Colors.Element
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0,6)
-
-    local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.fromScale(1,1)
-    btn.BackgroundTransparency = 1
-    btn.Text = "    "..text
-    btn.Font = Theme.Fonts.Main
-    btn.TextSize = 14
-    btn.TextColor3 = Theme.Colors.Text
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-
-    btn.MouseButton1Click:Connect(callback)
-end
-
--- [[ LOAD TABS ]]
-local homePage = Hub:CreateTab("Home")
-local playerPage = Hub:CreateTab("Player")
-local settingsPage = Hub:CreateTab("Settings")
-
--- ✅ GITHUB SETTINGS LOADER
-local function loadSettings()
-    local success, err = pcall(function()
-        -- 🔥 PUT YOUR REAL RAW LINK HERE
-        local url = "https://raw.githubusercontent.com/learnhtsd/lt2/main/Settings.lua"
-
-        local SettingsModule = loadstring(game:HttpGet(url))()
-        SettingsModule:Load(settingsPage, main, gui)
-    end)
-
-    if not success then
-        warn("Settings failed to load:", err)
-
-        -- visible error inside UI
-        local label = Instance.new("TextLabel", settingsPage)
-        label.Size = UDim2.new(1,0,0,50)
-        label.BackgroundTransparency = 1
-        label.Text = "Failed to load Settings (check URL/output)"
-        label.TextColor3 = Color3.fromRGB(255,80,80)
-        label.Font = Enum.Font.GothamBold
-        label.TextSize = 14
+    if success and type(result) == "table" then
+        return result
+    else
+        warn("Failed to load module: " .. ModuleName .. " Error: " .. tostring(result))
+        return nil
     end
 end
 
-loadSettings()
+-- Initialize Modules
+local MovementModule = LoadModule("PlayerMovement")
+if MovementModule then
+    MovementModule.Init(Rayfield, Window)
+end
 
--- Default tab
-homePage.Visible = true
+Rayfield:Notify({
+    Title = "Success",
+    Content = "All modules loaded successfully.",
+    Duration = 5
+})
