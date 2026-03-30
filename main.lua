@@ -11,7 +11,7 @@ local Theme = {
         AccentDark = Color3.fromRGB(65, 110, 230),
         Text = Color3.fromRGB(255,255,255),
         SubText = Color3.fromRGB(180,180,180),
-        SectionText = Color3.fromRGB(110, 115, 125), -- Color for section headers
+        SectionText = Color3.fromRGB(100, 100, 110), -- Subtle color for sections
         Element = Color3.fromRGB(35, 36, 42),
         ElementHover = Color3.fromRGB(50, 52, 60)
     },
@@ -21,17 +21,13 @@ local Theme = {
     }
 }
 
--- cleanup
-if game.CoreGui:FindFirstChild("ModernHub") then
-    game.CoreGui.ModernHub:Destroy()
-end
+-- Cleanup
+if game.CoreGui:FindFirstChild("ModernHub") then game.CoreGui.ModernHub:Destroy() end
 
--- screen
 local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.Name = "ModernHub"
 gui.ResetOnSpawn = false
 
--- main frame
 local main = Instance.new("Frame", gui)
 main.Size = UDim2.fromOffset(600, 380)
 main.Position = UDim2.fromScale(0.5,0.5)
@@ -40,71 +36,12 @@ main.BackgroundColor3 = Theme.Colors.MainBackground
 main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0,10)
 
--- gradient & styling
-local grad = Instance.new("UIGradient", main)
-grad.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Theme.Colors.MainBackground),
-    ColorSequenceKeypoint.new(1, Theme.Colors.SecondaryBackground)
-}
-local stroke = Instance.new("UIStroke", main)
-stroke.Color = Theme.Colors.Accent
-stroke.Transparency = 0.7
-stroke.Thickness = 1.5
-
--- DRAG LOGIC
-local function dragify(frame)
-    local drag, start, startPos
-    frame.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then
-            drag = true
-            start = i.Position
-            startPos = main.Position
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(i)
-        if drag and i.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = i.Position - start
-            main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-    frame.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end
-    end)
-end
-
-local dragBar = Instance.new("Frame", main)
-dragBar.Size = UDim2.new(1,0,0,32)
-dragBar.BackgroundTransparency = 1
-dragify(dragBar)
-
--- SIDEBAR
-local sidebar = Instance.new("Frame", main)
-sidebar.Size = UDim2.new(0,150,1,-20)
-sidebar.Position = UDim2.fromOffset(10,10)
-sidebar.BackgroundColor3 = Theme.Colors.Sidebar
-Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0,8)
-
-local layout = Instance.new("UIListLayout", sidebar)
-layout.Padding = UDim.new(0,6)
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local selector = Instance.new("Frame", sidebar)
-selector.Size = UDim2.new(0,4,0,30)
-selector.BackgroundColor3 = Theme.Colors.Accent
-selector.BorderSizePixel = 0
-Instance.new("UICorner", selector)
-
--- PAGE HOLDER
-local pages = Instance.new("Frame", main)
-pages.Size = UDim2.new(1,-180,1,-40)
-pages.Position = UDim2.fromOffset(170,30)
-pages.BackgroundTransparency = 1
-
--- API
+-- API Object
 local Hub = {}
+_G.Hub = Hub -- This allows ModuleScripts to access Hub:AddButton and Hub:AddSection
 
 function Hub:CreateTab(name)
-    local btn = Instance.new("TextButton", sidebar)
+    local btn = Instance.new("TextButton", sidebar) -- Ensure 'sidebar' exists before calling
     btn.Size = UDim2.new(0.9,0,0,32)
     btn.BackgroundColor3 = Theme.Colors.Element
     btn.Text = name
@@ -118,17 +55,15 @@ function Hub:CreateTab(name)
     page.Size = UDim2.fromScale(1,1)
     page.BackgroundTransparency = 1
     page.Visible = false
-    page.ScrollBarThickness = 2
-    page.ScrollBarImageColor3 = Theme.Colors.Accent
+    page.ScrollBarThickness = 0
     page.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
     local list = Instance.new("UIListLayout", page)
     list.Padding = UDim.new(0,8)
     
-    -- Padding for the list inside the page
     local pad = Instance.new("UIPadding", page)
-    pad.PaddingLeft = UDim.new(0, 5)
-    pad.PaddingRight = UDim.new(0, 5)
+    pad.PaddingLeft = UDim.new(0,5)
+    pad.PaddingTop = UDim.new(0,5)
 
     btn.MouseButton1Click:Connect(function()
         for _,p in pairs(pages:GetChildren()) do if p:IsA("ScrollingFrame") then p.Visible = false end end
@@ -144,10 +79,10 @@ function Hub:CreateTab(name)
     return page
 end
 
--- NEW: SECTION FUNCTION
+-- [[ THE NEW SECTION FUNCTION ]]
 function Hub:AddSection(parent, text)
     local sectionFrame = Instance.new("Frame", parent)
-    sectionFrame.Size = UDim2.new(1, -10, 0, 25)
+    sectionFrame.Size = UDim2.new(1, -10, 0, 20)
     sectionFrame.BackgroundTransparency = 1
     
     local label = Instance.new("TextLabel", sectionFrame)
@@ -156,15 +91,16 @@ function Hub:AddSection(parent, text)
     label.Text = text:upper()
     label.TextColor3 = Theme.Colors.SectionText
     label.Font = Theme.Fonts.Bold
-    label.TextSize = 11
+    label.TextSize = 10
     label.TextXAlignment = Enum.TextXAlignment.Left
     
+    -- Optional: A small line next to the text
     local line = Instance.new("Frame", sectionFrame)
-    line.Size = UDim2.new(1, - (label.TextBounds.X + 10), 0, 1)
-    line.Position = UDim2.new(0, label.TextBounds.X + 5, 0.5, 0)
     line.BackgroundColor3 = Theme.Colors.SectionText
-    line.BackgroundTransparency = 0.7
+    line.BackgroundTransparency = 0.8
     line.BorderSizePixel = 0
+    line.Position = UDim2.new(0, 0, 1, -2)
+    line.Size = UDim2.new(1, 0, 0, 1)
 end
 
 function Hub:AddButton(parent, text, callback)
@@ -183,11 +119,29 @@ function Hub:AddButton(parent, text, callback)
     btn.TextXAlignment = Enum.TextXAlignment.Left
 
     btn.MouseButton1Click:Connect(callback)
-    
-    -- Hover Effects
-    btn.MouseEnter:Connect(function() TweenService:Create(frame, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Colors.ElementHover}):Play() end)
-    btn.MouseLeave:Connect(function() TweenService:Create(frame, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Colors.Element}):Play() end)
+    return btn
 end
 
-_G.Hub = Hub -- Make Hub global so ModuleScripts can see it
-return Hub
+-- Sidebar/Pages setup (Simplified for brevity)
+sidebar = Instance.new("Frame", main)
+sidebar.Size = UDim2.new(0,150,1,-20)
+sidebar.Position = UDim2.fromOffset(10,10)
+sidebar.BackgroundColor3 = Theme.Colors.Sidebar
+Instance.new("UICorner", sidebar)
+local sLayout = Instance.new("UIListLayout", sidebar)
+sLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+sLayout.Padding = UDim.new(0,6)
+
+pages = Instance.new("Frame", main)
+pages.Size = UDim2.new(1,-180,1,-40)
+pages.Position = UDim2.fromOffset(170,30)
+pages.BackgroundTransparency = 1
+
+-- Example Usage:
+local home = Hub:CreateTab("Home")
+Hub:AddSection(home, "Informational")
+Hub:AddButton(home, "Welcome User", function() print("Hi") end)
+
+-- Loading your module
+-- local SettingsModule = require(path.to.module)
+-- SettingsModule:Load(settingsTab, main, gui)
