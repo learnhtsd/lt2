@@ -456,3 +456,7 @@ local TeleportModule = LoadModule("Teleport")
 if TeleportModule and TeleportModule.Init then
     TeleportModule.Init(TeleportTab)
 end
+local GhostModule = LoadModule("GhostSuite")
+if GhostModule and GhostModule.Init then
+    GhostModule.Init(WorldTab) 
+end
