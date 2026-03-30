@@ -1,19 +1,16 @@
 local PlayerMovement = {}
 
 function PlayerMovement.Init(OrionLib, Window)
-    -- Create the Tab
     local MovementTab = Window:MakeTab({
         Name = "Movement",
         Icon = "rbxassetid://4483345998",
         PremiumOnly = false
     })
 
-    -- Add a Section for organization
     local MainSection = MovementTab:AddSection({
         Name = "Main Controls"
     })
 
-    -- Toggle for Speed
     MainSection:AddToggle({
         Name = "Enable Speed Hack",
         Default = false,
@@ -25,7 +22,6 @@ function PlayerMovement.Init(OrionLib, Window)
         end    
     })
 
-    -- Slider for Speed Value
     MainSection:AddSlider({
         Name = "WalkSpeed Custom",
         Min = 16,
@@ -39,13 +35,11 @@ function PlayerMovement.Init(OrionLib, Window)
         end    
     })
 
-    -- Keybind to Toggle Speed
     MainSection:AddBind({
         Name = "Toggle Speed Bind",
         Default = Enum.KeyCode.G,
         Hold = false,
         Callback = function()
-            -- This logic flips the toggle state
             _G.SpeedEnabled = not _G.SpeedEnabled
             OrionLib:MakeNotification({
                 Name = "Speed Toggled",
@@ -55,7 +49,6 @@ function PlayerMovement.Init(OrionLib, Window)
         end    
     })
 
-    -- Constant Loop for logic
     task.spawn(function()
         while task.wait() do
             if _G.SpeedEnabled then
