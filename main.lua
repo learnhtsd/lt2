@@ -7,17 +7,14 @@ local Theme = {
         MainBackground = Color3.fromRGB(20, 21, 26),
         SecondaryBackground = Color3.fromRGB(28, 29, 35),
         Sidebar = Color3.fromRGB(18, 19, 23),
-
         Accent = Color3.fromRGB(90, 140, 255),
         AccentDark = Color3.fromRGB(65, 110, 230),
-
         Text = Color3.fromRGB(255,255,255),
         SubText = Color3.fromRGB(180,180,180),
-
+        SectionText = Color3.fromRGB(110, 115, 125), -- Color for section headers
         Element = Color3.fromRGB(35, 36, 42),
         ElementHover = Color3.fromRGB(50, 52, 60)
     },
-
     Fonts = {
         Main = Enum.Font.Gotham,
         Bold = Enum.Font.GothamBold
@@ -43,32 +40,20 @@ main.BackgroundColor3 = Theme.Colors.MainBackground
 main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0,10)
 
--- gradient
+-- gradient & styling
 local grad = Instance.new("UIGradient", main)
 grad.Color = ColorSequence.new{
     ColorSequenceKeypoint.new(0, Theme.Colors.MainBackground),
     ColorSequenceKeypoint.new(1, Theme.Colors.SecondaryBackground)
 }
-
--- glow stroke
 local stroke = Instance.new("UIStroke", main)
 stroke.Color = Theme.Colors.Accent
 stroke.Transparency = 0.7
 stroke.Thickness = 1.5
 
--- shadow (fake)
-local shadow = Instance.new("ImageLabel", main)
-shadow.Size = UDim2.new(1,40,1,40)
-shadow.Position = UDim2.new(0,-20,0,-20)
-shadow.BackgroundTransparency = 1
-shadow.Image = "rbxassetid://1316045217"
-shadow.ImageTransparency = 0.8
-shadow.ZIndex = 0
-
--- DRAG
+-- DRAG LOGIC
 local function dragify(frame)
     local drag, start, startPos
-
     frame.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 then
             drag = true
@@ -76,23 +61,14 @@ local function dragify(frame)
             startPos = main.Position
         end
     end)
-
     UserInputService.InputChanged:Connect(function(i)
         if drag and i.UserInputType == Enum.UserInputType.MouseMovement then
             local delta = i.Position - start
-            main.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
+            main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
-
     frame.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then
-            drag = false
-        end
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end
     end)
 end
 
@@ -112,7 +88,6 @@ local layout = Instance.new("UIListLayout", sidebar)
 layout.Padding = UDim.new(0,6)
 layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- selection bar
 local selector = Instance.new("Frame", sidebar)
 selector.Size = UDim2.new(0,4,0,30)
 selector.BackgroundColor3 = Theme.Colors.Accent
@@ -143,53 +118,53 @@ function Hub:CreateTab(name)
     page.Size = UDim2.fromScale(1,1)
     page.BackgroundTransparency = 1
     page.Visible = false
-    page.ScrollBarThickness = 0
+    page.ScrollBarThickness = 2
+    page.ScrollBarImageColor3 = Theme.Colors.Accent
     page.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
     local list = Instance.new("UIListLayout", page)
     list.Padding = UDim.new(0,8)
-
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {
-            BackgroundColor3 = Theme.Colors.ElementHover
-        }):Play()
-    end)
-
-    btn.MouseLeave:Connect(function()
-        if not page.Visible then
-            TweenService:Create(btn, TweenInfo.new(0.2), {
-                BackgroundColor3 = Theme.Colors.Element
-            }):Play()
-        end
-    end)
+    
+    -- Padding for the list inside the page
+    local pad = Instance.new("UIPadding", page)
+    pad.PaddingLeft = UDim.new(0, 5)
+    pad.PaddingRight = UDim.new(0, 5)
 
     btn.MouseButton1Click:Connect(function()
-        for _,p in pairs(pages:GetChildren()) do
-            if p:IsA("ScrollingFrame") then p.Visible = false end
-        end
-
+        for _,p in pairs(pages:GetChildren()) do if p:IsA("ScrollingFrame") then p.Visible = false end end
         for _,b in pairs(sidebar:GetChildren()) do
             if b:IsA("TextButton") then
-                TweenService:Create(b, TweenInfo.new(0.2), {
-                    BackgroundColor3 = Theme.Colors.Element,
-                    TextColor3 = Theme.Colors.SubText
-                }):Play()
+                TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Colors.Element, TextColor3 = Theme.Colors.SubText}):Play()
             end
         end
-
         page.Visible = true
-
-        TweenService:Create(btn, TweenInfo.new(0.25), {
-            BackgroundColor3 = Theme.Colors.Accent,
-            TextColor3 = Color3.new(1,1,1)
-        }):Play()
-
-        TweenService:Create(selector, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
-            Position = UDim2.new(0,0,0,btn.Position.Y.Offset)
-        }):Play()
+        TweenService:Create(btn, TweenInfo.new(0.25), {BackgroundColor3 = Theme.Colors.Accent, TextColor3 = Color3.new(1,1,1)}):Play()
     end)
 
     return page
+end
+
+-- NEW: SECTION FUNCTION
+function Hub:AddSection(parent, text)
+    local sectionFrame = Instance.new("Frame", parent)
+    sectionFrame.Size = UDim2.new(1, -10, 0, 25)
+    sectionFrame.BackgroundTransparency = 1
+    
+    local label = Instance.new("TextLabel", sectionFrame)
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text:upper()
+    label.TextColor3 = Theme.Colors.SectionText
+    label.Font = Theme.Fonts.Bold
+    label.TextSize = 11
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local line = Instance.new("Frame", sectionFrame)
+    line.Size = UDim2.new(1, - (label.TextBounds.X + 10), 0, 1)
+    line.Position = UDim2.new(0, label.TextBounds.X + 5, 0.5, 0)
+    line.BackgroundColor3 = Theme.Colors.SectionText
+    line.BackgroundTransparency = 0.7
+    line.BorderSizePixel = 0
 end
 
 function Hub:AddButton(parent, text, callback)
@@ -201,74 +176,18 @@ function Hub:AddButton(parent, text, callback)
     local btn = Instance.new("TextButton", frame)
     btn.Size = UDim2.fromScale(1,1)
     btn.BackgroundTransparency = 1
-    btn.Text = "   "..text
+    btn.Text = "    "..text
     btn.Font = Theme.Fonts.Main
     btn.TextSize = 14
     btn.TextColor3 = Theme.Colors.Text
     btn.TextXAlignment = Enum.TextXAlignment.Left
 
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(frame, TweenInfo.new(0.2), {
-            BackgroundColor3 = Theme.Colors.ElementHover
-        }):Play()
-    end)
-
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(frame, TweenInfo.new(0.2), {
-            BackgroundColor3 = Theme.Colors.Element
-        }):Play()
-    end)
-
-    btn.MouseButton1Down:Connect(function()
-        TweenService:Create(frame, TweenInfo.new(0.1), {
-            BackgroundColor3 = Theme.Colors.AccentDark
-        }):Play()
-    end)
-
-    btn.MouseButton1Up:Connect(function()
-        TweenService:Create(frame, TweenInfo.new(0.15), {
-            BackgroundColor3 = Theme.Colors.ElementHover
-        }):Play()
-    end)
-
     btn.MouseButton1Click:Connect(callback)
+    
+    -- Hover Effects
+    btn.MouseEnter:Connect(function() TweenService:Create(frame, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Colors.ElementHover}):Play() end)
+    btn.MouseLeave:Connect(function() TweenService:Create(frame, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Colors.Element}):Play() end)
 end
 
--- TABS
-local home = Hub:CreateTab("Home")
-local player = Hub:CreateTab("Player")
-local settings = Hub:CreateTab("Settings")
-
--- DEFAULT SELECT FIRST TAB
-task.wait()
-home.Visible = true
-
--- CONTENT
-Hub:AddButton(home, "Welcome", function()
-    print("Hello!")
-end)
-
--- SETTINGS
-local toggleKey = Enum.KeyCode.RightControl
-
-Hub:AddButton(settings, "Toggle Key: Right Ctrl", function()
-    print("Keybind ready")
-end)
-
-Hub:AddButton(settings, "Scale Up", function()
-    main.Size += UDim2.fromOffset(20,15)
-end)
-
-Hub:AddButton(settings, "Scale Down", function()
-    main.Size -= UDim2.fromOffset(20,15)
-end)
-
-Hub:AddButton(settings, "Unload", function()
-    gui:Destroy()
-end)
-
-UserInputService.InputBegan:Connect(function(input,gp)
-    if not gp and input.KeyCode == toggleKey then
-        gui.Enabled = not gui.Enabled
-    end
-end)
+_G.Hub = Hub -- Make Hub global so ModuleScripts can see it
+return Hub
