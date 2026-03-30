@@ -1,37 +1,32 @@
 local PlayerMovement = {}
 
-function PlayerMovement.Init(Window)
-    -- Create a Tab for Player Options (using a standard user icon ID)
-    local PlayerTab = Window:CreateTab("rbxassetid://7733674079")
+-- Notice we receive "Tab" instead of "Window" now
+function PlayerMovement.Init(Tab)
+    
+    Tab:CreateSection("Movement Options")
 
-    -- Add a bold section title just like "Base Option" or "Land Option"
-    PlayerTab:CreateSection("Movement Options")
-
-    -- Add an action button layout (Text on left, button on right)
     _G.SpeedEnabled = false
-    PlayerTab:CreateAction("Speed Hack", "Toggle", function()
+    Tab:CreateAction("Speed Hack", "Toggle", function()
         _G.SpeedEnabled = not _G.SpeedEnabled
         print("Speed hack is now: " .. tostring(_G.SpeedEnabled))
     end)
 
-    PlayerTab:CreateAction("Reset Character", "Kill", function()
+    Tab:CreateAction("Reset Character", "Kill", function()
         local char = game.Players.LocalPlayer.Character
         if char then
             char:BreakJoints()
         end
     end)
 
-    -- Example of a second section
-    PlayerTab:CreateSection("Misc Options")
+    Tab:CreateSection("Misc Options")
     
-    PlayerTab:CreateAction("Print Position", "Print", function()
+    Tab:CreateAction("Print Position", "Print", function()
         local char = game.Players.LocalPlayer.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
-            print(char.HumanoidRootPart.Position)
+            print(tostring(char.HumanoidRootPart.Position))
         end
     end)
 
-    -- Background Loop for Speed
     task.spawn(function()
         while task.wait() do
             local char = game.Players.LocalPlayer.Character
