@@ -12,7 +12,6 @@ local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
--- Destroy old instances for clean reloading
 for _, v in pairs(CoreGui:GetChildren()) do
     if v.Name == "NexusCustomHub" then v:Destroy() end
 end
@@ -24,9 +23,7 @@ function Library:CreateWindow()
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "NexusCustomHub"
     ScreenGui.Parent = CoreGui
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    -- Main Frame
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
     MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
@@ -35,7 +32,6 @@ function Library:CreateWindow()
     MainFrame.Parent = ScreenGui
     Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
 
-    -- Sidebar
     local Sidebar = Instance.new("Frame")
     Sidebar.Size = UDim2.new(0, 50, 1, 0)
     Sidebar.BackgroundColor3 = Color3.fromRGB(14, 14, 17)
@@ -50,12 +46,12 @@ function Library:CreateWindow()
     SideBlock.BorderSizePixel = 0
     SideBlock.Parent = Sidebar
 
-    -- Header (Added Version Display)
     local HeaderTitle = Instance.new("TextLabel")
     HeaderTitle.Size = UDim2.new(1, -75, 0, 30)
     HeaderTitle.Position = UDim2.new(0, 65, 0, 10)
     HeaderTitle.BackgroundTransparency = 1
-    HeaderTitle.Text = "<b>NEXUS</b> <font color=\"#4a78ff\">HUB</font> <font color=\"#555555\">" .. Version .. "</font>"
+    -- Added Version here
+    HeaderTitle.Text = "<b>NEXUS</b> <font color=\"#4a78ff\">HUB</font> <font color=\"#555555\" size=\"12\">" .. Version .. "</font>"
     HeaderTitle.RichText = true
     HeaderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     HeaderTitle.Font = Enum.Font.GothamMedium
@@ -80,14 +76,15 @@ function Library:CreateWindow()
     SidebarPadding.Parent = TabContainer
     SidebarPadding.PaddingTop = UDim.new(0, 20)
 
-    -- Content Container Fixed (Moved right slightly to stop left cutoff)
+    -- Content container handles the overall clipping
     local ContentContainer = Instance.new("Frame")
-    ContentContainer.Size = UDim2.new(1, -85, 1, -60)
-    ContentContainer.Position = UDim2.new(0, 70, 0, 45)
+    ContentContainer.Size = UDim2.new(1, -80, 1, -60)
+    ContentContainer.Position = UDim2.new(0, 65, 0, 45)
     ContentContainer.BackgroundTransparency = 1
+    ContentContainer.ClipsDescendants = true -- KEEP THIS TRUE
     ContentContainer.Parent = MainFrame
 
-    -- Draggable Logic
+    -- Draggable
     local dragging, dragInput, dragStart, startPos
     MainFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -136,22 +133,24 @@ function Library:CreateWindow()
         TabPage.BorderSizePixel = 0
         TabPage.Visible = false
         TabPage.Parent = ContentContainer
-        TabPage.ClipsDescendants = false -- Prevents border cutoff
+        TabPage.ClipsDescendants = true -- Keep content inside the window!
 
         local PageLayout = Instance.new("UIListLayout")
         PageLayout.Parent = TabPage
         PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
         PageLayout.Padding = UDim.new(0, 6) 
 
-        -- Internal Padding (Critical fix for left/bottom cutoff)
+        -- THE FIX: UIPadding inside the scrolling frame
+        -- This gives the 1px UIStroke room to exist without being clipped by the edge
         local PagePadding = Instance.new("UIPadding")
         PagePadding.Parent = TabPage
-        PagePadding.PaddingLeft = UDim.new(0, 5)   -- Gives border space on left
-        PagePadding.PaddingRight = UDim.new(0, 5)  -- Space on right
-        PagePadding.PaddingBottom = UDim.new(0, 15) -- Space at very bottom
+        PagePadding.PaddingLeft = UDim.new(0, 2)
+        PagePadding.PaddingRight = UDim.new(0, 8)
+        PagePadding.PaddingTop = UDim.new(0, 2)
+        PagePadding.PaddingBottom = UDim.new(0, 20) -- Massive bottom padding to prevent cutoff
 
         PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 20)
+            TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 25)
         end)
     
         TabBtn.MouseButton1Click:Connect(function()
@@ -195,7 +194,7 @@ function Library:CreateWindow()
 
         function Tab:CreateAction(Title, ButtonText, Callback)
             local ActionFrame = Instance.new("Frame")
-            ActionFrame.Size = UDim2.new(1, -5, 0, 28)
+            ActionFrame.Size = UDim2.new(1, 0, 0, 28)
             ActionFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             ActionFrame.Parent = TabPage
             Instance.new("UICorner", ActionFrame).CornerRadius = UDim.new(0, 6)
@@ -230,7 +229,7 @@ function Library:CreateWindow()
         function Tab:CreateToggle(Title, Default, Callback)
             local Toggled = Default
             local ToggleFrame = Instance.new("Frame")
-            ToggleFrame.Size = UDim2.new(1, -5, 0, 28)
+            ToggleFrame.Size = UDim2.new(1, 0, 0, 28)
             ToggleFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             ToggleFrame.Parent = TabPage
             Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 6)
@@ -276,7 +275,7 @@ function Library:CreateWindow()
 
         function Tab:CreateSlider(Title, Min, Max, Default, Callback)
             local SliderFrame = Instance.new("Frame")
-            SliderFrame.Size = UDim2.new(1, -5, 0, 38)
+            SliderFrame.Size = UDim2.new(1, 0, 0, 38)
             SliderFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             SliderFrame.Parent = TabPage
             Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
@@ -339,7 +338,7 @@ function Library:CreateWindow()
         function Tab:CreateKeybind(Title, Default, Callback)
             local KeyName = (typeof(Default) == "EnumItem") and Default.Name or Default.UserInputType.Name
             local KeybindFrame = Instance.new("Frame")
-            KeybindFrame.Size = UDim2.new(1, -5, 0, 28)
+            KeybindFrame.Size = UDim2.new(1, 0, 0, 28)
             KeybindFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             KeybindFrame.Parent = TabPage
             Instance.new("UICorner", KeybindFrame).CornerRadius = UDim.new(0, 6)
