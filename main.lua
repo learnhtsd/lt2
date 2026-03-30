@@ -451,4 +451,8 @@ end
 local MovementModule = LoadModule("PlayerMovement")
 if MovementModule and MovementModule.Init then
     MovementModule.Init(PlayerTab)
+end 
+local TeleportModule = LoadModule("Teleport")
+if TeleportModule and TeleportModule.Init then
+    TeleportModule.Init(TeleportTab)
 end
