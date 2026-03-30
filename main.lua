@@ -8,7 +8,6 @@ local Branch = "main"
 -- ==========================================
 local Library = {}
 local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 -- Destroy old instances for clean reloading
@@ -20,12 +19,10 @@ function Library:CreateWindow()
     local Window = {}
     local CurrentTab = nil
 
-    -- Main ScreenGui
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "NexusCustomHub"
     ScreenGui.Parent = CoreGui
 
-    -- Main Background Frame
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
     MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
@@ -34,7 +31,6 @@ function Library:CreateWindow()
     MainFrame.Parent = ScreenGui
     Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
 
-    -- Sidebar (Left)
     local Sidebar = Instance.new("Frame")
     Sidebar.Size = UDim2.new(0, 50, 1, 0)
     Sidebar.BackgroundColor3 = Color3.fromRGB(21, 21, 26)
@@ -42,7 +38,6 @@ function Library:CreateWindow()
     Sidebar.Parent = MainFrame
     Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 6)
     
-    -- Fix corner overlap by adding a block next to the sidebar
     local SideBlock = Instance.new("Frame")
     SideBlock.Size = UDim2.new(0, 10, 1, 0)
     SideBlock.Position = UDim2.new(1, -10, 0, 0)
@@ -56,12 +51,10 @@ function Library:CreateWindow()
     SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
     SidebarList.Padding = UDim.new(0, 10)
     
-    -- Padding for Top of Sidebar
     local UIPadding = Instance.new("UIPadding")
     UIPadding.Parent = Sidebar
     UIPadding.PaddingTop = UDim.new(0, 15)
 
-    -- Content Container (Right)
     local ContentContainer = Instance.new("Frame")
     ContentContainer.Size = UDim2.new(1, -60, 1, -20)
     ContentContainer.Position = UDim2.new(0, 60, 0, 10)
@@ -91,28 +84,35 @@ function Library:CreateWindow()
     end)
 
     -- Tab API
-    function Window:CreateTab(IconID)
+    function Window:CreateTab(TabName, IconID)
         local Tab = {}
         
-        -- Tab Button in Sidebar
         local TabBtn = Instance.new("ImageButton")
+        TabBtn.Name = TabName
         TabBtn.Size = UDim2.new(0, 30, 0, 30)
-        TabBtn.BackgroundTransparency = 1
-        TabBtn.Image = IconID
-        TabBtn.ImageColor3 = Color3.fromRGB(150, 150, 150)
         TabBtn.Parent = Sidebar
+        
+        -- If IconID is blank, make it a faintly visible square so you can click it
+        if IconID == nil or IconID == "" then
+            TabBtn.BackgroundTransparency = 0.8
+            TabBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 6)
+        else
+            TabBtn.BackgroundTransparency = 1
+            TabBtn.Image = IconID
+        end
+        
+        TabBtn.ImageColor3 = Color3.fromRGB(150, 150, 150)
 
-        -- Blue Indicator Line
         local Indicator = Instance.new("Frame")
         Indicator.Size = UDim2.new(0, 3, 0, 0)
         Indicator.Position = UDim2.new(1, 5, 0.5, 0)
         Indicator.AnchorPoint = Vector2.new(0, 0.5)
-        Indicator.BackgroundColor3 = Color3.fromRGB(74, 120, 255) -- Blue Accent
+        Indicator.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
         Indicator.BorderSizePixel = 0
         Indicator.Parent = TabBtn
         Instance.new("UICorner", Indicator).CornerRadius = UDim.new(1, 0)
 
-        -- Tab Page (ScrollingFrame)
         local TabPage = Instance.new("ScrollingFrame")
         TabPage.Size = UDim2.new(1, 0, 1, 0)
         TabPage.BackgroundTransparency = 1
@@ -126,12 +126,10 @@ function Library:CreateWindow()
         PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
         PageLayout.Padding = UDim.new(0, 8)
 
-        -- Auto-resize scroll frame
         PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y)
         end)
 
-        -- Switching Logic
         TabBtn.MouseButton1Click:Connect(function()
             if CurrentTab then
                 CurrentTab.Indicator:TweenSize(UDim2.new(0, 3, 0, 0), "Out", "Quad", 0.2, true)
@@ -144,7 +142,6 @@ function Library:CreateWindow()
             CurrentTab = {Btn = TabBtn, Indicator = Indicator, Page = TabPage}
         end)
 
-        -- Select first tab automatically
         if not CurrentTab then
             TabBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
             Indicator.Size = UDim2.new(0, 3, 0, 20)
@@ -152,7 +149,6 @@ function Library:CreateWindow()
             CurrentTab = {Btn = TabBtn, Indicator = Indicator, Page = TabPage}
         end
 
-        -- Elements API
         function Tab:CreateSection(Name)
             local SectionLabel = Instance.new("TextLabel")
             SectionLabel.Size = UDim2.new(1, 0, 0, 30)
@@ -208,6 +204,12 @@ end
 -- ==========================================
 local HubWindow = Library:CreateWindow()
 
+-- Create the 4 tabs with blank icons
+local HomeTab = HubWindow:CreateTab("Home", "")
+local PlayerTab = HubWindow:CreateTab("Player", "")
+local WorldTab = HubWindow:CreateTab("World", "")
+local TeleportTab = HubWindow:CreateTab("Teleport", "")
+
 local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s", 
         User, Repo, Branch, ModuleName, tick())
@@ -220,8 +222,8 @@ local function LoadModule(ModuleName)
     warn("Failed to load module: " .. ModuleName)
 end
 
--- Load the Movement Module and pass the Window object to it
+-- Load the Movement Module and assign it SPECIFICALLY to the PlayerTab
 local MovementModule = LoadModule("PlayerMovement")
 if MovementModule and MovementModule.Init then
-    MovementModule.Init(HubWindow)
+    MovementModule.Init(PlayerTab)
 end
