@@ -1,5 +1,6 @@
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- [[ THEME ]]
 local Theme = {
@@ -11,9 +12,9 @@ local Theme = {
         AccentDark = Color3.fromRGB(65, 110, 230),
         Text = Color3.fromRGB(255,255,255),
         SubText = Color3.fromRGB(180,180,180),
-        SectionText = Color3.fromRGB(140, 145, 160), -- Lightened for better contrast
-        Element = Color3.fromRGB(35, 36, 42),
-        ElementHover = Color3.fromRGB(50, 52, 60)
+        SectionText = Color3.fromRGB(140,145,160),
+        Element = Color3.fromRGB(35,36,42),
+        ElementHover = Color3.fromRGB(50,52,60)
     },
     Fonts = {
         Main = Enum.Font.Gotham,
@@ -22,7 +23,9 @@ local Theme = {
 }
 
 -- Cleanup
-if game.CoreGui:FindFirstChild("ModernHub") then game.CoreGui.ModernHub:Destroy() end
+if game.CoreGui:FindFirstChild("ModernHub") then
+    game.CoreGui.ModernHub:Destroy()
+end
 
 local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.Name = "ModernHub"
@@ -80,13 +83,19 @@ function Hub:CreateTab(name)
     Instance.new("UIPadding", page).PaddingLeft = UDim.new(0,5)
 
     btn.MouseButton1Click:Connect(function()
-        for _,p in pairs(pages:GetChildren()) do if p:IsA("ScrollingFrame") then p.Visible = false end end
+        for _,p in pairs(pages:GetChildren()) do
+            if p:IsA("ScrollingFrame") then
+                p.Visible = false
+            end
+        end
+
         for _,b in pairs(sidebar:GetChildren()) do
             if b:IsA("TextButton") then
                 b.BackgroundColor3 = Theme.Colors.Element
                 b.TextColor3 = Theme.Colors.SubText
             end
         end
+
         page.Visible = true
         btn.BackgroundColor3 = Theme.Colors.Accent
         btn.TextColor3 = Color3.new(1,1,1)
@@ -97,7 +106,7 @@ end
 
 function Hub:AddSection(parent, text)
     local sectionFrame = Instance.new("Frame", parent)
-    sectionFrame.Size = UDim2.new(1, -10, 0, 35) -- Increased height for spacing
+    sectionFrame.Size = UDim2.new(1, -10, 0, 35)
     sectionFrame.BackgroundTransparency = 1
     
     local label = Instance.new("TextLabel", sectionFrame)
@@ -110,7 +119,6 @@ function Hub:AddSection(parent, text)
     label.TextSize = 11
     label.TextXAlignment = Enum.TextXAlignment.Left
     
-    -- Decorative Accent Line
     local line = Instance.new("Frame", sectionFrame)
     line.Size = UDim2.new(0.2, 0, 0, 1)
     line.Position = UDim2.new(0, 5, 0.8, 0)
@@ -142,18 +150,26 @@ local homePage = Hub:CreateTab("Home")
 local playerPage = Hub:CreateTab("Player")
 local settingsPage = Hub:CreateTab("Settings")
 
--- DYNAMIC MODULE LOADING
+-- ✅ FIXED MODULE LOADING
 local function loadSettings()
-    -- This assumes your structure is: Folder "Modules" -> ModuleScript "Settings"
-    local ModulesFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Modules") 
-        or script.Parent:FindFirstChild("Modules") 
-        or game.CoreGui:FindFirstChild("Modules")
+    local success, err = pcall(function()
+        local ModulesFolder = ReplicatedStorage:WaitForChild("Modules")
+        local SettingsModule = require(ModulesFolder:WaitForChild("Settings"))
 
-    if ModulesFolder and ModulesFolder:FindFirstChild("Settings") then
-        local SettingsModule = require(ModulesFolder.Settings)
         SettingsModule:Load(settingsPage, main, gui)
-    else
-        warn("ModernHub: Could not find 'Modules/Settings' folder/script.")
+    end)
+
+    if not success then
+        warn("Settings failed to load:", err)
+
+        -- fallback UI so tab isn't empty
+        local label = Instance.new("TextLabel", settingsPage)
+        label.Size = UDim2.new(1,0,0,50)
+        label.BackgroundTransparency = 1
+        label.Text = "Failed to load Settings module"
+        label.TextColor3 = Color3.new(1,0,0)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 14
     end
 end
 
