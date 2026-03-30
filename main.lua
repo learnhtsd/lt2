@@ -126,14 +126,21 @@ function Library:CreateWindow()
         Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 8)
         
         if IconName and IconName ~= "" then
-            -- Construct the Raw GitHub URL using your existing config
-            -- Example: https://raw.githubusercontent.com/learnhtsd/lt2/main/Icons/home.png
             local RawUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/Icons/%s", 
                 User, Repo, Branch, IconName)
             
-            -- Use getcustomasset to handle the web image if your executor supports it
-            -- Most modern executors handle HttpGet images or direct URLs in ImageButtons
-            TabBtn.Image = RawUrl
+            -- Xeno/Executor specific image handling
+            local function GetImage(url, name)
+                if not isfile(name) then
+                    writefile(name, game:HttpGet(url))
+                end
+                return getcustomasset(name)
+            end
+    
+            -- Wrap in pcall to prevent the whole script from breaking if an icon is missing
+            pcall(function()
+                TabBtn.Image = GetImage(RawUrl, "NexusIcons_" .. IconName)
+            end)
         else
             local FallbackText = Instance.new("TextLabel", TabBtn)
             FallbackText.Size = UDim2.new(1, 0, 1, 0)
@@ -144,7 +151,7 @@ function Library:CreateWindow()
             FallbackText.TextSize = 14
         end
     
-        TabBtn.ImageColor3 = Color3.fromRGB(120, 120, 130) 
+        TabBtn.ImageColor3 = Color3.fromRGB(120, 120, 130)
 
         local TweenIn = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0.85, ImageColor3 = Color3.fromRGB(255, 255, 255)})
         local TweenOut = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 1, ImageColor3 = Color3.fromRGB(120, 120, 130)})
