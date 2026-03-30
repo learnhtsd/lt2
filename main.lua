@@ -51,7 +51,7 @@ function Library:CreateWindow()
     HeaderTitle.Position = UDim2.new(0, 65, 0, 10)
     HeaderTitle.BackgroundTransparency = 1
     -- Added Version here
-    HeaderTitle.Text = "<b>NEXUS</b> <font color=\"#4a78ff\">HUB</font> <font color=\"#555555\" size=\"12\">" .. Version .. "</font>"
+    HeaderTitle.Text = "<b>Lumber Tycoon 2</b> <font color=\"#4a78ff\">Hub</font> <font color=\"#555555\" size=\"12\">" .. Version .. "</font>"
     HeaderTitle.RichText = true
     HeaderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     HeaderTitle.Font = Enum.Font.GothamMedium
