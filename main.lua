@@ -1,6 +1,5 @@
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- [[ THEME ]]
 local Theme = {
@@ -150,24 +149,25 @@ local homePage = Hub:CreateTab("Home")
 local playerPage = Hub:CreateTab("Player")
 local settingsPage = Hub:CreateTab("Settings")
 
--- ✅ FIXED MODULE LOADING
+-- ✅ GITHUB SETTINGS LOADER
 local function loadSettings()
     local success, err = pcall(function()
-        local ModulesFolder = ReplicatedStorage:WaitForChild("Modules")
-        local SettingsModule = require(ModulesFolder:WaitForChild("Settings"))
+        -- 🔥 PUT YOUR REAL RAW LINK HERE
+        local url = "https://raw.githubusercontent.com/learnhtsd/lt2/main/Settings.lua"
 
+        local SettingsModule = loadstring(game:HttpGet(url))()
         SettingsModule:Load(settingsPage, main, gui)
     end)
 
     if not success then
         warn("Settings failed to load:", err)
 
-        -- fallback UI so tab isn't empty
+        -- visible error inside UI
         local label = Instance.new("TextLabel", settingsPage)
         label.Size = UDim2.new(1,0,0,50)
         label.BackgroundTransparency = 1
-        label.Text = "Failed to load Settings module"
-        label.TextColor3 = Color3.new(1,0,0)
+        label.Text = "Failed to load Settings (check URL/output)"
+        label.TextColor3 = Color3.fromRGB(255,80,80)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 14
     end
