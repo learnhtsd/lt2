@@ -3,70 +3,225 @@ local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
 
--- 1. Create the UI Container
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "LumberHub_Custom"
-ScreenGui.Parent = game.CoreGui
-ScreenGui.ResetOnSpawn = false
+-- ==========================================
+-- UI ENGINE START
+-- ==========================================
+local Library = {}
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0, 20, 0.4, 0) -- Positioned on the left
-MainFrame.Size = UDim2.new(0, 160, 0, 0)
-MainFrame.AutomaticSize = Enum.AutomaticSize.Y
-
-local Layout = Instance.new("UIListLayout")
-Layout.Parent = MainFrame
-Layout.Padding = UDim.new(0, 4)
-Layout.SortOrder = Enum.SortOrder.LayoutOrder
-
--- 2. The API for Modules
-local UI_API = {}
-
-function UI_API.CreateButton(text, callback)
-    local btn = Instance.new("TextButton")
-    btn.Parent = MainFrame
-    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    btn.Size = UDim2.new(1, -10, 0, 30)
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.SourceSansBold
-    btn.TextSize = 14
-    btn.BorderSizePixel = 0
-    
-    -- Small corner radius for a cleaner look
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 4)
-    corner.Parent = btn
-
-    btn.MouseButton1Click:Connect(callback)
-    return btn
+-- Destroy old instances for clean reloading
+for _, v in pairs(CoreGui:GetChildren()) do
+    if v.Name == "NexusCustomHub" then v:Destroy() end
 end
 
--- 3. The Loader (Fixed Cache-Busting)
-local function LoadModule(name)
+function Library:CreateWindow()
+    local Window = {}
+    local CurrentTab = nil
+
+    -- Main ScreenGui
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "NexusCustomHub"
+    ScreenGui.Parent = CoreGui
+
+    -- Main Background Frame
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 550, 0, 350)
+    MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Parent = ScreenGui
+    Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
+
+    -- Sidebar (Left)
+    local Sidebar = Instance.new("Frame")
+    Sidebar.Size = UDim2.new(0, 50, 1, 0)
+    Sidebar.BackgroundColor3 = Color3.fromRGB(21, 21, 26)
+    Sidebar.BorderSizePixel = 0
+    Sidebar.Parent = MainFrame
+    Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 6)
+    
+    -- Fix corner overlap by adding a block next to the sidebar
+    local SideBlock = Instance.new("Frame")
+    SideBlock.Size = UDim2.new(0, 10, 1, 0)
+    SideBlock.Position = UDim2.new(1, -10, 0, 0)
+    SideBlock.BackgroundColor3 = Color3.fromRGB(21, 21, 26)
+    SideBlock.BorderSizePixel = 0
+    SideBlock.Parent = Sidebar
+
+    local SidebarList = Instance.new("UIListLayout")
+    SidebarList.Parent = Sidebar
+    SidebarList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
+    SidebarList.Padding = UDim.new(0, 10)
+    
+    -- Padding for Top of Sidebar
+    local UIPadding = Instance.new("UIPadding")
+    UIPadding.Parent = Sidebar
+    UIPadding.PaddingTop = UDim.new(0, 15)
+
+    -- Content Container (Right)
+    local ContentContainer = Instance.new("Frame")
+    ContentContainer.Size = UDim2.new(1, -60, 1, -20)
+    ContentContainer.Position = UDim2.new(0, 60, 0, 10)
+    ContentContainer.BackgroundTransparency = 1
+    ContentContainer.Parent = MainFrame
+
+    -- Make Window Draggable
+    local dragging, dragInput, dragStart, startPos
+    MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+        end
+    end)
+    MainFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+
+    -- Tab API
+    function Window:CreateTab(IconID)
+        local Tab = {}
+        
+        -- Tab Button in Sidebar
+        local TabBtn = Instance.new("ImageButton")
+        TabBtn.Size = UDim2.new(0, 30, 0, 30)
+        TabBtn.BackgroundTransparency = 1
+        TabBtn.Image = IconID
+        TabBtn.ImageColor3 = Color3.fromRGB(150, 150, 150)
+        TabBtn.Parent = Sidebar
+
+        -- Blue Indicator Line
+        local Indicator = Instance.new("Frame")
+        Indicator.Size = UDim2.new(0, 3, 0, 0)
+        Indicator.Position = UDim2.new(1, 5, 0.5, 0)
+        Indicator.AnchorPoint = Vector2.new(0, 0.5)
+        Indicator.BackgroundColor3 = Color3.fromRGB(74, 120, 255) -- Blue Accent
+        Indicator.BorderSizePixel = 0
+        Indicator.Parent = TabBtn
+        Instance.new("UICorner", Indicator).CornerRadius = UDim.new(1, 0)
+
+        -- Tab Page (ScrollingFrame)
+        local TabPage = Instance.new("ScrollingFrame")
+        TabPage.Size = UDim2.new(1, 0, 1, 0)
+        TabPage.BackgroundTransparency = 1
+        TabPage.ScrollBarThickness = 2
+        TabPage.BorderSizePixel = 0
+        TabPage.Visible = false
+        TabPage.Parent = ContentContainer
+
+        local PageLayout = Instance.new("UIListLayout")
+        PageLayout.Parent = TabPage
+        PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        PageLayout.Padding = UDim.new(0, 8)
+
+        -- Auto-resize scroll frame
+        PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y)
+        end)
+
+        -- Switching Logic
+        TabBtn.MouseButton1Click:Connect(function()
+            if CurrentTab then
+                CurrentTab.Indicator:TweenSize(UDim2.new(0, 3, 0, 0), "Out", "Quad", 0.2, true)
+                CurrentTab.Btn.ImageColor3 = Color3.fromRGB(150, 150, 150)
+                CurrentTab.Page.Visible = false
+            end
+            Indicator:TweenSize(UDim2.new(0, 3, 0, 20), "Out", "Quad", 0.2, true)
+            TabBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+            TabPage.Visible = true
+            CurrentTab = {Btn = TabBtn, Indicator = Indicator, Page = TabPage}
+        end)
+
+        -- Select first tab automatically
+        if not CurrentTab then
+            TabBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+            Indicator.Size = UDim2.new(0, 3, 0, 20)
+            TabPage.Visible = true
+            CurrentTab = {Btn = TabBtn, Indicator = Indicator, Page = TabPage}
+        end
+
+        -- Elements API
+        function Tab:CreateSection(Name)
+            local SectionLabel = Instance.new("TextLabel")
+            SectionLabel.Size = UDim2.new(1, 0, 0, 30)
+            SectionLabel.BackgroundTransparency = 1
+            SectionLabel.Text = Name
+            SectionLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            SectionLabel.Font = Enum.Font.GothamBold
+            SectionLabel.TextSize = 14
+            SectionLabel.TextXAlignment = Enum.TextXAlignment.Left
+            SectionLabel.Parent = TabPage
+        end
+
+        function Tab:CreateAction(Title, ButtonText, Callback)
+            local ActionFrame = Instance.new("Frame")
+            ActionFrame.Size = UDim2.new(1, -10, 0, 40)
+            ActionFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 44)
+            ActionFrame.BorderSizePixel = 0
+            ActionFrame.Parent = TabPage
+            Instance.new("UICorner", ActionFrame).CornerRadius = UDim.new(0, 6)
+
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+            TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title
+            TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+            TitleLabel.Font = Enum.Font.GothamMedium
+            TitleLabel.TextSize = 13
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.Parent = ActionFrame
+
+            local ActionBtn = Instance.new("TextButton")
+            ActionBtn.Size = UDim2.new(0, 70, 0, 24)
+            ActionBtn.Position = UDim2.new(1, -85, 0.5, -12)
+            ActionBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
+            ActionBtn.Text = ButtonText
+            ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            ActionBtn.Font = Enum.Font.GothamBold
+            ActionBtn.TextSize = 12
+            ActionBtn.Parent = ActionFrame
+            Instance.new("UICorner", ActionBtn).CornerRadius = UDim.new(0, 4)
+
+            ActionBtn.MouseButton1Click:Connect(Callback)
+        end
+
+        return Tab
+    end
+    return Window
+end
+
+-- ==========================================
+-- SCRIPT EXECUTION & MODULE LOADING
+-- ==========================================
+local HubWindow = Library:CreateWindow()
+
+local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s", 
-        User, Repo, Branch, name, tick())
+        User, Repo, Branch, ModuleName, tick())
     
     local success, code = pcall(function() return game:HttpGet(URL) end)
-    
     if success and code then
-        local func, err = loadstring(code)
-        if func then
-            return func()
-        else
-            warn("Syntax Error in " .. name .. ": " .. tostring(err))
-        end
-    else
-        warn("Failed to fetch module from GitHub: " .. name)
+        local func = loadstring(code)
+        if func then return func() end
     end
+    warn("Failed to load module: " .. ModuleName)
 end
 
--- 4. Load the Movement Module
+-- Load the Movement Module and pass the Window object to it
 local MovementModule = LoadModule("PlayerMovement")
 if MovementModule and MovementModule.Init then
-    MovementModule.Init(UI_API)
+    MovementModule.Init(HubWindow)
 end
