@@ -1,25 +1,43 @@
-local Settings = {}
+local SettingsModule = {}
+local CoreGui = game:GetService("CoreGui")
 
-function Settings:Load(Tab, MainFrame, ScreenGui)
-    local Hub = _G.Hub
+function SettingsModule.Init(Tab, RepoConfig)
+    Tab:CreateSection("Interface")
 
-    Hub:AddSection(Tab, "Configuration")
-    Hub:AddButton(Tab, "Toggle Key: Right Ctrl", function()
-        print("Bind UI clicked")
+    -- Toggle Menu Hotkey
+    Tab:CreateKeybind("Toggle Menu", Enum.KeyCode.RightShift, function()
+        local hub = CoreGui:FindFirstChild("NexusCustomHub")
+        if hub then
+            hub.Enabled = not hub.Enabled
+        end
     end)
 
-    Hub:AddSection(Tab, "UI Customization")
-    Hub:AddButton(Tab, "Increase Scale", function()
-        MainFrame.Size = MainFrame.Size + UDim2.fromOffset(20,15)
-    end)
-    Hub:AddButton(Tab, "Decrease Scale", function()
-        MainFrame.Size = MainFrame.Size - UDim2.fromOffset(20,15)
+    Tab:CreateSection("System")
+
+    -- Reload Menu Button
+    Tab:CreateAction("Reload Script", "Reload", function()
+        -- Destroy the current GUI
+        local hub = CoreGui:FindFirstChild("NexusCustomHub")
+        if hub then hub:Destroy() end
+        
+        -- Re-fetch and execute the main script from GitHub
+        local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/main.lua?t=%s", 
+            RepoConfig.User, RepoConfig.Repo, RepoConfig.Branch, tick())
+        
+        local success, code = pcall(function() return game:HttpGet(URL) end)
+        if success and code then
+            local func = loadstring(code)
+            if func then func() end
+        else
+            warn("Failed to fetch main script for reload.")
+        end
     end)
 
-    Hub:AddSection(Tab, "Danger Zone")
-    Hub:AddButton(Tab, "Unload Script", function()
-        ScreenGui:Destroy()
+    -- Unload Menu Button
+    Tab:CreateAction("Unload Script", "Unload", function()
+        local hub = CoreGui:FindFirstChild("NexusCustomHub")
+        if hub then hub:Destroy() end
     end)
 end
 
-return Settings
+return SettingsModule
