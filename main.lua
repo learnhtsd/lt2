@@ -2,7 +2,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.003"
+local Version = "v0.0.004"
 
 -- ==========================================
 -- UI ENGINE START
@@ -523,7 +523,7 @@ if SettingsModule and SettingsModule.Init then
     SettingsModule.Init(SettingsTab, {User = User, Repo = Repo, Branch = Branch}) 
 end
 
-local WoodModule = LoadModule("Wood")
-if WoodModule and WoodModule.Init then 
-    WoodModule.Init(WoodTab) 
+local GetWood = LoadModule("Wood")
+if GetWood and GetWood.Init then 
+    GetWood.Init(WoodTab) 
 end
