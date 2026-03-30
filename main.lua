@@ -369,8 +369,8 @@ function Library:CreateWindow()
             end)
         end
 
-        function Tab:CreateKeybind(Title, Default, Callback)
-            local Key = Default.Name
+function Tab:CreateKeybind(Title, Default, Callback)
+            local KeyName = Default.Name
             local KeybindFrame = Instance.new("Frame")
             -- Shrunk height
             KeybindFrame.Size = UDim2.new(1, -5, 0, 28)
@@ -395,7 +395,7 @@ function Library:CreateWindow()
             BindBtn.AnchorPoint = Vector2.new(1, 0.5)
             BindBtn.Position = UDim2.new(1, -8, 0.5, 0) 
             BindBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-            BindBtn.Text = Key
+            BindBtn.Text = KeyName
             BindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
             BindBtn.Font = Enum.Font.GothamBold
             BindBtn.TextSize = 11
@@ -407,17 +407,28 @@ function Library:CreateWindow()
                 BindBtn.Text = "..."
                 local connection
                 connection = UserInputService.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.Keyboard then
-                        Key = input.KeyCode.Name
-                        BindBtn.Text = Key
+                    local isKeyboard = input.UserInputType == Enum.UserInputType.Keyboard
+                    local isMouse = input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3
+                    
+                    if isKeyboard then
+                        KeyName = input.KeyCode.Name
+                        BindBtn.Text = KeyName
+                        connection:Disconnect()
+                    elseif isMouse then
+                        KeyName = input.UserInputType.Name
+                        BindBtn.Text = KeyName
                         connection:Disconnect()
                     end
                 end)
             end)
 
             UserInputService.InputBegan:Connect(function(input, processed)
-                if not processed and input.KeyCode.Name == Key then
-                    Callback()
+                if not processed then
+                    if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode.Name == KeyName then
+                        Callback()
+                    elseif input.UserInputType.Name == KeyName then
+                        Callback()
+                    end
                 end
             end)
         end
