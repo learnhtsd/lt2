@@ -1,17 +1,17 @@
 local Settings = {}
 
 function Settings:Load(Tab, MainFrame, ScreenGui)
-    local Hub = _G.Hub -- Get the API from the global table
+    local Hub = _G.Hub -- Access the Hub API from the main script
     
-    -- SECTION 1
-    Hub:AddSection(Tab, "Keybinds")
+    -- SECTION: INPUT
+    Hub:AddSection(Tab, "Controls")
     
     Hub:AddButton(Tab, "Toggle Key: Right Ctrl", function()
-        print("Rebind clicked")
+        print("Rebinding UI is coming soon...")
     end)
 
-    -- SECTION 2
-    Hub:AddSection(Tab, "Menu Layout")
+    -- SECTION: MENU
+    Hub:AddSection(Tab, "Interface Settings")
 
     Hub:AddButton(Tab, "Scale Up", function()
         MainFrame.Size += UDim2.fromOffset(20,15)
@@ -21,10 +21,10 @@ function Settings:Load(Tab, MainFrame, ScreenGui)
         MainFrame.Size -= UDim2.fromOffset(20,15)
     end)
 
-    -- SECTION 3
-    Hub:AddSection(Tab, "Danger Zone")
+    -- SECTION: SYSTEM
+    Hub:AddSection(Tab, "Utility")
 
-    Hub:AddButton(Tab, "Unload", function()
+    Hub:AddButton(Tab, "Unload Menu", function()
         ScreenGui:Destroy()
     end)
 end
