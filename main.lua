@@ -1,6 +1,6 @@
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
- 
+
 -- [[ THEME ]]
 local Theme = {
     Colors = {
@@ -11,7 +11,7 @@ local Theme = {
         AccentDark = Color3.fromRGB(65, 110, 230),
         Text = Color3.fromRGB(255,255,255),
         SubText = Color3.fromRGB(180,180,180),
-        SectionText = Color3.fromRGB(100, 105, 115),
+        SectionText = Color3.fromRGB(140, 145, 160), -- Lightened for better contrast
         Element = Color3.fromRGB(35, 36, 42),
         ElementHover = Color3.fromRGB(50, 52, 60)
     },
@@ -36,25 +36,18 @@ main.BackgroundColor3 = Theme.Colors.MainBackground
 main.BorderSizePixel = 0
 Instance.new("UICorner", main).CornerRadius = UDim.new(0,10)
 
--- SIDEBAR & PAGES SETUP
+-- Sidebar
 local sidebar = Instance.new("Frame", main)
 sidebar.Size = UDim2.new(0,150,1,-20)
 sidebar.Position = UDim2.fromOffset(10,10)
 sidebar.BackgroundColor3 = Theme.Colors.Sidebar
-Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0,8)
+Instance.new("UICorner", sidebar)
 
 local sLayout = Instance.new("UIListLayout", sidebar)
 sLayout.Padding = UDim.new(0,6)
 sLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local selector = Instance.new("Frame", sidebar)
-selector.Size = UDim2.new(0,4,0,24)
-selector.Position = UDim2.fromOffset(0, 10)
-selector.BackgroundColor3 = Theme.Colors.Accent
-selector.BorderSizePixel = 0
-selector.ZIndex = 2
-Instance.new("UICorner", selector)
-
+-- Page Holder
 local pages = Instance.new("Frame", main)
 pages.Size = UDim2.new(1,-180,1,-40)
 pages.Position = UDim2.fromOffset(170,30)
@@ -90,12 +83,13 @@ function Hub:CreateTab(name)
         for _,p in pairs(pages:GetChildren()) do if p:IsA("ScrollingFrame") then p.Visible = false end end
         for _,b in pairs(sidebar:GetChildren()) do
             if b:IsA("TextButton") then
-                TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Colors.Element, TextColor3 = Theme.Colors.SubText}):Play()
+                b.BackgroundColor3 = Theme.Colors.Element
+                b.TextColor3 = Theme.Colors.SubText
             end
         end
         page.Visible = true
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Colors.Accent, TextColor3 = Color3.new(1,1,1)}):Play()
-        TweenService:Create(selector, TweenInfo.new(0.2), {Position = UDim2.new(0,0,0, btn.Position.Y.Offset + 4)}):Play()
+        btn.BackgroundColor3 = Theme.Colors.Accent
+        btn.TextColor3 = Color3.new(1,1,1)
     end)
 
     return page
@@ -103,17 +97,26 @@ end
 
 function Hub:AddSection(parent, text)
     local sectionFrame = Instance.new("Frame", parent)
-    sectionFrame.Size = UDim2.new(1, -10, 0, 25)
+    sectionFrame.Size = UDim2.new(1, -10, 0, 35) -- Increased height for spacing
     sectionFrame.BackgroundTransparency = 1
     
     local label = Instance.new("TextLabel", sectionFrame)
     label.Size = UDim2.new(1, 0, 1, 0)
+    label.Position = UDim2.new(0, 5, 0, 0)
     label.BackgroundTransparency = 1
     label.Text = text:upper()
     label.TextColor3 = Theme.Colors.SectionText
     label.Font = Theme.Fonts.Bold
-    label.TextSize = 10
+    label.TextSize = 11
     label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Decorative Accent Line
+    local line = Instance.new("Frame", sectionFrame)
+    line.Size = UDim2.new(0.2, 0, 0, 1)
+    line.Position = UDim2.new(0, 5, 0.8, 0)
+    line.BackgroundColor3 = Theme.Colors.Accent
+    line.BorderSizePixel = 0
+    line.BackgroundTransparency = 0.4
 end
 
 function Hub:AddButton(parent, text, callback)
@@ -134,15 +137,27 @@ function Hub:AddButton(parent, text, callback)
     btn.MouseButton1Click:Connect(callback)
 end
 
--- [[ TAB CREATION ]]
-local home = Hub:CreateTab("Home")
-local player = Hub:CreateTab("Player")
-local settingsTab = Hub:CreateTab("Settings")
+-- [[ LOAD TABS ]]
+local homePage = Hub:CreateTab("Home")
+local playerPage = Hub:CreateTab("Player")
+local settingsPage = Hub:CreateTab("Settings")
 
--- Load the Settings Module (Assuming it's in a ModuleScript named 'Settings')
--- Replace 'script.Settings' with the actual path to your module!
-local SettingsModule = require(game:GetService("ReplicatedStorage"):WaitForChild("Settings")) 
-SettingsModule:Load(settingsTab, main, gui)
+-- DYNAMIC MODULE LOADING
+local function loadSettings()
+    -- This assumes your structure is: Folder "Modules" -> ModuleScript "Settings"
+    local ModulesFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Modules") 
+        or script.Parent:FindFirstChild("Modules") 
+        or game.CoreGui:FindFirstChild("Modules")
 
--- Default Open
-home.Visible = true
+    if ModulesFolder and ModulesFolder:FindFirstChild("Settings") then
+        local SettingsModule = require(ModulesFolder.Settings)
+        SettingsModule:Load(settingsPage, main, gui)
+    else
+        warn("ModernHub: Could not find 'Modules/Settings' folder/script.")
+    end
+end
+
+loadSettings()
+
+-- Default tab
+homePage.Visible = true
