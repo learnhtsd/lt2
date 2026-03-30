@@ -114,7 +114,7 @@ function Library:CreateWindow()
         end
     end)
 
-    function Window:CreateTab(TabName, IconName)
+    function Window:CreateTab(TabName)
         local Tab = {}
         
         local TabBtn = Instance.new("ImageButton")
@@ -125,37 +125,19 @@ function Library:CreateWindow()
         TabBtn.BackgroundTransparency = 1
         Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 8)
         
-        if IconName and IconName ~= "" then
-            local RawUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/Icons/%s", 
-                User, Repo, Branch, IconName)
-            
-            -- Xeno/Executor specific image handling
-            local function GetImage(url, name)
-                if not isfile(name) then
-                    writefile(name, game:HttpGet(url))
-                end
-                return getcustomasset(name)
-            end
+        -- Using the first letter of the Tab Name as the icon
+        local FallbackText = Instance.new("TextLabel", TabBtn)
+        FallbackText.Size = UDim2.new(1, 0, 1, 0)
+        FallbackText.BackgroundTransparency = 1
+        FallbackText.Text = string.sub(TabName, 1, 1):upper() -- Forced uppercase for style
+        FallbackText.TextColor3 = Color3.fromRGB(120, 120, 130) -- Default dimmed color
+        FallbackText.Font = Enum.Font.GothamBold
+        FallbackText.TextSize = 14
+        FallbackText.Name = "TabIconText"
     
-            -- Wrap in pcall to prevent the whole script from breaking if an icon is missing
-            pcall(function()
-                TabBtn.Image = GetImage(RawUrl, "NexusIcons_" .. IconName)
-            end)
-        else
-            local FallbackText = Instance.new("TextLabel", TabBtn)
-            FallbackText.Size = UDim2.new(1, 0, 1, 0)
-            FallbackText.BackgroundTransparency = 1
-            FallbackText.Text = string.sub(TabName, 1, 1)
-            FallbackText.TextColor3 = Color3.fromRGB(255, 255, 255)
-            FallbackText.Font = Enum.Font.GothamBold
-            FallbackText.TextSize = 14
-        end
+        local TweenIn = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0.85})
+        local TweenOut = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
     
-        TabBtn.ImageColor3 = Color3.fromRGB(120, 120, 130)
-
-        local TweenIn = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0.85, ImageColor3 = Color3.fromRGB(255, 255, 255)})
-        local TweenOut = TweenService:Create(TabBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 1, ImageColor3 = Color3.fromRGB(120, 120, 130)})
-
         local TabPage = Instance.new("ScrollingFrame")
         TabPage.Size = UDim2.new(1, 0, 1, 0)
         TabPage.BackgroundTransparency = 1
@@ -163,38 +145,31 @@ function Library:CreateWindow()
         TabPage.BorderSizePixel = 0
         TabPage.Visible = false
         TabPage.Parent = ContentContainer
-
+    
         local PageLayout = Instance.new("UIListLayout")
         PageLayout.Parent = TabPage
         PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        -- Reduced padding for more compact look
         PageLayout.Padding = UDim.new(0, 6) 
-
+    
         PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y)
         end)
-
+    
         TabBtn.MouseButton1Click:Connect(function()
             if CurrentTab then
                 CurrentTab.TweenOut:Play()
-                if CurrentTab.Btn:FindFirstChildOfClass("TextLabel") then
-                    CurrentTab.Btn:FindFirstChildOfClass("TextLabel").TextColor3 = Color3.fromRGB(120, 120, 130)
-                end
+                CurrentTab.Btn.TabIconText.TextColor3 = Color3.fromRGB(120, 120, 130)
                 CurrentTab.Page.Visible = false
             end
             TweenIn:Play()
-            if TabBtn:FindFirstChildOfClass("TextLabel") then
-                TabBtn:FindFirstChildOfClass("TextLabel").TextColor3 = Color3.fromRGB(255, 255, 255)
-            end
+            TabBtn.TabIconText.TextColor3 = Color3.fromRGB(255, 255, 255)
             TabPage.Visible = true
             CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
         end)
-
+    
         if not CurrentTab then
             TweenIn:Play()
-            if TabBtn:FindFirstChildOfClass("TextLabel") then
-                TabBtn:FindFirstChildOfClass("TextLabel").TextColor3 = Color3.fromRGB(255, 255, 255)
-            end
+            FallbackText.TextColor3 = Color3.fromRGB(255, 255, 255)
             TabPage.Visible = true
             CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
         end
