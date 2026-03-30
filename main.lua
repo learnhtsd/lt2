@@ -494,6 +494,7 @@ local HomeTab     = HubWindow:CreateTab("Home")
 local PlayerTab   = HubWindow:CreateTab("Player")
 local WorldTab    = HubWindow:CreateTab("World")
 local TeleportTab = HubWindow:CreateTab("Teleport")
+local WoodTab    = HubWindow:CreateTab("Wood")
 local BuildTab    = HubWindow:CreateTab("Build")
 local SettingsTab = HubWindow:CreateTab("Settings")
 
@@ -520,4 +521,9 @@ if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
 local SettingsModule = LoadModule("Settings")
 if SettingsModule and SettingsModule.Init then  
     SettingsModule.Init(SettingsTab, {User = User, Repo = Repo, Branch = Branch}) 
+end
+
+local WoodModule = LoadModule("Wood")
+if WoodModule and WoodModule.Init then 
+    WoodModule.Init(WoodTab) 
 end
