@@ -1,87 +1,99 @@
-function Tab:CreateDropdown(Title, Options, Default, Callback)
-    local Dropdown = {
-        Open = false,
-        Selected = Default or "Select..."
-    }
-    
-    local DropdownFrame = Instance.new("Frame")
-    DropdownFrame.Size = UDim2.new(1, 0, 0, 28)
-    DropdownFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
-    DropdownFrame.ClipsDescendants = true
-    DropdownFrame.Parent = TabPage
-    Instance.new("UICorner", DropdownFrame).CornerRadius = UDim.new(0, 6)
-    AddDepthStroke(DropdownFrame)
+local GetWood = {}
 
-    local Header = Instance.new("TextButton")
-    Header.Size = UDim2.new(1, 0, 0, 28)
-    Header.BackgroundTransparency = 1
-    Header.Text = ""
-    Header.Parent = DropdownFrame
+local SelectedTree = "Oak"
+local IsFarming = false
+local Player = game.Players.LocalPlayer
 
-    local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Size = UDim2.new(0.5, 0, 1, 0) -- Adjusted width
-    TitleLabel.Position = UDim2.new(0, 10, 0, 0)
-    TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Text = Title
-    TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
-    TitleLabel.Font = Enum.Font.GothamMedium
-    TitleLabel.TextSize = 12
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TitleLabel.Parent = Header
+-- Updated tree names to match LT2 internal values
+local TreeTypes = {
+    "Oak", "Birch", "Cherry", "Walnut", "Fir", "Pine", "Koa", 
+    "Volcano", "Frost", "Gold", "Silver", "Palm", "Swamp", 
+    "Spooky", "Sinister", "Cave", "Cocoa", "Oof", "Phantom"
+}
 
-    local SelectedLabel = Instance.new("TextLabel")
-    SelectedLabel.Size = UDim2.new(0.5, -20, 1, 0) -- Give more room for tree names
-    SelectedLabel.Position = UDim2.new(1, -10, 0, 0)
-    SelectedLabel.AnchorPoint = Vector2.new(1, 0)
-    SelectedLabel.BackgroundTransparency = 1
-    SelectedLabel.Text = Dropdown.Selected
-    SelectedLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
-    SelectedLabel.Font = Enum.Font.GothamBold
-    SelectedLabel.TextSize = 11
-    SelectedLabel.TextXAlignment = Enum.TextXAlignment.Right
-    SelectedLabel.Parent = Header
+local function GetNearestTree(treeName)
+    local closestTree = nil
+    local shortestDist = math.huge
+    local char = Player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
 
-    local OptionHolder = Instance.new("Frame")
-    OptionHolder.Size = UDim2.new(1, -10, 0, 0)
-    OptionHolder.Position = UDim2.new(0, 5, 0, 30)
-    OptionHolder.BackgroundTransparency = 1
-    OptionHolder.Parent = DropdownFrame
-
-    local Layout = Instance.new("UIListLayout", OptionHolder)
-    Layout.Padding = UDim.new(0, 3)
-
-    local function Refresh()
-        for _, child in pairs(OptionHolder:GetChildren()) do
-            if child:IsA("TextButton") then child:Destroy() end
-        end
-
-        for _, opt in pairs(Options) do
-            local OptBtn = Instance.new("TextButton")
-            OptBtn.Size = UDim2.new(1, 0, 0, 22)
-            OptBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-            OptBtn.Text = opt
-            OptBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-            OptBtn.Font = Enum.Font.Gotham
-            OptBtn.TextSize = 11
-            OptBtn.Parent = OptionHolder
-            Instance.new("UICorner", OptBtn).CornerRadius = UDim.new(0, 4)
-
-            OptBtn.MouseButton1Click:Connect(function()
-                Dropdown.Selected = opt
-                SelectedLabel.Text = opt
-                Dropdown.Open = false
-                TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, 28)}):Play()
-                Callback(opt)
-            end)
+    -- LT2 trees are often nested. We check Workspace and potential folders.
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj.Name == "TreeClass" and obj.Value == treeName then
+            local tree = obj.Parent
+            local cutPart = tree:FindFirstChild("WoodSection") or tree:FindFirstChild("Base")
+            
+            if cutPart then
+                local dist = (char.HumanoidRootPart.Position - cutPart.Position).Magnitude
+                if dist < shortestDist then
+                    closestTree = tree
+                    shortestDist = dist
+                end
+            end
         end
     end
+    return closestTree
+end
 
-    Header.MouseButton1Click:Connect(function()
-        Dropdown.Open = not Dropdown.Open
-        -- Added a small buffer to the height to ensure the last item isn't cut off
-        local targetHeight = Dropdown.Open and (Layout.AbsoluteContentSize.Y + 38) or 28
-        TweenService:Create(DropdownFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
+function GetWood.Init(Tab)
+    Tab:CreateSection("Wood Management")
+
+    Tab:CreateDropdown("Select Tree Type", TreeTypes, "Oak", function(choice)
+        SelectedTree = choice
     end)
 
-    Refresh()
+    Tab:CreateAction("Auto Farm", "Start", function()
+        if IsFarming then return end
+        
+        local char = Player.Character
+        local tool = char and char:FindFirstChildOfClass("Tool")
+        
+        if not tool or not tool:FindFirstChild("RemoteClick") then
+            warn("Equip an axe first!")
+            return
+        end
+
+        local target = GetNearestTree(SelectedTree)
+        if not target then
+            warn("No " .. SelectedTree .. " found nearby.")
+            return
+        end
+
+        IsFarming = true
+        local oldPos = char.HumanoidRootPart.CFrame
+        local woodSection = target:FindFirstChild("WoodSection")
+
+        -- Move to tree
+        char.HumanoidRootPart.CFrame = woodSection.CFrame * CFrame.new(0, 0, 2)
+        task.wait(0.3)
+
+        -- Chop chop
+        repeat
+            tool.RemoteClick:FireServer({
+                ["Part"] = woodSection,
+                ["Pos"] = woodSection.Position,
+                ["Normal"] = Vector3.new(0, 1, 0)
+            })
+            task.wait(0.15)
+        until not target:Parent() or not IsFarming
+
+        -- Return home
+        char.HumanoidRootPart.CFrame = oldPos
+        
+        -- Bring wood back
+        task.wait(0.5)
+        for _, log in pairs(workspace.LogFolder:GetChildren()) do
+            if log:FindFirstChild("Owner") and log.Owner.Value == Player then
+                log.CFrame = oldPos * CFrame.new(0, 5, 0)
+            end
+        end
+        
+        IsFarming = false
+    end)
+
+    Tab:CreateToggle("Emergency Stop", false, function(state)
+        IsFarming = not state -- If toggle is ON, IsFarming becomes false
+    end)
 end
+
+return GetWood
