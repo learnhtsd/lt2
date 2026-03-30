@@ -1,20 +1,55 @@
--- File: main.lua (Save inside the main folder)
-
+-- ==========================================
+-- 1. Theme Loading (The "Brain")
+-- ==========================================
 local UI_Theme_URL = "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/ui_theme.lua"
-local Success, Theme = pcall(function()
-    return loadstring(game:HttpGet(UI_Theme_URL))()
-end)
 
-if not (Success and Theme) then
-    error("Failed to load UI Theme script. Make sure the URL is correct and public.")
+local function GetTheme()
+    local success, result = pcall(function()
+        return game:HttpGet(UI_Theme_URL)
+    end)
+    
+    if not success then return nil end
+    
+    local func, err = loadstring(result)
+    if not func then 
+        warn("Theme Syntax Error: " .. tostring(err))
+        return nil 
+    end
+    
+    local runSuccess, themeTable = pcall(func)
+    if not runSuccess then return nil end
+    
+    return themeTable
+end
+
+local Theme = GetTheme()
+
+-- Fallback Theme (If GitHub fails, the UI still loads so you can use it)
+if not Theme then
+    warn("Using Fallback Theme: GitHub link failed or file is formatted incorrectly.")
+    Theme = {
+        Colors = {
+            MainBackground = Color3.fromRGB(25, 25, 25),
+            ElementBackground = Color3.fromRGB(35, 35, 35),
+            AccentColor = Color3.fromRGB(75, 120, 240),
+            TextColor = Color3.fromRGB(255, 255, 255),
+            SecondaryTextColor = Color3.fromRGB(200, 200, 200),
+            ButtonDefault = Color3.fromRGB(45, 45, 45),
+            ToggleOn = Color3.fromRGB(75, 120, 240),
+            ToggleOff = Color3.fromRGB(60, 60, 60),
+        },
+        Fonts = { Main = Enum.Font.Gotham, MainBold = Enum.Font.GothamBold },
+        Sizes = { ElementHeight = 40, ElementCornerRadius = UDim.new(0, 8), UI_Size = UDim2.fromOffset(500, 400) }
+    }
 end
 
 -- ==========================================
--- Core UI Creation Logic (Background, Navbar, etc.)
+-- 2. Core UI Creation
 -- ==========================================
-local Hub_ScreenGui = Instance.new("ScreenGui", game.Players.LocalPlayer:WaitForChild("PlayerGui"))
+local Hub_ScreenGui = Instance.new("ScreenGui")
 Hub_ScreenGui.Name = "MyModularHub"
 Hub_ScreenGui.ResetOnSpawn = false
+Hub_ScreenGui.Parent = game.CoreGui -- Changed to CoreGui so it stays if you reset
 
 local Main_Frame = Instance.new("Frame", Hub_ScreenGui)
 Main_Frame.Name = "MainFrame"
@@ -26,93 +61,86 @@ Main_Frame.AnchorPoint = Vector2.new(0.5, 0.5)
 
 Instance.new("UICorner", Main_Frame).CornerRadius = Theme.Sizes.ElementCornerRadius
 
--- (Creation of Navbar, Page Container, language icons, and active page logic would go here)
--- (This part requires a full UI library creation which is a larger project.)
--- For this modular example, we will focus on how features connect.
-
--- A key object for our modular system: The Page Container.
--- All elements will be parented here and UIListLayout handles placement.
-local PageContainer = Instance.new("Frame", Main_Frame)
+-- Page Container
+local PageContainer = Instance.new("ScrollingFrame", Main_Frame)
 PageContainer.Name = "PageContainer"
-PageContainer.Size = UDim2.new(1, -70, 1, -60) -- Offset for navbar and title
-PageContainer.Position = UDim2.fromOffset(70, 60)
+PageContainer.Size = UDim2.new(1, -20, 1, -70)
+PageContainer.Position = UDim2.fromOffset(10, 60)
 PageContainer.BackgroundTransparency = 1
+PageContainer.ScrollBarThickness = 2
+PageContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+PageContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
 local PageLayout = Instance.new("UIListLayout", PageContainer)
 PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-PageLayout.Padding = UDim.new(0, 8) -- Distance between options
+PageLayout.Padding = UDim.new(0, 8)
 
--- Example Title (Based on image)
+-- Title
 local PageTitle = Instance.new("TextLabel", Main_Frame)
-PageTitle.Text = "SlotTab"
+PageTitle.Text = "Modular Hub v1.0"
 PageTitle.Size = UDim2.fromOffset(200, 30)
-PageTitle.Position = UDim2.fromOffset(130, 20)
+PageTitle.Position = UDim2.fromOffset(15, 15)
 PageTitle.BackgroundTransparency = 1
-PageTitle.TextColor3 = Theme.Colors.SecondaryTextColor
-PageTitle.TextSize = 18
+PageTitle.TextColor3 = Theme.Colors.TextColor
+PageTitle.TextSize = 20
 PageTitle.Font = Theme.Fonts.MainBold
 PageTitle.TextXAlignment = Enum.TextXAlignment.Left
 
 -- ==========================================
--- Feature Injection (The Core of the Idea)
+-- 3. Feature API
 -- ==========================================
--- This is how another script can add a button/slider/toggle.
+local Hub = {}
 
-local Add_Button = function(name, callback)
+function Hub:AddButton(name, callback)
     local Button_Frame = Instance.new("Frame", PageContainer)
-    Button_Frame.Size = UDim2.new(1, -20, 0, Theme.Sizes.ElementHeight)
+    Button_Frame.Size = UDim2.new(1, -10, 0, Theme.Sizes.ElementHeight)
     Button_Frame.BackgroundColor3 = Theme.Colors.ElementBackground
     Instance.new("UICorner", Button_Frame).CornerRadius = Theme.Sizes.ElementCornerRadius
 
     local ButtonText = Instance.new("TextLabel", Button_Frame)
     ButtonText.Text = name
-    ButtonText.Size = UDim2.new(0.7, 0, 1, 0)
+    ButtonText.Size = UDim2.new(0.6, 0, 1, 0)
     ButtonText.Position = UDim2.fromOffset(10, 0)
     ButtonText.BackgroundTransparency = 1
     ButtonText.TextColor3 = Theme.Colors.TextColor
-    ButtonText.TextSize = 16
     ButtonText.Font = Theme.Fonts.Main
     ButtonText.TextXAlignment = Enum.TextXAlignment.Left
 
     local Click_Button = Instance.new("TextButton", Button_Frame)
-    Click_Button.Name = "ActionButton"
-    Click_Button.Text = "Activate"
-    Click_Button.Size = UDim2.fromOffset(100, Theme.Sizes.ElementHeight - 10)
-    Click_Button.Position = UDim2.new(1, -110, 0.5, 0)
+    Click_Button.Text = "EXECUTE"
+    Click_Button.Size = UDim2.fromOffset(80, Theme.Sizes.ElementHeight - 12)
+    Click_Button.Position = UDim2.new(1, -90, 0.5, 0)
     Click_Button.AnchorPoint = Vector2.new(0, 0.5)
     Click_Button.BackgroundColor3 = Theme.Colors.ButtonDefault
     Click_Button.TextColor3 = Theme.Colors.AccentColor
-    Click_Button.TextSize = 16
     Click_Button.Font = Theme.Fonts.MainBold
     Instance.new("UICorner", Click_Button).CornerRadius = Theme.Sizes.ElementCornerRadius
 
     Click_Button.MouseButton1Click:Connect(callback)
 end
 
-local Add_Toggle = function(name, default, callback)
+function Hub:AddToggle(name, default, callback)
     local Toggle_Frame = Instance.new("Frame", PageContainer)
-    Toggle_Frame.Size = UDim2.new(1, -20, 0, Theme.Sizes.ElementHeight)
+    Toggle_Frame.Size = UDim2.new(1, -10, 0, Theme.Sizes.ElementHeight)
     Toggle_Frame.BackgroundColor3 = Theme.Colors.ElementBackground
     Instance.new("UICorner", Toggle_Frame).CornerRadius = Theme.Sizes.ElementCornerRadius
 
     local ToggleText = Instance.new("TextLabel", Toggle_Frame)
     ToggleText.Text = name
-    ToggleText.Size = UDim2.new(0.7, 0, 1, 0)
+    ToggleText.Size = UDim2.new(0.6, 0, 1, 0)
     ToggleText.Position = UDim2.fromOffset(10, 0)
     ToggleText.BackgroundTransparency = 1
     ToggleText.TextColor3 = Theme.Colors.TextColor
-    ToggleText.TextSize = 16
     ToggleText.Font = Theme.Fonts.Main
     ToggleText.TextXAlignment = Enum.TextXAlignment.Left
 
     local Toggle_Btn = Instance.new("TextButton", Toggle_Frame)
-    Toggle_Btn.Name = "Toggle"
-    Toggle_Btn.Text = "" -- Empty text
-    Toggle_Btn.Size = UDim2.fromOffset(60, Theme.Sizes.ElementHeight - 10)
-    Toggle_Btn.Position = UDim2.new(1, -70, 0.5, 0)
+    Toggle_Btn.Text = ""
+    Toggle_Btn.Size = UDim2.fromOffset(45, 22)
+    Toggle_Btn.Position = UDim2.new(1, -55, 0.5, 0)
     Toggle_Btn.AnchorPoint = Vector2.new(0, 0.5)
     Toggle_Btn.BackgroundColor3 = (default and Theme.Colors.ToggleOn or Theme.Colors.ToggleOff)
-    Instance.new("UICorner", Toggle_Btn).CornerRadius = UDim.new(1, 0) -- Rounded edges for toggle
+    Instance.new("UICorner", Toggle_Btn).CornerRadius = UDim.new(1, 0)
 
     local State = default
     Toggle_Btn.MouseButton1Click:Connect(function()
@@ -122,14 +150,18 @@ local Add_Toggle = function(name, default, callback)
     end)
 end
 
--- (Similar Add_Slider function would go here)
+-- ==========================================
+-- 4. Execution & Testing
+-- ==========================================
+getgenv().Hub = Hub
 
--- Expose these functions as the public API
-getgenv().Hub = {
-    AddButton = Add_Button,
-    AddToggle = Add_Toggle,
-    Theme = Theme -- Allow features to read theme info
-}
+-- Example Usage (This is what you'd put in your actual script):
+Hub:AddButton("Print Hello", function()
+    print("Hello from the menu!")
+end)
 
--- Return the hub framework itself
-return Hub
+Hub:AddToggle("God Mode", false, function(toggled)
+    print("God Mode is now: ", toggled)
+end)
+
+print("Menu Loaded Successfully!")
