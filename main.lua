@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.038"
+local Version = "v0.0.039"
 
 -- ==========================================
 -- UI ENGINE START
