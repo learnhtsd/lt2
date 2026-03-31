@@ -10,7 +10,7 @@ local TreeTypes = {
     "Spooky", "Sinister", "Cave", "Cocoa", "Oof", "Phantom"
 }
 
--- Target the game's main interaction system
+-- Use the most common interaction proxy for LT2
 local Interaction = game:GetService("ReplicatedStorage"):FindFirstChild("Interaction")
 local Remote = Interaction and (Interaction:FindFirstChild("RemoteProxy") or Interaction:FindFirstChild("VerifyAction"))
 
@@ -51,11 +51,11 @@ function GetWood.Init(Tab)
         local tool = char:FindFirstChildOfClass("Tool")
         
         if not tool then
-            warn("Equip your axe first!")
+            warn("Hold the axe in your hand before clicking Start!")
             return
         end
 
-        -- Find the tool's specific remote if the global one isn't responding
+        -- Try to find the axe's specific remote or fall back to the global interaction
         local toolRemote = tool:FindFirstChild("RemoteClick") or tool:FindFirstChild("Click")
         local activeRemote = toolRemote or Remote
 
@@ -66,37 +66,29 @@ function GetWood.Init(Tab)
         end
 
         IsFarming = true
+        
+        -- Teleport Logic
         local woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
-
-        -- Move to tree
         char.HumanoidRootPart.CFrame = woodSection.CFrame * CFrame.new(0, 2, 2)
         task.wait(0.5)
 
-        print("Attempting to chop with: " .. activeRemote.Name)
+        print("Farming " .. SelectedTree .. " with " .. tool.Name)
 
         while IsFarming and target and target.Parent do
             woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
             
             if woodSection and activeRemote then
-                -- Generate realistic click data
-                local rayParams = RaycastParams.new()
-                rayParams.FilterDescendantsInstances = {char}
-                rayParams.FilterType = Enum.RaycastFilterType.Exclude
-                
-                -- We "aim" from the player to the wood
-                local direction = (woodSection.Position - char.HumanoidRootPart.Position).Unit * 10
-                local result = workspace:Raycast(char.HumanoidRootPart.Position, direction, rayParams)
+                -- 1. Force the Axe to swing visually
+                tool:Activate() 
 
-                local hitPos = result and result.Position or woodSection.Position
-                local hitNormal = result and result.Normal or Vector3.new(0, 1, 0)
-
+                -- 2. Construct the data for the server
                 local args = {
                     ["Part"] = woodSection,
-                    ["Pos"] = hitPos,
-                    ["Normal"] = hitNormal
+                    ["Pos"] = woodSection.Position,
+                    ["Normal"] = Vector3.new(0, 1, 0)
                 }
 
-                -- Execute based on Remote type
+                -- 3. Send the hit to the server
                 if activeRemote:IsA("RemoteEvent") then
                     activeRemote:FireServer(args)
                 elseif activeRemote:IsA("RemoteFunction") then
@@ -104,7 +96,8 @@ function GetWood.Init(Tab)
                 end
             end
             
-            task.wait(0.2) -- LT2 anticheat is sensitive to speeds under 0.15
+            -- Speed: 0.2 is the "Sweet Spot" for most LT2 axes to avoid lag-back
+            task.wait(0.2)
             
             if not target:FindFirstChild("WoodSection") and not target:FindFirstChild("Base") then
                 break
@@ -112,7 +105,7 @@ function GetWood.Init(Tab)
         end
 
         IsFarming = false
-        print("Chop sequence finished.")
+        print("Done.")
     end)
 
     Tab:CreateToggle("Stop", false, function(state)
