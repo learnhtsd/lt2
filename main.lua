@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.054"
+local Version = "v0.0.055"
 
 -- ==========================================
 -- UI ENGINE START
@@ -529,6 +529,66 @@ function Library:CreateWindow()
             end)
         end
 
+        function Tab:CreateInfoBox(Title, Description)
+            local InfoFrame = Instance.new("Frame")
+            InfoFrame.Size = UDim2.new(1, 0, 0, 0) -- Height auto-calculates below
+            InfoFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+            InfoFrame.Parent = TabPage
+            Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 6)
+            
+            -- Subtle blue left border to indicate "Info"
+            local Accent = Instance.new("Frame")
+            Accent.Size = UDim2.new(0, 2, 1, 0)
+            Accent.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
+            Accent.BorderSizePixel = 0
+            Accent.Parent = InfoFrame
+            Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 2)
+
+            local InfoLayout = Instance.new("UIListLayout")
+            InfoLayout.Parent = InfoFrame
+            InfoLayout.Padding = UDim.new(0, 4)
+            InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+            local InfoPadding = Instance.new("UIPadding")
+            InfoPadding.Parent = InfoFrame
+            InfoPadding.PaddingLeft = UDim.new(0, 12)
+            InfoPadding.PaddingRight = UDim.new(0, 10)
+            InfoPadding.PaddingTop = UDim.new(0, 8)
+            InfoPadding.PaddingBottom = UDim.new(0, 8)
+
+            -- Title Logic
+            if Title and Title ~= "" then
+                local TitleLabel = Instance.new("TextLabel")
+                TitleLabel.Size = UDim2.new(1, 0, 0, 18)
+                TitleLabel.BackgroundTransparency = 1
+                TitleLabel.Text = Title
+                TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                TitleLabel.Font = Enum.Font.GothamBold
+                TitleLabel.TextSize = 13
+                TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+                TitleLabel.LayoutOrder = 1
+                TitleLabel.Parent = InfoFrame
+            end
+
+            -- Description Logic
+            local DescLabel = Instance.new("TextLabel")
+            DescLabel.Size = UDim2.new(1, 0, 0, 0) -- Automatic height
+            DescLabel.BackgroundTransparency = 1
+            DescLabel.Text = Description
+            DescLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+            DescLabel.Font = Enum.Font.Gotham
+            DescLabel.TextSize = 12
+            DescLabel.TextWrapped = true
+            DescLabel.TextXAlignment = Enum.TextXAlignment.Left
+            DescLabel.AutomaticSize = Enum.AutomaticSize.Y
+            DescLabel.LayoutOrder = 2
+            DescLabel.Parent = InfoFrame
+
+            -- Auto-resize the main container based on content
+            InfoFrame.AutomaticSize = Enum.AutomaticSize.Y
+            AddDepthStroke(InfoFrame)
+        end
+        
         function Tab:CreateDropdown(Title, Options, Default, Callback)
             local Dropdown = {
                 Open = false,
