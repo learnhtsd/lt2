@@ -172,6 +172,35 @@ function GetWood.Init(Tab, Library)
     end
 
     -- UI
+    Tab:CreateAction("Debug: Print Trees", "Scan", function()
+        for _, model in pairs(workspace:GetDescendants()) do
+            if model:IsA("Model") then
+                local woodCount = 0
+                local minY, maxY
+                for _, v in pairs(model:GetDescendants()) do
+                    if v:IsA("BasePart") and v.Name:lower():find("wood") then
+                        woodCount = woodCount + 1
+                        if not minY or v.Position.Y < minY then minY = v.Position.Y end
+                        if not maxY or v.Position.Y > maxY then maxY = v.Position.Y end
+                    end
+                end
+                if woodCount >= 6 then
+                    local height = maxY - minY
+                    print(string.format("[TREE?] Model: '%s' | Parent: '%s' | WoodParts: %d | Height: %.1f", 
+                        model.Name, model.Parent.Name, woodCount, height))
+                    
+                    -- Also print any StringValues inside (tree type tag)
+                    for _, v in pairs(model:GetChildren()) do
+                        if v:IsA("StringValue") or v:IsA("IntValue") then
+                            print(string.format("  └ Value: '%s' = '%s'", v.Name, tostring(v.Value)))
+                        end
+                    end
+                end
+            end
+        end
+        print("--- Scan complete ---")
+    end)
+    
     Tab:CreateSection("Wood Farming")
 
     Tab:CreateDropdown("Select Tree", Trees, nil, function(value)
