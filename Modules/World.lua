@@ -1,10 +1,9 @@
 local World = {}
 
-function World.Init(Tab, Lib) -- Added Lib for notifications
+function World.Init(Tab, Lib)
     local Lighting = game:GetService("Lighting")
     local RunService = game:GetService("RunService")
     local Workspace = game:GetService("Workspace")
-    local Terrain = Workspace.Terrain
 
     -- ===========================
     -- STATE & CACHE
@@ -17,37 +16,46 @@ function World.Init(Tab, Lib) -- Added Lib for notifications
     _G.WaterEnabled = true
     _G.PostProcessing = true
 
+    local waterParts = {}
     local effectCache = {}
-    for _, effect in pairs(Lighting:GetChildren()) do
-        if effect:IsA("PostProcessEffect") or effect:IsA("BlurEffect") or effect:IsA("BloomEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("SunRaysEffect") then
-            effectCache[effect] = effect.Enabled
+
+    -- Pre-scan for Water parts and Post-Processing effects
+    local function ScanWorld()
+        waterParts = {} -- Reset
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name == "Water" then
+                -- Store original transparency to restore it correctly later
+                table.insert(waterParts, {Instance = obj, OriginalTransparency = obj.Transparency})
+            end
+        end
+
+        for _, effect in pairs(Lighting:GetChildren()) do
+            if effect:IsA("PostProcessEffect") or effect:IsA("BlurEffect") or effect:IsA("BloomEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("SunRaysEffect") then
+                effectCache[effect] = effect.Enabled
+            end
         end
     end
 
+    -- Run initial scan
+    ScanWorld()
+
     -- ===========================
-    -- FIXED WATER FUNCTION
+    -- TOGGLE LOGIC
     -- ===========================
     local function ToggleWater(state)
-        -- 1. Handle Terrain Water (The ocean/river voxels)
-        if state then
-            Terrain:ReplaceMaterial(Region3int16.new(Vector3int16.new(-32000, -500, -32000), Vector3int16.new(32000, 500, 32000)), 4, Enum.Material.Air, Enum.Material.Water)
-        else
-            Terrain:ReplaceMaterial(Region3int16.new(Vector3int16.new(-32000, -500, -32000), Vector3int16.new(32000, 500, 32000)), 4, Enum.Material.Water, Enum.Material.Air)
-        end
-
-        -- 2. Handle Part Water (The physical "Water" parts you identified)
-        for _, obj in pairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Name == "Water" then
+        for _, data in pairs(waterParts) do
+            local part = data.Instance
+            if part and part.Parent then
                 if state then
-                    -- Restore Water Parts
-                    obj.Transparency = 0.8 -- Or whatever the original was
-                    obj.CanCollide = false
-                    obj.CanTouch = true -- Re-enables damage/swimming
+                    -- Restore Water
+                    part.Transparency = data.OriginalTransparency
+                    part.CanCollide = false -- Usually water is non-collidable anyway
+                    part.CanTouch = true    -- Allows swimming/damage scripts to work
                 else
-                    -- Disable Water Parts
-                    obj.Transparency = 1
-                    obj.CanCollide = false
-                    obj.CanTouch = false -- STOPS the lava/water damage script from firing
+                    -- Disable Water
+                    part.Transparency = 1
+                    part.CanCollide = false
+                    part.CanTouch = false   -- This prevents "Touch" events (like drowning/lava scripts)
                 end
             end
         end
@@ -82,7 +90,9 @@ function World.Init(Tab, Lib) -- Added Lib for notifications
     Tab:CreateToggle("Post-Processing", true, function(s)
         _G.PostProcessing = s
         for effect, originalState in pairs(effectCache) do
-            effect.Enabled = s and originalState or false
+            if effect then
+                effect.Enabled = s and originalState or false
+            end
         end
     end)
 
@@ -91,8 +101,14 @@ function World.Init(Tab, Lib) -- Added Lib for notifications
         ToggleWater(s)
         
         if Lib and Lib.Notify then
-            Lib:Notify("Environment", s and "Water restored." or "Water & Hazards disabled!", 3)
+            Lib:Notify("Environment", s and "Water restored." or "Water disabled!", 3)
         end
+    end)
+
+    -- Refresh button in case new water parts are loaded/spawned
+    Tab:CreateButton("Refresh World Cache", function()
+        ScanWorld()
+        ToggleWater(_G.WaterEnabled)
     end)
 
     -- ===========================
