@@ -55,7 +55,7 @@ function Tool.Init(Tab, Lib)
         end
     end)
 
-    -- 5. "STAY PUT" TELEPORT (Fixed Anti-Snapback Logic)
+    -- 5. "STAY PUT" TELEPORT (Network Ownership Fix)
     Tab:CreateAction("Group Actions", "TP to Me", function()
         if #SelectedObjects == 0 then
             if Lib and Lib.Notify then Lib:Notify("Error", "No items selected!", 3) end
@@ -71,42 +71,40 @@ function Tool.Init(Tab, Lib)
 
         for i, item in ipairs(SelectedObjects) do
             pcall(function()
-                -- Find the part we are actually moving
                 local targetPart = item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")) or item
                 
                 if targetPart and targetPart:IsA("BasePart") then
-                    -- STEP 1: Fly to the item to claim network ownership
-                    hrp.CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
-                    
-                    -- CRITICAL: Wait slightly longer for the server to grant network ownership
-                    task.wait(0.2) 
+                    -- STEP 1: Teleport TO the item to claim Network Ownership
+                    hrp.CFrame = targetPart.CFrame * CFrame.new(0, 2, 0)
+                    task.wait(0.15) -- Wait for server to hand over ownership
 
-                    -- STEP 2: Calculate drop position (Spread them out slightly so they don't explode)
+                    -- STEP 2: Calculate drop position
                     local offsetX = (i % 5) * 2 - 4
-                    local dropPos = originalPos * CFrame.new(offsetX, 2, -5)
+                    local dropPos = originalPos * CFrame.new(offsetX, 0, -5)
+
+                    -- STEP 3: Teleport BOTH the player and item back together.
+                    -- This ensures the item never leaves your "ownership radius".
+                    hrp.CFrame = dropPos * CFrame.new(0, 3, 0)
                     
-                    -- STEP 3: Move the item safely
                     if item:IsA("Model") then
-                        item:PivotTo(dropPos) -- Replaced deprecated SetPrimaryPartCFrame
+                        item:PivotTo(dropPos)
                     else
                         item.CFrame = dropPos
                     end
 
-                    -- STEP 4: The Real "Force Settle"
-                    -- Do NOT change Anchored state! It ruins client-server physics replication.
-                    -- Instead, kill its momentum completely so it drops straight down.
+                    -- Kill momentum so it doesn't bounce away
                     targetPart.AssemblyLinearVelocity = Vector3.zero
                     targetPart.AssemblyAngularVelocity = Vector3.zero
 
-                    -- Small delay to let the position change register before moving away
-                    task.wait(0.1) 
+                    -- STEP 4: Stand next to it for a split second so the server 
+                    -- registers its new position while you still own it.
+                    task.wait(0.15) 
                 end
             end)
         end
 
-        -- STEP 5: Snap back to start ONCE after all items are collected
+        -- STEP 5: Put the player exactly back where they started
         hrp.CFrame = originalPos
-
         if Lib and Lib.Notify then Lib:Notify("Success", "Items moved and settled.", 3) end
     end)
 
@@ -117,7 +115,6 @@ function Tool.Init(Tab, Lib)
     local dragging = false
     local startPos = Vector2.new()
 
-    -- Function to highlight objects
     local function AddToSelection(obj)
         if not table.find(SelectedObjects, obj) then
             table.insert(SelectedObjects, obj)
@@ -131,17 +128,14 @@ function Tool.Init(Tab, Lib)
     end
 
     Mouse.Button1Down:Connect(function()
-        -- Inspector Logic
         if InspectorEnabled and Mouse.Target then
             print("--- INSPECT: " .. Mouse.Target:GetFullName() .. " ---")
         end
 
-        -- Click Select Logic
         if ClickSelectEnabled and Mouse.Target then
             AddToSelection(Mouse.Target)
         end
 
-        -- Lasso Start
         if LassoEnabled then
             dragging = true
             startPos = UserInputService:GetMouseLocation()
@@ -164,12 +158,10 @@ function Tool.Init(Tab, Lib)
             dragging = false
             LassoFrame.Visible = false
             
-            -- Selection Box Logic (Screen to World)
             if LassoEnabled then
                 local guiSize = LassoFrame.AbsoluteSize
                 local guiPos = LassoFrame.AbsolutePosition
                 
-                -- Simple check for parts in the box
                 for _, v in pairs(game.Workspace:GetChildren()) do
                     if v:IsA("BasePart") or (v:IsA("Model") and v.PrimaryPart) then
                         local part = v:IsA("Model") and v.PrimaryPart or v
