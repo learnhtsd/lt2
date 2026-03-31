@@ -1,6 +1,6 @@
 local World = {}
 
-function World.Init(Tab)
+function World.Init(Tab, Lib) -- Added Lib for notifications
     local Lighting = game:GetService("Lighting")
     local RunService = game:GetService("RunService")
     local Workspace = game:GetService("Workspace")
@@ -17,7 +17,6 @@ function World.Init(Tab)
     _G.WaterEnabled = true
     _G.PostProcessing = true
 
-    -- Store original states for Post-Processing
     local effectCache = {}
     for _, effect in pairs(Lighting:GetChildren()) do
         if effect:IsA("PostProcessEffect") or effect:IsA("BlurEffect") or effect:IsA("BloomEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("SunRaysEffect") then
@@ -26,17 +25,31 @@ function World.Init(Tab)
     end
 
     -- ===========================
-    -- FUNCTIONS
+    -- FIXED WATER FUNCTION
     -- ===========================
     local function ToggleWater(state)
+        -- 1. Handle Terrain Water (The ocean/river voxels)
         if state then
-            -- Restore Water: Replace Air back to Water in a huge radius
-            -- Note: This only restores water where it originally was if the game uses standard voxels
             Terrain:ReplaceMaterial(Region3int16.new(Vector3int16.new(-32000, -500, -32000), Vector3int16.new(32000, 500, 32000)), 4, Enum.Material.Air, Enum.Material.Water)
-            Terrain.WaterTransparency = 1
         else
-            -- Remove Water: Replace all Water with Air (This stops the "Swimming" state/damage)
             Terrain:ReplaceMaterial(Region3int16.new(Vector3int16.new(-32000, -500, -32000), Vector3int16.new(32000, 500, 32000)), 4, Enum.Material.Water, Enum.Material.Air)
+        end
+
+        -- 2. Handle Part Water (The physical "Water" parts you identified)
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name == "Water" then
+                if state then
+                    -- Restore Water Parts
+                    obj.Transparency = 0.8 -- Or whatever the original was
+                    obj.CanCollide = false
+                    obj.CanTouch = true -- Re-enables damage/swimming
+                else
+                    -- Disable Water Parts
+                    obj.Transparency = 1
+                    obj.CanCollide = false
+                    obj.CanTouch = false -- STOPS the lava/water damage script from firing
+                end
+            end
         end
     end
 
@@ -69,17 +82,17 @@ function World.Init(Tab)
     Tab:CreateToggle("Post-Processing", true, function(s)
         _G.PostProcessing = s
         for effect, originalState in pairs(effectCache) do
-            if s then
-                effect.Enabled = originalState
-            else
-                effect.Enabled = false
-            end
+            effect.Enabled = s and originalState or false
         end
     end)
 
     Tab:CreateToggle("Water Enabled", true, function(s)
         _G.WaterEnabled = s
         ToggleWater(s)
+        
+        if Lib and Lib.Notify then
+            Lib:Notify("Environment", s and "Water restored." or "Water & Hazards disabled!", 3)
+        end
     end)
 
     -- ===========================
