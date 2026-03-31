@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.053"
+local Version = "v0.0.054"
 
 -- ==========================================
 -- UI ENGINE START
@@ -207,30 +207,53 @@ function Library:CreateWindow()
         FallbackText.TextSize = 14
         FallbackText.Name = "TabIconText"
 
-        -- ③ PNG icon from Icons/ folder on GitHub
-        local iconUrl = string.format(
-            "https://raw.githubusercontent.com/%s/%s/%s/Icons/%s.png",
-            User, Repo, Branch, TabName
-        )
-        
+        -- ③ Fetch and save PNG icon from GitHub, then load as custom asset
+        local folderName = "NexusHubIcons"
+        local fileName = TabName .. ".png"
+        local filePath = folderName .. "/" .. fileName
+        local finalAssetUrl = ""
+
+        -- Verify executor supports required functions
+        if isfolder and makefolder and writefile and isfile and getcustomasset then
+            if not isfolder(folderName) then
+                makefolder(folderName)
+            end
+
+            if not isfile(filePath) then
+                local iconUrl = string.format(
+                    "https://raw.githubusercontent.com/%s/%s/%s/Icons/%s.png",
+                    User, Repo, Branch, TabName
+                )
+                -- Download the image securely
+                local success, imgData = pcall(function() return game:HttpGet(iconUrl) end)
+                if success and imgData and not imgData:match("404: Not Found") then
+                    writefile(filePath, imgData)
+                end
+            end
+
+            -- Convert local file to Roblox asset
+            if isfile(filePath) then
+                finalAssetUrl = getcustomasset(filePath)
+            end
+        else
+            warn("Executor does not support file saving/custom assets. Using fallback text.")
+        end
+
         local TabIcon = Instance.new("ImageLabel")
         TabIcon.Size = UDim2.new(0, 20, 0, 20)
         TabIcon.Position = UDim2.new(0.5, -10, 0.5, -10)
         TabIcon.BackgroundTransparency = 1
-        TabIcon.Image = iconUrl
-        TabIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)  -- ← white, not gray
-        TabIcon.ScaleType = Enum.ScaleType.Fit               -- ← add this
-        TabIcon.ImageTransparency = 0                        -- ← make sure fully visible
+        TabIcon.Image = finalAssetUrl
+        TabIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        TabIcon.ScaleType = Enum.ScaleType.Fit
+        TabIcon.ImageTransparency = 0
         TabIcon.Name = "TabIcon"
         TabIcon.Parent = TabBtn
 
-        -- Hide fallback letter once icon is confirmed loaded
-        task.delay(2, function()
-            if TabIcon.Image ~= "" and TabIcon.ImageRectSize == Vector2.new(0, 0) then
-                -- image loaded fine, hide the letter
-                FallbackText.Visible = false
-            end
-        end)
+        -- Hide fallback letter ONLY if the asset successfully loaded
+        if finalAssetUrl ~= "" then
+            FallbackText.Visible = false
+        end
 
         local TweenIn  = TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundTransparency = 0.85})
         local TweenOut = TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundTransparency = 1})
