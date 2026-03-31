@@ -103,13 +103,7 @@ function World.Init(Tab, Lib)
         if Lib and Lib.Notify then
             Lib:Notify("Environment", s and "Water restored." or "Water disabled!", 3)
         end
-    end)
-
-    -- Refresh button in case new water parts are loaded/spawned
-    Tab:CreateButton("Refresh World Cache", function()
-        ScanWorld()
-        ToggleWater(_G.WaterEnabled)
-    end)
+    end) 
 
     -- ===========================
     -- MASTER LOOP
