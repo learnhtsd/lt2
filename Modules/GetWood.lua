@@ -19,15 +19,11 @@ function GetWood.Init(Tab, Library)
     local function GetAxe()
         local char = GetCharacter()
         local backpack = LocalPlayer:WaitForChild("Backpack")
-    
-        -- 1. Check equipped tool first
+
         for _, v in pairs(char:GetChildren()) do
-            if v:IsA("Tool") then
-                return v
-            end
+            if v:IsA("Tool") then return v end
         end
-    
-        -- 2. If not equipped, grab one from backpack and equip it
+
         for _, v in pairs(backpack:GetChildren()) do
             if v:IsA("Tool") then
                 v.Parent = char
@@ -35,59 +31,56 @@ function GetWood.Init(Tab, Library)
                 return v
             end
         end
-    
+
         return nil
     end
 
+    -- FIX 1: Filter models by SelectedTree name
     local function GetTreeModel()
+        if not SelectedTree then return nil end
+
         local char = GetCharacter()
         local hrp = char:WaitForChild("HumanoidRootPart")
-    
+
         local closestTree = nil
         local closestDist = math.huge
-    
+
         for _, model in pairs(workspace:GetDescendants()) do
-            if model:IsA("Model") then
-                local parts = {}
+            if model:IsA("Model") and model.Name:lower():find(SelectedTree:lower()) then
+                local woodParts = {}
                 local minY, maxY
-    
+
                 for _, v in pairs(model:GetDescendants()) do
                     if v:IsA("BasePart") and v.Name:lower():find("wood") then
-                        table.insert(parts, v)
-    
+                        table.insert(woodParts, v)
                         if not minY or v.Position.Y < minY then minY = v.Position.Y end
                         if not maxY or v.Position.Y > maxY then maxY = v.Position.Y end
                     end
                 end
-    
-                -- Must have enough parts to be a real tree
-                if #parts >= 6 then
+
+                if #woodParts >= 6 then
                     local height = (maxY - minY)
-    
-                    -- Must be tall (filters out cut logs)
                     if height > 15 then
-                        local basePart = parts[1]
+                        local basePart = woodParts[1]
                         local dist = (basePart.Position - hrp.Position).Magnitude
-    
-                        -- Ignore trees too close (likely your base)
-                        if dist > 50 then
-                            if dist < closestDist then
-                                closestDist = dist
-                                closestTree = model
-                            end
+
+                        if dist > 50 and dist < closestDist then
+                            closestDist = dist
+                            closestTree = model
                         end
                     end
                 end
             end
         end
-    
+
         return closestTree
     end
 
     local function GetLowestLog(tree)
         local lowest
         for _, v in pairs(tree:GetDescendants()) do
-            if v:IsA("BasePart") then
+            -- FIX: Only target actual Wood parts, not hitboxes/invisible parts
+            if v:IsA("BasePart") and v.Name:lower():find("wood") then
                 if not lowest or v.Position.Y < lowest.Position.Y then
                     lowest = v
                 end
@@ -101,21 +94,18 @@ function GetWood.Init(Tab, Library)
         hrp.CFrame = cf
     end
 
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    
-local function SwingAxe(targetPart)
+    -- FIX 2: Use the correct RemoteEvent that LT2 axes actually use
+    local function SwingAxe(targetPart)
         local axe = GetAxe()
         if not axe or not targetPart then return end
-    
-        -- 1. Trigger the Tool's internal ClickEvent (This does the actual damage)
-        local clickEvent = axe:FindFirstChild("ClickEvent")
-        if clickEvent then
-            -- Arguments: Target Part, Hit Position
-            clickEvent:FireServer(targetPart, targetPart.Position)
+
+        -- LT2 axes fire a RemoteEvent inside the tool to register hits server-side
+        local remote = axe:FindFirstChildOfClass("RemoteEvent")
+        if remote then
+            remote:FireServer(targetPart, targetPart.Position)
         end
 
-        -- 2. Play the swing animation so it looks natural
-        -- Most axes use 'Tool:Activate()' to trigger the built-in swing animation
+        -- Also trigger Activated so the server-side swing script runs
         axe:Activate()
     end
 
@@ -130,14 +120,14 @@ local function SwingAxe(targetPart)
             return
         end
 
-        local tree = GetTreeModel()
-        if not tree then
-            Library:Notify("Error", "Tree not found", 4)
+        if not GetAxe() then
+            Library:Notify("Error", "No axe equipped", 4)
             return
         end
 
-        if not GetAxe() then
-            Library:Notify("Error", "No axe equipped", 4)
+        local tree = GetTreeModel()
+        if not tree then
+            Library:Notify("Error", "No " .. SelectedTree .. " tree found nearby", 4)
             return
         end
 
@@ -147,14 +137,15 @@ local function SwingAxe(targetPart)
         local hrp = GetCharacter():WaitForChild("HumanoidRootPart")
         OriginalCFrame = hrp.CFrame
 
-        while Running and tree.Parent do
+        while Running and tree and tree.Parent do
             local log = GetLowestLog(tree)
             if not log then break end
 
-            Teleport(log.CFrame * CFrame.new(0,3,0))
+            -- Teleport slightly in front of the log, not inside it
+            Teleport(CFrame.new(log.Position + Vector3.new(0, 3, 3)))
+            task.wait(0.1)
             SwingAxe(log)
-
-            task.wait(0.2)
+            task.wait(0.3)
         end
 
         if OriginalCFrame then
