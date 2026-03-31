@@ -49,7 +49,6 @@ function Library:CreateWindow()
     HeaderTitle.Size = UDim2.new(1, -75, 0, 30)
     HeaderTitle.Position = UDim2.new(0, 65, 0, 10)
     HeaderTitle.BackgroundTransparency = 1
-    -- Added Version here
     HeaderTitle.Text = "<b>Lumber Tycoon 2</b> <font color=\"#4a78ff\">Hub</font> <font color=\"#555555\" size=\"12\">" .. Version .. "</font>"
     HeaderTitle.RichText = true
     HeaderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -58,10 +57,26 @@ function Library:CreateWindow()
     HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
     HeaderTitle.Parent = MainFrame
 
-    local TabContainer = Instance.new("Frame")
+    -- ① Active tab name label (top right of header)
+    local ActiveTabLabel = Instance.new("TextLabel")
+    ActiveTabLabel.Size = UDim2.new(0, 150, 0, 30)
+    ActiveTabLabel.Position = UDim2.new(1, -160, 0, 10)
+    ActiveTabLabel.BackgroundTransparency = 1
+    ActiveTabLabel.Text = ""
+    ActiveTabLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+    ActiveTabLabel.Font = Enum.Font.GothamMedium
+    ActiveTabLabel.TextSize = 12
+    ActiveTabLabel.TextXAlignment = Enum.TextXAlignment.Right
+    ActiveTabLabel.Parent = MainFrame
+
+    -- ② Scrollable sidebar (ScrollingFrame instead of Frame)
+    local TabContainer = Instance.new("ScrollingFrame")
     TabContainer.Name = "TabContainer"
     TabContainer.Size = UDim2.new(1, 0, 1, 0)
     TabContainer.BackgroundTransparency = 1
+    TabContainer.ScrollBarThickness = 0
+    TabContainer.BorderSizePixel = 0
+    TabContainer.ScrollingDirection = Enum.ScrollingDirection.Y
     TabContainer.Parent = Sidebar
 
     local SidebarList = Instance.new("UIListLayout")
@@ -69,18 +84,22 @@ function Library:CreateWindow()
     SidebarList.HorizontalAlignment = Enum.HorizontalAlignment.Center
     SidebarList.VerticalAlignment = Enum.VerticalAlignment.Top
     SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
-    SidebarList.Padding = UDim.new(0, 15) 
+    SidebarList.Padding = UDim.new(0, 15)
 
     local SidebarPadding = Instance.new("UIPadding")
     SidebarPadding.Parent = TabContainer
     SidebarPadding.PaddingTop = UDim.new(0, 20)
 
-    -- Content container handles the overall clipping
+    -- Auto-update CanvasSize so scrolling works
+    SidebarList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        TabContainer.CanvasSize = UDim2.new(0, 0, 0, SidebarList.AbsoluteContentSize.Y + 30)
+    end)
+
     local ContentContainer = Instance.new("Frame")
     ContentContainer.Size = UDim2.new(1, -80, 1, -60)
     ContentContainer.Position = UDim2.new(0, 65, 0, 45)
     ContentContainer.BackgroundTransparency = 1
-    ContentContainer.ClipsDescendants = true -- KEEP THIS TRUE
+    ContentContainer.ClipsDescendants = true
     ContentContainer.Parent = MainFrame
 
     local NotificationContainer = Instance.new("Frame")
@@ -89,31 +108,31 @@ function Library:CreateWindow()
     NotificationContainer.Position = UDim2.new(1, -260, 0, 10)
     NotificationContainer.BackgroundTransparency = 1
     NotificationContainer.Parent = ScreenGui
-    
+
     local NotifList = Instance.new("UIListLayout")
     NotifList.Parent = NotificationContainer
     NotifList.VerticalAlignment = Enum.VerticalAlignment.Bottom
     NotifList.SortOrder = Enum.SortOrder.LayoutOrder
     NotifList.Padding = UDim.new(0, 8)
-    
+
     function Library:Notify(Title, Text, Duration)
         Duration = Duration or 5
-        
+
         local NotifFrame = Instance.new("Frame")
-        NotifFrame.Size = UDim2.new(1, 0, 0, 0) -- Starts at 0 height for animation
+        NotifFrame.Size = UDim2.new(1, 0, 0, 0)
         NotifFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
         NotifFrame.BorderSizePixel = 0
         NotifFrame.ClipsDescendants = true
         NotifFrame.Parent = NotificationContainer
-        
+
         local Corner = Instance.new("UICorner", NotifFrame)
         Corner.CornerRadius = UDim.new(0, 6)
-        
+
         local Stroke = Instance.new("UIStroke")
         Stroke.Parent = NotifFrame
         Stroke.Color = Color3.fromRGB(74, 120, 255)
         Stroke.Thickness = 1
-        
+
         local TitleLabel = Instance.new("TextLabel")
         TitleLabel.Size = UDim2.new(1, -20, 0, 20)
         TitleLabel.Position = UDim2.new(0, 10, 0, 5)
@@ -124,7 +143,7 @@ function Library:CreateWindow()
         TitleLabel.TextSize = 12
         TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
         TitleLabel.Parent = NotifFrame
-    
+
         local ContentLabel = Instance.new("TextLabel")
         ContentLabel.Size = UDim2.new(1, -20, 0, 30)
         ContentLabel.Position = UDim2.new(0, 10, 0, 22)
@@ -136,11 +155,9 @@ function Library:CreateWindow()
         ContentLabel.TextWrapped = true
         ContentLabel.TextXAlignment = Enum.TextXAlignment.Left
         ContentLabel.Parent = NotifFrame
-    
-        -- Animation: Slide In & Expand
+
         TweenService:Create(NotifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 60)}):Play()
-        
-        -- Auto-Destroy
+
         task.delay(Duration, function()
             local Tween = TweenService:Create(NotifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1})
             Tween:Play()
@@ -149,7 +166,7 @@ function Library:CreateWindow()
             end)
         end)
     end
-    
+
     -- Draggable
     local dragging, dragInput, dragStart, startPos
     MainFrame.InputBegan:Connect(function(input)
@@ -180,6 +197,7 @@ function Library:CreateWindow()
         TabBtn.BackgroundTransparency = 1
         Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 8)
 
+        -- Fallback letter label (shown if icon fails to load)
         local FallbackText = Instance.new("TextLabel", TabBtn)
         FallbackText.Size = UDim2.new(1, 0, 1, 0)
         FallbackText.BackgroundTransparency = 1
@@ -189,53 +207,77 @@ function Library:CreateWindow()
         FallbackText.TextSize = 14
         FallbackText.Name = "TabIconText"
 
-        local TweenIn = TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundTransparency = 0.85})
+        -- ③ PNG icon from Icons/ folder on GitHub
+        local iconUrl = string.format(
+            "https://raw.githubusercontent.com/%s/%s/%s/Icons/%s.png",
+            User, Repo, Branch, TabName
+        )
+
+        local TabIcon = Instance.new("ImageLabel")
+        TabIcon.Size = UDim2.new(0, 20, 0, 20)
+        TabIcon.Position = UDim2.new(0.5, -10, 0.5, -10)
+        TabIcon.BackgroundTransparency = 1
+        TabIcon.Image = iconUrl
+        TabIcon.ImageColor3 = Color3.fromRGB(120, 120, 130)
+        TabIcon.Name = "TabIcon"
+        TabIcon.Parent = TabBtn
+
+        -- Hide fallback letter once icon is confirmed loaded
+        TabIcon:GetPropertyChangedSignal("IsLoaded"):Connect(function()
+            if TabIcon.IsLoaded then
+                FallbackText.Visible = false
+            end
+        end)
+
+        local TweenIn  = TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundTransparency = 0.85})
         local TweenOut = TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundTransparency = 1})
 
         local TabPage = Instance.new("ScrollingFrame")
         TabPage.Size = UDim2.new(1, 0, 1, 0)
         TabPage.BackgroundTransparency = 1
-        TabPage.ScrollBarThickness = 0 
+        TabPage.ScrollBarThickness = 0
         TabPage.BorderSizePixel = 0
         TabPage.Visible = false
         TabPage.Parent = ContentContainer
-        TabPage.ClipsDescendants = true -- Keep content inside the window!
+        TabPage.ClipsDescendants = true
 
         local PageLayout = Instance.new("UIListLayout")
         PageLayout.Parent = TabPage
         PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        PageLayout.Padding = UDim.new(0, 6) 
+        PageLayout.Padding = UDim.new(0, 6)
 
-        -- THE FIX: UIPadding inside the scrolling frame
-        -- This gives the 1px UIStroke room to exist without being clipped by the edge
         local PagePadding = Instance.new("UIPadding")
         PagePadding.Parent = TabPage
         PagePadding.PaddingLeft = UDim.new(0, 2)
         PagePadding.PaddingRight = UDim.new(0, 8)
         PagePadding.PaddingTop = UDim.new(0, 2)
-        PagePadding.PaddingBottom = UDim.new(0, 20) -- Massive bottom padding to prevent cutoff
+        PagePadding.PaddingBottom = UDim.new(0, 20)
 
         PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 25)
         end)
 
-        TabBtn.MouseButton1Click:Connect(function()
+        -- Helper: activate a tab and update header label + icon tints
+        local function ActivateTab()
             if CurrentTab then
                 CurrentTab.TweenOut:Play()
                 CurrentTab.Btn.TabIconText.TextColor3 = Color3.fromRGB(120, 120, 130)
+                local prevIcon = CurrentTab.Btn:FindFirstChild("TabIcon")
+                if prevIcon then prevIcon.ImageColor3 = Color3.fromRGB(120, 120, 130) end
                 CurrentTab.Page.Visible = false
             end
             TweenIn:Play()
             FallbackText.TextColor3 = Color3.fromRGB(255, 255, 255)
+            TabIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
             TabPage.Visible = true
+            ActiveTabLabel.Text = TabName:upper()  -- ① update header label
             CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
-        end)
+        end
+
+        TabBtn.MouseButton1Click:Connect(ActivateTab)
 
         if not CurrentTab then
-            TweenIn:Play()
-            FallbackText.TextColor3 = Color3.fromRGB(255, 255, 255)
-            TabPage.Visible = true
-            CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
+            ActivateTab()
         end
 
         local function AddDepthStroke(frame)
@@ -280,7 +322,7 @@ function Library:CreateWindow()
             local ActionBtn = Instance.new("TextButton")
             ActionBtn.Size = UDim2.new(0, 70, 0, 20)
             ActionBtn.AnchorPoint = Vector2.new(1, 0.5)
-            ActionBtn.Position = UDim2.new(1, -8, 0.5, 0) 
+            ActionBtn.Position = UDim2.new(1, -8, 0.5, 0)
             ActionBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
             ActionBtn.Text = ButtonText
             ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -424,7 +466,7 @@ function Library:CreateWindow()
             local BindBtn = Instance.new("TextButton")
             BindBtn.Size = UDim2.new(0, 70, 0, 20)
             BindBtn.AnchorPoint = Vector2.new(1, 0.5)
-            BindBtn.Position = UDim2.new(1, -8, 0.5, 0) 
+            BindBtn.Position = UDim2.new(1, -8, 0.5, 0)
             BindBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
             BindBtn.Text = KeyName
             BindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -460,94 +502,97 @@ function Library:CreateWindow()
                 end
             end)
         end
+
         function Tab:CreateDropdown(Title, Options, Default, Callback)
-                    local Dropdown = {
-                        Open = false,
-                        Selected = Default or "Select..."
-                    }
+            local Dropdown = {
+                Open = false,
+                Selected = Default or "Select..."
+            }
 
-                    local DropdownFrame = Instance.new("Frame")
-                    DropdownFrame.Size = UDim2.new(1, 0, 0, 28) -- Closed height
-                    DropdownFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
-                    DropdownFrame.ClipsDescendants = true
-                    DropdownFrame.Parent = TabPage
-                    Instance.new("UICorner", DropdownFrame).CornerRadius = UDim.new(0, 6)
-                    AddDepthStroke(DropdownFrame)
+            local DropdownFrame = Instance.new("Frame")
+            DropdownFrame.Size = UDim2.new(1, 0, 0, 28)
+            DropdownFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+            DropdownFrame.ClipsDescendants = true
+            DropdownFrame.Parent = TabPage
+            Instance.new("UICorner", DropdownFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(DropdownFrame)
 
-                    local Header = Instance.new("TextButton")
-                    Header.Size = UDim2.new(1, 0, 0, 28)
-                    Header.BackgroundTransparency = 1
-                    Header.Text = ""
-                    Header.Parent = DropdownFrame
+            local Header = Instance.new("TextButton")
+            Header.Size = UDim2.new(1, 0, 0, 28)
+            Header.BackgroundTransparency = 1
+            Header.Text = ""
+            Header.Parent = DropdownFrame
 
-                    local TitleLabel = Instance.new("TextLabel")
-                    TitleLabel.Size = UDim2.new(0.6, 0, 1, 0)
-                    TitleLabel.Position = UDim2.new(0, 10, 0, 0)
-                    TitleLabel.BackgroundTransparency = 1
-                    TitleLabel.Text = Title
-                    TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
-                    TitleLabel.Font = Enum.Font.GothamMedium
-                    TitleLabel.TextSize = 12
-                    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-                    TitleLabel.Parent = Header
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(0.6, 0, 1, 0)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title
+            TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+            TitleLabel.Font = Enum.Font.GothamMedium
+            TitleLabel.TextSize = 12
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.Parent = Header
 
-                    local SelectedLabel = Instance.new("TextLabel")
-                    SelectedLabel.Size = UDim2.new(0.4, -25, 1, 0)
-                    SelectedLabel.Position = UDim2.new(1, -10, 0, 0)
-                    SelectedLabel.AnchorPoint = Vector2.new(1, 0)
-                    SelectedLabel.BackgroundTransparency = 1
-                    SelectedLabel.Text = Dropdown.Selected
-                    SelectedLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
-                    SelectedLabel.Font = Enum.Font.GothamBold
-                    SelectedLabel.TextSize = 11
-                    SelectedLabel.TextXAlignment = Enum.TextXAlignment.Right
-                    SelectedLabel.Parent = Header
+            local SelectedLabel = Instance.new("TextLabel")
+            SelectedLabel.Size = UDim2.new(0.4, -25, 1, 0)
+            SelectedLabel.Position = UDim2.new(1, -10, 0, 0)
+            SelectedLabel.AnchorPoint = Vector2.new(1, 0)
+            SelectedLabel.BackgroundTransparency = 1
+            SelectedLabel.Text = Dropdown.Selected
+            SelectedLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+            SelectedLabel.Font = Enum.Font.GothamBold
+            SelectedLabel.TextSize = 11
+            SelectedLabel.TextXAlignment = Enum.TextXAlignment.Right
+            SelectedLabel.Parent = Header
 
-                    local OptionHolder = Instance.new("Frame")
-                    OptionHolder.Size = UDim2.new(1, -10, 0, 0)
-                    OptionHolder.Position = UDim2.new(0, 5, 0, 30)
-                    OptionHolder.BackgroundTransparency = 1
-                    OptionHolder.Parent = DropdownFrame
+            local OptionHolder = Instance.new("Frame")
+            OptionHolder.Size = UDim2.new(1, -10, 0, 0)
+            OptionHolder.Position = UDim2.new(0, 5, 0, 30)
+            OptionHolder.BackgroundTransparency = 1
+            OptionHolder.Parent = DropdownFrame
 
-                    local Layout = Instance.new("UIListLayout", OptionHolder)
-                    Layout.Padding = UDim.new(0, 3)
+            local Layout = Instance.new("UIListLayout", OptionHolder)
+            Layout.Padding = UDim.new(0, 3)
 
-                    local function Refresh()
-                        for _, child in pairs(OptionHolder:GetChildren()) do
-                            if child:IsA("TextButton") then child:Destroy() end
-                        end
-
-                        for _, opt in pairs(Options) do
-                            local OptBtn = Instance.new("TextButton")
-                            OptBtn.Size = UDim2.new(1, 0, 0, 22)
-                            OptBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-                            OptBtn.Text = opt
-                            OptBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-                            OptBtn.Font = Enum.Font.Gotham
-                            OptBtn.TextSize = 11
-                            OptBtn.Parent = OptionHolder
-                            Instance.new("UICorner", OptBtn).CornerRadius = UDim.new(0, 4)
-
-                            OptBtn.MouseButton1Click:Connect(function()
-                                Dropdown.Selected = opt
-                                SelectedLabel.Text = opt
-                                Dropdown.Open = false
-                                TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, 28)}):Play()
-                                Callback(opt)
-                            end)
-                        end
-                    end
-
-                    Header.MouseButton1Click:Connect(function()
-                        Dropdown.Open = not Dropdown.Open
-                        local targetHeight = Dropdown.Open and (Layout.AbsoluteContentSize.Y + 35) or 28
-                        TweenService:Create(DropdownFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
-                    end)
-
-                    Refresh()
+            local function Refresh()
+                for _, child in pairs(OptionHolder:GetChildren()) do
+                    if child:IsA("TextButton") then child:Destroy() end
                 end
-            return Tab
+
+                for _, opt in pairs(Options) do
+                    local OptBtn = Instance.new("TextButton")
+                    OptBtn.Size = UDim2.new(1, 0, 0, 22)
+                    OptBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+                    OptBtn.Text = opt
+                    OptBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+                    OptBtn.Font = Enum.Font.Gotham
+                    OptBtn.TextSize = 11
+                    OptBtn.Parent = OptionHolder
+                    Instance.new("UICorner", OptBtn).CornerRadius = UDim.new(0, 4)
+
+                    OptBtn.MouseButton1Click:Connect(function()
+                        Dropdown.Selected = opt
+                        SelectedLabel.Text = opt
+                        Dropdown.Open = false
+                        TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, 28)}):Play()
+                        Callback(opt)
+                    end)
+                end
+            end
+
+            Header.MouseButton1Click:Connect(function()
+                Dropdown.Open = not Dropdown.Open
+                local targetHeight = Dropdown.Open and (Layout.AbsoluteContentSize.Y + 35) or 28
+                TweenService:Create(DropdownFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
+            end)
+
+            Refresh()
         end
+
+        return Tab
+    end
+
     return Window
 end
 
@@ -560,13 +605,13 @@ local HomeTab     = HubWindow:CreateTab("Home")
 local PlayerTab   = HubWindow:CreateTab("Player")
 local WorldTab    = HubWindow:CreateTab("World")
 local TeleportTab = HubWindow:CreateTab("Teleport")
-local WoodTab    = HubWindow:CreateTab("Wood")
+local WoodTab     = HubWindow:CreateTab("Wood")
 local BuildTab    = HubWindow:CreateTab("Build")
-local ToolTab    = HubWindow:CreateTab("Tool")
+local ToolTab     = HubWindow:CreateTab("Tool")
 local SettingsTab = HubWindow:CreateTab("Settings")
 
 local function LoadModule(ModuleName)
-    local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s", 
+    local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s",
         User, Repo, Branch, ModuleName, tick())
     local success, code = pcall(function() return game:HttpGet(URL) end)
     if success and code then
@@ -577,7 +622,7 @@ local function LoadModule(ModuleName)
 end
 
 local MovementModule = LoadModule("PlayerMovement")
-if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end 
+if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end
 
 local TeleportModule = LoadModule("Teleport")
 if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) end
@@ -586,15 +631,15 @@ local GhostModule = LoadModule("GhostSuite")
 if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
 
 local WorldModule = LoadModule("World")
-if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end 
+if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end
 
 local SettingsModule = LoadModule("Settings")
-if SettingsModule and SettingsModule.Init then  
-    SettingsModule.Init(SettingsTab, {User = User, Repo = Repo, Branch = Branch}) 
+if SettingsModule and SettingsModule.Init then
+    SettingsModule.Init(SettingsTab, {User = User, Repo = Repo, Branch = Branch})
 end
 
 local GetWoodModule = LoadModule("GetWood")
-if GetWoodModule and GetWoodModule.Init then GetWoodModule.Init(WoodTab) end 
+if GetWoodModule and GetWoodModule.Init then GetWoodModule.Init(WoodTab) end
 
 local ToolModule = LoadModule("Tool")
 if ToolModule and ToolModule.Init then ToolModule.Init(ToolTab, Library) end
