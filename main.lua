@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.044"
+local Version = "v0.0.045"
 
 -- ==========================================
 -- UI ENGINE START
@@ -642,7 +642,7 @@ if SettingsModule and SettingsModule.Init then
 end
 
 local GetWoodModule = LoadModule("GetWood")
-if GetWoodModule and GetWoodModule.Init then GetWoodModule.Init(WoodTab) end
+if GetWoodModule and GetWoodModule.Init then GetWood.Init(Tab, Library) end
 
 local ToolModule = LoadModule("Tool")
 if ToolModule and ToolModule.Init then ToolModule.Init(ToolTab, Library) end
