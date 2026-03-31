@@ -3,6 +3,7 @@ local GetWood = {}
 function GetWood.Init(Tab, Library)
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
     local SelectedTree = nil
     local Running = false
@@ -99,13 +100,12 @@ function GetWood.Init(Tab, Library)
         local axe = GetAxe()
         if not axe or not targetPart then return end
 
-        -- Force mouse target to the wood part so AxeClient registers the hit
-        local mouse = LocalPlayer:GetMouse()
-        mouse.Target = targetPart
+        -- Fire the interaction remote directly with the wood part as the target
+        local remote = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("ClientInteracted")
+        remote:FireServer(targetPart, targetPart.Position)
 
+        -- Play swing animation
         axe:Activate()
-
-        task.wait(0.05)
     end
 
     local function StartFarming()
@@ -140,7 +140,6 @@ function GetWood.Init(Tab, Library)
             local log = GetLowestLog(tree)
             if not log then break end
 
-            -- Teleport right next to the log
             Teleport(CFrame.new(log.Position + Vector3.new(3, 2, 0)))
             task.wait(0.15)
             SwingAxe(log)
@@ -171,16 +170,6 @@ function GetWood.Init(Tab, Library)
     end
 
     -- UI
-    Tab:CreateAction("Debug: Scan Remotes", "Scan", function()
-        print("=== ReplicatedStorage Remotes ===")
-        for _, v in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
-            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
-                print(v.ClassName, "| Path:", v:GetFullName())
-            end
-        end
-        print("--- Done ---")
-    end)
-
     Tab:CreateSection("Wood Farming")
 
     Tab:CreateDropdown("Select Tree", Trees, nil, function(value)
