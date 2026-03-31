@@ -706,6 +706,11 @@ local function LoadModule(ModuleName)
     end
     warn("Failed to load module: " .. ModuleName)
 end
+ 
+local HomeModule = LoadModule("Home")
+if HomeModule and HomeModule.Init then 
+    HomeModule.Init(HomeTab, Library) 
+end
 
 local MovementModule = LoadModule("PlayerMovement")
 if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end
