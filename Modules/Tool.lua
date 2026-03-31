@@ -45,18 +45,20 @@ function Tool.Init(Tab, Lib)
     -- 4. DESELECT BUTTON
     Tab:CreateAction("Group Actions", "Deselect All", function()
         for _, obj in pairs(SelectedObjects) do
-            if obj:FindFirstChild("SelectionHighlight") then
+            if obj and obj:FindFirstChild("SelectionHighlight") then
                 obj.SelectionHighlight:Destroy()
             end
         end
         SelectedObjects = {}
-        Lib:Notify("Selection", "Cleared all selected items.", 3)
+        if Lib and Lib.Notify then
+            Lib:Notify("Selection", "Cleared all selected items.", 3)
+        end
     end)
 
--- 5. "STAY PUT" TELEPORT (Anti-Snapback Logic)
+    -- 5. "STAY PUT" TELEPORT (Fixed Anti-Snapback Logic)
     Tab:CreateAction("Group Actions", "TP to Me", function()
         if #SelectedObjects == 0 then
-            Lib:Notify("Error", "No items selected!", 3)
+            if Lib and Lib.Notify then Lib:Notify("Error", "No items selected!", 3) end
             return
         end
 
@@ -65,7 +67,7 @@ function Tool.Init(Tab, Lib)
         if not hrp then return end
 
         local originalPos = hrp.CFrame
-        Lib:Notify("Teleporting", "Moving " .. #SelectedObjects .. " items...", 3)
+        if Lib and Lib.Notify then Lib:Notify("Teleporting", "Moving " .. #SelectedObjects .. " items...", 3) end
 
         for i, item in ipairs(SelectedObjects) do
             pcall(function()
@@ -73,38 +75,39 @@ function Tool.Init(Tab, Lib)
                 local targetPart = item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")) or item
                 
                 if targetPart and targetPart:IsA("BasePart") then
-                    -- STEP 1: Fly to the item to claim ownership
+                    -- STEP 1: Fly to the item to claim network ownership
                     hrp.CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
-                    task.wait(0.1) 
-
-                    -- STEP 2: Move the item to you
-                    local dropPos = originalPos * CFrame.new(0, 2, -5)
                     
+                    -- CRITICAL: Wait slightly longer for the server to grant network ownership
+                    task.wait(0.2) 
+
+                    -- STEP 2: Calculate drop position (Spread them out slightly so they don't explode)
+                    local offsetX = (i % 5) * 2 - 4
+                    local dropPos = originalPos * CFrame.new(offsetX, 2, -5)
+                    
+                    -- STEP 3: Move the item safely
                     if item:IsA("Model") then
-                        item:SetPrimaryPartCFrame(dropPos)
+                        item:PivotTo(dropPos) -- Replaced deprecated SetPrimaryPartCFrame
                     else
                         item.CFrame = dropPos
                     end
 
-                    -- STEP 3: THE FIX - "Force Settle"
-                    -- We briefly anchor it at the destination so the server 
-                    -- acknowledges "This is its new home" before physics takes over.
-                    targetPart.Anchored = true
-                    task.wait(0.1) 
-                    targetPart.Anchored = false
+                    -- STEP 4: The Real "Force Settle"
+                    -- Do NOT change Anchored state! It ruins client-server physics replication.
+                    -- Instead, kill its momentum completely so it drops straight down.
+                    targetPart.AssemblyLinearVelocity = Vector3.zero
+                    targetPart.AssemblyAngularVelocity = Vector3.zero
 
-                    -- STEP 4: Physics Kick
-                    targetPart.Velocity = Vector3.new(0, -1, 0) -- Push it into the ground slightly
-                    
-                    -- STEP 5: Snap back to start
-                    hrp.CFrame = originalPos
+                    -- Small delay to let the position change register before moving away
+                    task.wait(0.1) 
                 end
             end)
-            
-            task.wait(0.1) -- Small delay to keep the server happy
         end
 
-        Lib:Notify("Success", "Items moved and settled.", 3)
+        -- STEP 5: Snap back to start ONCE after all items are collected
+        hrp.CFrame = originalPos
+
+        if Lib and Lib.Notify then Lib:Notify("Success", "Items moved and settled.", 3) end
     end)
 
     -- ===========================
