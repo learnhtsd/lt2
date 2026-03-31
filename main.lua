@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.03"
+local Version = "v0.0.044"
 
 -- ==========================================
 -- UI ENGINE START
@@ -212,13 +212,15 @@ function Library:CreateWindow()
             "https://raw.githubusercontent.com/%s/%s/%s/Icons/%s.png",
             User, Repo, Branch, TabName
         )
-
+        
         local TabIcon = Instance.new("ImageLabel")
         TabIcon.Size = UDim2.new(0, 20, 0, 20)
         TabIcon.Position = UDim2.new(0.5, -10, 0.5, -10)
         TabIcon.BackgroundTransparency = 1
         TabIcon.Image = iconUrl
-        TabIcon.ImageColor3 = Color3.fromRGB(120, 120, 130)
+        TabIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)  -- ← white, not gray
+        TabIcon.ScaleType = Enum.ScaleType.Fit               -- ← add this
+        TabIcon.ImageTransparency = 0                        -- ← make sure fully visible
         TabIcon.Name = "TabIcon"
         TabIcon.Parent = TabBtn
 
