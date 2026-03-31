@@ -101,9 +101,23 @@ function GetWood.Init(Tab, Library)
         hrp.CFrame = cf
     end
 
-    local function SwingAxe()
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    
+    local function SwingAxe(targetPart)
         local axe = GetAxe()
-        if axe then axe:Activate() end
+        if not axe or not targetPart then return end
+    
+        local remote = ReplicatedStorage:FindFirstChild("Interaction") 
+            or ReplicatedStorage:FindFirstChild("RemoteEvent")
+    
+        if not remote then
+            warn("No remote found")
+            return
+        end
+    
+        pcall(function()
+            remote:FireServer(targetPart, targetPart.Position)
+        end)
     end
 
     local function StartFarming()
@@ -139,7 +153,7 @@ function GetWood.Init(Tab, Library)
             if not log then break end
 
             Teleport(log.CFrame * CFrame.new(0,3,0))
-            SwingAxe()
+            SwingAxe(log)
 
             task.wait(0.2)
         end
