@@ -137,15 +137,15 @@ function PlayerMovement.Init(Tab)
     -- SPEED SECTION
     Tab:CreateSection("Speed & Sprint")
     Tab:CreateToggle("Enable WalkSpeed", false, function(s) _G.SpeedEnabled = s end)
-    Tab:CreateSlider("Walk Value", 16, 200, 50, function(v) _G.WalkSpeed = v end)
+    Tab:CreateSlider("Walk Value", 16, 500, 20, function(v) _G.WalkSpeed = v end)
     Tab:CreateToggle("Enable Sprinting", false, function(s) _G.SprintEnabled = s end)
-    Tab:CreateSlider("Sprint Value", 50, 300, 100, function(v) _G.SprintSpeed = v end)
+    Tab:CreateSlider("Sprint Value", 16, 1000, 40, function(v) _G.SprintSpeed = v end)
     Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
 
     -- JUMPING SECTION
     Tab:CreateSection("Jumping")
     Tab:CreateToggle("Enable Jump Height", false, function(s) _G.JumpEnabled = s end)
-    Tab:CreateSlider("Jump Power", 50, 300, 50, function(v) _G.JumpHeight = v end)
+    Tab:CreateSlider("Jump Power", 50, 500, 50, function(v) _G.JumpHeight = v end)
     Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
 
     -- FLIGHT SECTION
@@ -158,7 +158,7 @@ function PlayerMovement.Init(Tab)
             UpdateFlyPhysics(false)
         end
     end)
-    Tab:CreateSlider("Fly Speed", 16, 300, 50, function(v) _G.FlySpeed = v end)
+    Tab:CreateSlider("Fly Speed", 16, 2000, 100, function(v) _G.FlySpeed = v end)
     Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
         -- FIX: Only allow the hotkey to work if the toggle is enabled
         if _G.FlyMasterSwitch then
