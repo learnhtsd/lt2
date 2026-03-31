@@ -23,14 +23,16 @@ function PlayerMovement.Init(Tab)
 
     _G.FlyEnabled = false
     _G.FlySpeed = 50
-    
+
     _G.Noclip = false
     _G.AntiFling = false
     _G.WaterWalk = false
     _G.ClickTP = false
-    
+
+    -- Hard Dragger State
+    _G.HardDragger = false
+    -- Hard Dragger State (Now TRUE by default)
     _G.HardDragger = true
-    _G.DragDistance = 100 -- Increase this for even further range
     local draggedPart = nil
     local dragBP = nil
     local dragBG = nil
@@ -45,15 +47,17 @@ function PlayerMovement.Init(Tab)
         local char = LocalPlayer.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChildOfClass("Humanoid")
-        
+
         if state and hrp and hum then
             if not flyVelocity or not flyVelocity.Parent then
                 flyVelocity = Instance.new("BodyVelocity")
+                flyVelocity.Name = "ExploitFlyVelocity"
                 flyVelocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
                 flyVelocity.Parent = hrp
             end
             if not flyGyro or not flyGyro.Parent then
                 flyGyro = Instance.new("BodyGyro")
+                flyGyro.Name = "ExploitFlyGyro"
                 flyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
                 flyGyro.P = 10000
                 flyGyro.Parent = hrp
@@ -62,16 +66,13 @@ function PlayerMovement.Init(Tab)
         else
             if flyVelocity then flyVelocity:Destroy(); flyVelocity = nil end
             if flyGyro then flyGyro:Destroy(); flyGyro = nil end
-            if hum then 
-                hum.PlatformStand = false
-                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-            end
-            if hrp then hrp.Velocity = Vector3.new(0,0,0) end
+            if hum then hum.PlatformStand = false end
         end
     end
 
-    -- Input Began
+    -- Input Began (Click TP & Hard Drag Start)
     UserInputService.InputBegan:Connect(function(input, processed)
+        -- Click TP
         if not processed and _G.ClickTP and input.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             local char = LocalPlayer.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
@@ -79,33 +80,32 @@ function PlayerMovement.Init(Tab)
             end
         end
 
+        -- Hard Dragger Start
         if not processed and _G.HardDragger and input.UserInputType == Enum.UserInputType.MouseButton1 then
             local target = Mouse.Target
-            -- Target must exist and not be anchored
+            -- Only grab unanchored parts
             if target and not target.Anchored then
                 draggedPart = target
-                
-                -- BodyPosition setup
+
+                -- Create overpowering BodyPosition
                 dragBP = Instance.new("BodyPosition")
-                dragBP.Name = "ExploitDragBP"
+                dragBP.Name = "HardDragBP"
                 dragBP.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                dragBP.P = 200000 -- High power to move heavy wood
-                dragBP.D = 1000   -- Damping to prevent rubber-banding
+                dragBP.P = 100000
                 dragBP.Parent = draggedPart
 
-                -- BodyGyro setup
+                -- Create overpowering BodyGyro (keeps it from spinning wildly)
                 dragBG = Instance.new("BodyGyro")
-                dragBG.Name = "ExploitDragBG"
+                dragBG.Name = "HardDragBG"
                 dragBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-                dragBG.P = 200000
-                dragBG.CFrame = draggedPart.CFrame -- Maintain its current rotation
+                dragBG.P = 100000
                 dragBG.Parent = draggedPart
             end
         end
     end)
 
-    -- Input Ended
-    UserInputService.InputEnded:Connect(function(input)
+    -- Input Ended (Hard Drag End)
+    UserInputService.InputEnded:Connect(function(input, processed)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             if dragBP then dragBP:Destroy(); dragBP = nil end
             if dragBG then dragBG:Destroy(); dragBG = nil end
@@ -113,19 +113,64 @@ function PlayerMovement.Init(Tab)
         end
     end)
 
+    -- Inf Jump
+    UserInputService.JumpRequest:Connect(function()
+        if _G.InfJump then
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum:ChangeState("Jumping") end
+        end
+    end)
+
     -- ===========================
     -- UI SECTIONS
     -- ===========================
-    Tab:CreateSection("Movement")
+
+    -- SPEED SECTION
+    Tab:CreateSection("Speed & Sprint")
     Tab:CreateToggle("Enable WalkSpeed", false, function(s) _G.SpeedEnabled = s end)
     Tab:CreateSlider("Walk Value", 16, 200, 50, function(v) _G.WalkSpeed = v end)
-    Tab:CreateToggle("Fly", false, function(s) _G.FlyEnabled = s UpdateFlyPhysics(s) end)
-    Tab:CreateSlider("Fly Speed", 16, 300, 50, function(v) _G.FlySpeed = v end)
+    Tab:CreateToggle("Enable Sprinting", false, function(s) _G.SprintEnabled = s end)
+    Tab:CreateSlider("Sprint Value", 50, 300, 100, function(v) _G.SprintSpeed = v end)
+    Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
 
-    Tab:CreateSection("LT2 Utilities")
-    Tab:CreateToggle("Hard Dragger", true, function(s) _G.HardDragger = s end)
-    Tab:CreateSlider("Drag Reach", 50, 1000, 200, function(v) _G.DragDistance = v end)
+    -- JUMPING SECTION
+    Tab:CreateSection("Jumping")
+    Tab:CreateToggle("Enable Jump Height", false, function(s) _G.JumpEnabled = s end)
+    Tab:CreateSlider("Jump Power", 50, 300, 50, function(v) _G.JumpHeight = v end)
+    Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
+
+    -- FLIGHT SECTION
+    Tab:CreateSection("Flight")
+    Tab:CreateToggle("Enable Fly", false, function(s) _G.FlyEnabled = s UpdateFlyPhysics(s) end)
+    Tab:CreateSlider("Fly Speed", 16, 300, 50, function(v) _G.FlySpeed = v end)
+    Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
+        _G.FlyEnabled = not _G.FlyEnabled 
+        UpdateFlyPhysics(_G.FlyEnabled) 
+    end)
+
+    -- UTILITY SECTION
+    Tab:CreateSection("Utility")
     Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
+    Tab:CreateToggle("Anti-Fling", false, function(s) _G.AntiFling = s end)
+    Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
+    Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
+
+    -- LT2 Hard Dragger Toggle
+    Tab:CreateToggle("LT2 Hard Dragger", false, function(s) 
+    -- LT2 Hard Dragger Toggle (UI defaults to TRUE now)
+    Tab:CreateToggle("LT2 Hard Dragger", true, function(s) 
+        _G.HardDragger = s 
+        -- Clean up movers if disabled while holding something
+        if not s then
+            if dragBP then dragBP:Destroy(); dragBP = nil end
+            if dragBG then dragBG:Destroy(); dragBG = nil end
+            draggedPart = nil
+        end
+    end)
+
+    Tab:CreateAction("Reset Character", "Kill", function()
+        if LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
+    end)
 
     -- ===========================
     -- MASTER LOOP
@@ -133,50 +178,65 @@ function PlayerMovement.Init(Tab)
     RunService.Stepped:Connect(function()
         local char = LocalPlayer.Character
         if not char then return end
+
+        local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart")
 
-        -- Logic for the Hard Dragger
-        if _G.HardDragger and draggedPart and dragBP then
-            -- We use Mouse.Hit.Position, which allows you to drag it as far as your camera can see.
-            -- To keep the item from clipping through the ground, we add a small offset.
-            local targetPos = Mouse.Hit.Position + Vector3.new(0, 2, 0)
-            
-            -- Optional: Distance clamping (uncomment if you want to limit range)
-            --[[
-            local dist = (hrp.Position - targetPos).Magnitude
-            if dist > _G.DragDistance then
-                targetPos = hrp.Position + (targetPos - hrp.Position).Unit * _G.DragDistance
-            end
-            ]]
-            
-            dragBP.Position = targetPos
-            
-            -- Keep the part from rotating wildly while dragging
-            if dragBG then
-                dragBG.CFrame = Mouse.Origin -- Makes the part "face" the camera
+        -- Hard Dragger Logic
+        if _G.HardDragger and draggedPart and dragBP and dragBG then
+            local hitPos = Mouse.Hit.Position
+            -- Lifts the item slightly above the mouse position so it doesn't drag under the floor
+            dragBP.Position = hitPos + Vector3.new(0, (draggedPart.Size.Y / 2) + 2, 0)
+            -- Stabilizes the object facing the player
+            if char:FindFirstChild("Head") then
+                dragBG.CFrame = CFrame.new(draggedPart.Position, char.Head.Position)
             end
         end
 
-        -- Noclip Logic
+        -- Noclip
         if _G.Noclip then
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then v.CanCollide = false end
             end
         end
 
-        -- Fly Logic
-        if _G.FlyEnabled and hrp then
-            local cam = Workspace.CurrentCamera
-            local moveVector = Vector3.new(0, 0, 0)
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + cam.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - cam.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - cam.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + cam.CFrame.RightVector end
-            
-            if flyVelocity then
-                flyVelocity.Velocity = (moveVector.Magnitude > 0) and (moveVector.Unit * _G.FlySpeed) or Vector3.new(0,0,0)
+        -- Water Walk
+        if _G.WaterWalk and hrp then
+            if hrp.Position.Y <= 1 and hrp.Position.Y >= -5 then
+                hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
+                hrp.CFrame = hrp.CFrame + Vector3.new(0, 0.1, 0)
             end
-            if flyGyro then
+        end
+
+        -- Anti-Fling
+        if _G.AntiFling and hrp then
+            hrp.RotVelocity = Vector3.new(0, 0, 0)
+        end
+
+        if hum then
+            if _G.SprintEnabled and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or _G.IsSprinting) then
+                hum.WalkSpeed = _G.SprintSpeed
+            elseif _G.SpeedEnabled then
+                hum.WalkSpeed = _G.WalkSpeed
+            end
+
+            if _G.JumpEnabled then
+                hum.UseJumpPower = true
+                hum.JumpPower = _G.JumpHeight
+            end
+        end
+
+        -- Fly 
+        if _G.FlyEnabled and hrp then
+            if not hrp:FindFirstChild("ExploitFlyVelocity") then UpdateFlyPhysics(true) end
+            if flyVelocity and flyGyro then
+                local cam = Workspace.CurrentCamera
+                local moveVector = Vector3.new(0, 0, 0)
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + cam.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - cam.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - cam.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + cam.CFrame.RightVector end
+                flyVelocity.Velocity = (moveVector.Magnitude > 0) and (moveVector.Unit * _G.FlySpeed) or Vector3.new(0,0,0)
                 flyGyro.CFrame = cam.CFrame
             end
         end
