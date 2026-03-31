@@ -1,125 +1,176 @@
 local GetWood = {}
 
-local SelectedTree = "Oak"
-local IsFarming = false
-local Player = game.Players.LocalPlayer
+function Wood.Init(Tab, Library)
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
 
-local TreeTypes = {
-    "Oak", "Birch", "Cherry", "Walnut", "Fir", "Pine", "Koa", 
-    "Volcano", "Frost", "Gold", "Silver", "Palm", "Swamp", 
-    "Spooky", "Sinister", "Cave", "Cocoa", "Oof", "Phantom"
-}
+    local SelectedTree = nil
+    local Running = false
+    local OriginalCFrame = nil
 
--- Direct access to the game's interaction remote
-local Interaction = game:GetService("ReplicatedStorage"):FindFirstChild("Interaction")
-local Remote = Interaction and (Interaction:FindFirstChild("RemoteProxy") or Interaction:FindFirstChild("VerifyAction"))
+    -- ==========================================
+    -- TREE LIST (EDIT IF NEEDED)
+    -- ==========================================
+    local Trees = {
+        "Oak",
+        "Birch",
+        "Cherry",
+        "Walnut",
+        "Koa",
+        "LoneCave",
+        "Volcano",
+        "Swamp"
+    }
 
-local function GetNearestTree(treeName)
-    local closestTree = nil
-    local shortestDist = math.huge
-    local char = Player.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
+    -- ==========================================
+    -- HELPERS
+    -- ==========================================
+    local function GetCharacter()
+        return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    end
 
-    for _, obj in pairs(workspace:GetDescendants()) do
-        -- 1. Must be the right tree type
-        -- 2. Must NOT be a plank (Planks usually don't have a 'TreeClass' value inside a 'Tree' model)
-        if obj:IsA("StringValue") and obj.Name == "TreeClass" and obj.Value == treeName then
-            local treeModel = obj.Parent
-            
-            -- ENSURE IT'S A STANDING TREE:
-            -- Real trees in LT2 usually have a 'WoodSection' or 'Base' AND are not inside 'PlayerModels'
-            if treeModel and not treeModel:FindFirstChild("Owner") then 
-                local cutPart = treeModel:FindFirstChild("WoodSection") or treeModel:FindFirstChild("Base")
-                
-                if cutPart and cutPart:IsA("BasePart") then
-                    local dist = (char.HumanoidRootPart.Position - cutPart.Position).Magnitude
-                    if dist < shortestDist then
-                        closestTree = treeModel
-                        shortestDist = dist
-                    end
+    local function GetAxe()
+        local char = GetCharacter()
+        for _, v in pairs(char:GetChildren()) do
+            if v:IsA("Tool") and string.find(v.Name:lower(), "axe") then
+                return v
+            end
+        end
+        return nil
+    end
+
+    local function GetTreeModel(name)
+        for _, tree in pairs(workspace:GetDescendants()) do
+            if tree.Name:lower():find(name:lower()) and tree:IsA("Model") then
+                return tree
+            end
+        end
+        return nil
+    end
+
+    local function GetLowestLog(tree)
+        local lowest = nil
+        for _, v in pairs(tree:GetDescendants()) do
+            if v:IsA("BasePart") then
+                if not lowest or v.Position.Y < lowest.Position.Y then
+                    lowest = v
                 end
             end
+        end
+        return lowest
+    end
+
+    local function Teleport(cf)
+        local char = GetCharacter()
+        local hrp = char:WaitForChild("HumanoidRootPart")
+        hrp.CFrame = cf
+    end
+
+    local function SwingAxe()
+        local axe = GetAxe()
+        if axe then
+            axe:Activate()
         end
     end
-    return closestTree
-end
 
-function GetWood.Init(Tab)
-    Tab:CreateSection("Wood Management")
-
-    Tab:CreateDropdown("Select Tree Type", TreeTypes, "Oak", function(choice)
-        SelectedTree = choice
-    end)
-
-    Tab:CreateAction("Auto Farm", "Start", function()
-        if IsFarming then return end
-        
-        local char = Player.Character
-        local tool = char:FindFirstChildOfClass("Tool")
-        
-        if not tool then
-            warn("Please equip your axe!")
+    -- ==========================================
+    -- MAIN LOOP
+    -- ==========================================
+    local function StartFarming()
+        if Running then
+            Library:Notify("Get Wood", "Already running", 3)
             return
         end
 
-        local target = GetNearestTree(SelectedTree)
-        if not target then
-            warn("No standing " .. SelectedTree .. " found. Make sure you aren't looking at planks!")
+        if not SelectedTree then
+            Library:Notify("Error", "No tree selected", 4)
             return
         end
 
-        IsFarming = true
-        local woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
+        local tree = GetTreeModel(SelectedTree)
+        if not tree then
+            Library:Notify("Error", "Tree not found", 4)
+            return
+        end
 
-        -- Move to the base of the tree
-        char.HumanoidRootPart.CFrame = woodSection.CFrame * CFrame.new(0, 2, 2)
-        task.wait(0.5)
+        local axe = GetAxe()
+        if not axe then
+            Library:Notify("Error", "No axe equipped", 4)
+            return
+        end
 
-        -- Determine the best remote to use
-        local toolRemote = tool:FindFirstChild("RemoteClick") or tool:FindFirstChild("Click")
-        local activeRemote = toolRemote or Remote
+        Running = true
+        Library:Notify("Get Wood", "Started farming " .. SelectedTree, 4)
 
-        while IsFarming and target and target.Parent do
-            -- Always target the LOWEST part of the tree
-            woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
-            
-            if woodSection and activeRemote then
-                -- VISUAL SWING
-                tool:Activate() 
+        local char = GetCharacter()
+        local hrp = char:WaitForChild("HumanoidRootPart")
+        OriginalCFrame = hrp.CFrame
 
-                -- THE "GHOST MOUSE" BYPASS:
-                -- We send the arguments directly. If the axe still requires a hover, 
-                -- we use a Raycast to tell the server our 'Mouse' is hitting the part.
-                local hitPos = woodSection.Position
-                local hitNormal = Vector3.new(0, 1, 0)
+        local baseLog = GetLowestLog(tree)
+        if not baseLog then
+            Library:Notify("Error", "Failed to find base log", 4)
+            Running = false
+            return
+        end
 
-                local args = {
-                    ["Part"] = woodSection,
-                    ["Pos"] = hitPos,
-                    ["Normal"] = hitNormal
-                }
+        -- Teleport to base
+        Teleport(baseLog.CFrame * CFrame.new(0, 3, 0))
 
-                if activeRemote:IsA("RemoteEvent") then
-                    activeRemote:FireServer(args)
-                elseif activeRemote:IsA("RemoteFunction") then
-                    activeRemote:InvokeServer(args)
-                end
-            end
-            
+        -- Chop loop
+        while Running and tree.Parent do
+            local log = GetLowestLog(tree)
+            if not log then break end
+
+            -- Stay near log (no cursor needed)
+            Teleport(log.CFrame * CFrame.new(0, 3, 0))
+
+            -- Swing axe
+            SwingAxe()
+
             task.wait(0.2)
-            
-            -- Stop if the tree is gone or turned into logs
-            if not target:FindFirstChild("WoodSection") and not target:FindFirstChild("Base") then
-                break
-            end
         end
 
-        IsFarming = false
-        print("Farming complete.")
+        -- Return player
+        if OriginalCFrame then
+            Teleport(OriginalCFrame)
+        end
+
+        Library:Notify("Get Wood", "Finished / Stopped", 4)
+        Running = false
+    end
+
+    local function StopFarming()
+        if not Running then
+            Library:Notify("Get Wood", "Not running", 3)
+            return
+        end
+
+        Running = false
+
+        -- Return player safely
+        if OriginalCFrame then
+            Teleport(OriginalCFrame)
+        end
+
+        Library:Notify("Wood", "Force stopped", 4)
+    end
+
+    -- ==========================================
+    -- UI
+    -- ==========================================
+    Tab:CreateSection("Wood Farming")
+
+    Tab:CreateDropdown("Select Tree", Trees, nil, function(value)
+        SelectedTree = value
+        Library:Notify("Wood", "Selected: " .. value, 3)
     end)
 
-    Tab:CreateToggle("Stop", false, function(state)
-        IsFarming = false
+    Tab:CreateAction("Start Auto Chop", "Start", function()
+        task.spawn(StartFarming)
+    end)
+
+    Tab:CreateAction("Force Stop", "Stop", function()
+        StopFarming()
     end)
 end
 
