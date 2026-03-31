@@ -5,7 +5,7 @@ function SettingsModule.Init(Tab, RepoConfig)
     Tab:CreateSection("Interface")
 
     -- Toggle Menu Hotkey
-    Tab:CreateKeybind("Toggle Menu", Enum.KeyCode.RightShift, function()
+    Tab:CreateKeybind("Toggle Menu", Enum.KeyCode.LeftAlt, function()
         local hub = CoreGui:FindFirstChild("NexusCustomHub")
         if hub then
             hub.Enabled = not hub.Enabled
