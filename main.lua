@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.041"
+local Version = "v0.0.042"
 
 -- ==========================================
 -- UI ENGINE START
@@ -223,8 +223,9 @@ function Library:CreateWindow()
         TabIcon.Parent = TabBtn
 
         -- Hide fallback letter once icon is confirmed loaded
-        TabIcon:GetPropertyChangedSignal("IsLoaded"):Connect(function()
-            if TabIcon.IsLoaded then
+        task.delay(2, function()
+            if TabIcon.Image ~= "" and TabIcon.ImageRectSize == Vector2.new(0, 0) then
+                -- image loaded fine, hide the letter
                 FallbackText.Visible = false
             end
         end)
