@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.045"
+local Version = "v0.0.044"
 
 -- ==========================================
 -- UI ENGINE START
@@ -506,57 +506,6 @@ function Library:CreateWindow()
             end)
         end
 
-        local function AddTooltip(frame, text)
-            if not text then return end  -- completely optional, no tooltip if nil
-        
-            local Badge = Instance.new("TextLabel")
-            Badge.Size = UDim2.new(0, 14, 0, 14)
-            Badge.AnchorPoint = Vector2.new(1, 0.5)
-            Badge.Position = UDim2.new(1, -4, 0.5, 0)
-            Badge.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-            Badge.Text = "?"
-            Badge.TextColor3 = Color3.fromRGB(74, 120, 255)
-            Badge.Font = Enum.Font.GothamBold
-            Badge.TextSize = 9
-            Badge.Parent = frame
-            Instance.new("UICorner", Badge).CornerRadius = UDim.new(1, 0)
-        
-            local Tip = Instance.new("Frame")
-            Tip.Size = UDim2.new(0, 160, 0, 0)  -- height expands via tween
-            Tip.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-            Tip.BackgroundTransparency = 1
-            Tip.BorderSizePixel = 0
-            Tip.ZIndex = 10
-            Tip.Parent = frame
-            Instance.new("UICorner", Tip).CornerRadius = UDim.new(0, 6)
-        
-            local TipLabel = Instance.new("TextLabel")
-            TipLabel.Size = UDim2.new(1, -10, 1, -8)
-            TipLabel.Position = UDim2.new(0, 5, 0, 4)
-            TipLabel.BackgroundTransparency = 1
-            TipLabel.Text = text
-            TipLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-            TipLabel.Font = Enum.Font.Gotham
-            TipLabel.TextSize = 11
-            TipLabel.TextWrapped = true
-            TipLabel.Parent = Tip
-        
-            Badge.MouseEnter:Connect(function()
-                Tip.Position = UDim2.new(0, 0, 0, -40)
-                TweenService:Create(Tip, TweenInfo.new(0.2), {
-                    BackgroundTransparency = 0,
-                    Size = UDim2.new(0, 160, 0, 34)
-                }):Play()
-            end)
-        
-            Badge.MouseLeave:Connect(function()
-                TweenService:Create(Tip, TweenInfo.new(0.15), {
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(0, 160, 0, 0)
-                }):Play()
-            end)
-        end
-        
         function Tab:CreateDropdown(Title, Options, Default, Callback)
             local Dropdown = {
                 Open = false,
