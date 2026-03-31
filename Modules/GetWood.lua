@@ -10,25 +10,9 @@ local TreeTypes = {
     "Spooky", "Sinister", "Cave", "Cocoa", "Oof", "Phantom"
 }
 
--- Brute force search for the remote inside your character
-local function ForceGetRemote()
-    local char = Player.Character
-    if not char then return nil end
-
-    -- Scan everything currently attached to your character
-    for _, item in pairs(char:GetChildren()) do
-        if item:IsA("Tool") or item:IsA("Model") then
-            -- Look deep inside this item for any RemoteEvent
-            for _, descendant in pairs(item:GetDescendants()) do
-                if descendant:IsA("RemoteEvent") then
-                    print("Found Remote: " .. descendant.Name .. " inside " .. item.Name)
-                    return descendant, item
-                end
-            end
-        end
-    end
-    return nil, nil
-end
+-- We target the game's standard interaction remote directly
+local InteractionRemote = game:GetService("ReplicatedStorage"):FindFirstChild("Interaction") 
+    and game:GetService("ReplicatedStorage").Interaction:FindFirstChild("RemoteProxy")
 
 local function GetNearestTree(treeName)
     local closestTree = nil
@@ -63,10 +47,22 @@ function GetWood.Init(Tab)
     Tab:CreateAction("Auto Farm", "Start", function()
         if IsFarming then return end
         
-        local remote, axeObject = ForceGetRemote()
+        local char = Player.Character
+        local tool = char:FindFirstChildOfClass("Tool")
         
-        if not remote then
-            warn("CRITICAL ERROR: No RemoteEvent found inside your held tool!")
+        -- Fallback: If no Interaction remote, search tool for ANY remote
+        local remote = InteractionRemote
+        if not remote and tool then
+            for _, v in pairs(tool:GetDescendants()) do
+                if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                    remote = v
+                    break
+                end
+            end
+        end
+
+        if not tool then
+            warn("Please hold your axe!")
             return
         end
 
@@ -77,34 +73,39 @@ function GetWood.Init(Tab)
         end
 
         IsFarming = true
-        print("Success! Using: " .. axeObject.Name .. " | Remote: " .. remote.Name)
+        print("Farming started. Using tool: " .. tool.Name)
         
-        local char = Player.Character
         local oldPos = char.HumanoidRootPart.CFrame
         local woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
 
-        -- Teleport to tree
+        -- Move to tree
         char.HumanoidRootPart.CFrame = woodSection.CFrame * CFrame.new(0, 2, 2)
         task.wait(0.5)
 
-        -- Chop Loop
         while IsFarming and target and target.Parent do
-            -- Safety check: ensure woodSection still exists
-            if not woodSection or not woodSection.Parent then
-                woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
-            end
+            -- Re-check wood section if it updates
+            woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
             
             if woodSection then
-                remote:FireServer({
+                -- Standard LT2 Cut Argument structure
+                local args = {
                     ["Part"] = woodSection,
                     ["Pos"] = woodSection.Position,
                     ["Normal"] = Vector3.new(0, 1, 0)
-                })
+                }
+                
+                -- Fire the remote (Supports Event or Function)
+                if remote then
+                    if remote:IsA("RemoteEvent") then
+                        remote:FireServer(args)
+                    else
+                        remote:InvokeServer(args)
+                    end
+                end
             end
             
-            task.wait(0.2)
+            task.wait(0.18)
             
-            -- If the tree breaks into logs, stop chopping
             if not target:FindFirstChild("WoodSection") and not target:FindFirstChild("Base") then
                 break
             end
@@ -112,7 +113,7 @@ function GetWood.Init(Tab)
 
         char.HumanoidRootPart.CFrame = oldPos
         IsFarming = false
-        print("Farm Cycle Finished.")
+        print("Done!")
     end)
 
     Tab:CreateToggle("Stop Farming", false, function(state)
