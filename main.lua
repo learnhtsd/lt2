@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.018"
+local Version = "v0.0.019"
 
 -- ==========================================
 -- UI ENGINE START
@@ -495,6 +495,7 @@ local WorldTab    = HubWindow:CreateTab("World")
 local TeleportTab = HubWindow:CreateTab("Teleport")
 local WoodTab    = HubWindow:CreateTab("Wood")
 local BuildTab    = HubWindow:CreateTab("Build")
+local ToolTab    = HubWindow:CreateTab("Tool")
 local SettingsTab = HubWindow:CreateTab("Settings")
 
 local function LoadModule(ModuleName)
@@ -524,3 +525,6 @@ end
 
 local GetWoodModule = LoadModule("GetWood")
 if GetWoodModule and GetWoodModule.Init then GetWoodModule.Init(WoodTab) end 
+
+local ToolModule = LoadModule("Tool")
+if ToolModule and ToolModule.Init then ToolModule.Init(ToolTab) end 
