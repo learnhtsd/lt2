@@ -8,22 +8,18 @@ local Selection = {}
 local IsLassoing = false
 local IsClickSelecting = false
 local LassoRange = 25
+local InspectorEnabled = false -- New Toggle Variable
 
 -- LT2 Dragging Remote
 local DragRemote = game:GetService("ReplicatedStorage"):FindFirstChild("Interaction") 
     and game:GetService("ReplicatedStorage").Interaction:FindFirstChild("ClientIsDragging")
 
--- Check if object is moveable (Loose wood or items without an anchor)
+-- Check if object is moveable
 local function IsMoveable(obj)
     if not obj or not obj:IsA("Model") then return false end
-    
-    -- Check for LT2 wood tags or lack of an 'Owner' property on a plot
     if obj:FindFirstChild("TreeClass") or obj:FindFirstChild("WoodSection") then return true end
-    
-    -- Check if it's a loose item/box
     local main = obj:FindFirstChild("Main") or obj:FindFirstChildOfClass("BasePart")
     if main and not main.Anchored then return true end
-    
     return false
 end
 
@@ -37,16 +33,45 @@ end
 function Tool.Init(Tab)
     Tab:CreateSection("Object Management")
     
-    -- Using a Label instead of updating the Section Title to avoid crashes
     local CountLabel = Tab:CreateLabel("Items Selected: 0")
+    local InspectorLabel = Tab:CreateLabel("Hovering: None") -- Label for Object Name
 
     local function UpdateUI()
-        -- Safe way to update the label
         if CountLabel and CountLabel.SetText then
             CountLabel:SetText("Items Selected: " .. #Selection)
         end
     end
 
+    -- ===========================
+    -- NEW: OBJECT INSPECTOR
+    -- ===========================
+    Tab:CreateToggle("Object Inspector", false, function(state)
+        InspectorEnabled = state
+        if not state then
+            InspectorLabel:SetText("Hovering: None")
+        end
+    end)
+
+    -- Loop to update Inspector Label
+    game:GetService("RunService").RenderStepped:Connect(function()
+        if InspectorEnabled then
+            local target = Mouse.Target
+            if target then
+                -- Shows Name [Class] | Parent Name
+                InspectorLabel:SetText(string.format("Hovering: %s [%s] | Parent: %s", 
+                    target.Name, 
+                    target.ClassName, 
+                    (target.Parent and target.Parent.Name or "None")
+                ))
+            else
+                InspectorLabel:SetText("Hovering: Nil")
+            end
+        end
+    end)
+
+    -- ===========================
+    -- EXISTING TOOLS
+    -- ===========================
     Tab:CreateToggle("Click Select", false, function(state)
         IsClickSelecting = state
     end)
@@ -78,9 +103,7 @@ function Tool.Init(Tab)
         end
     end)
 
-    -- Mouse Click Logic for the Click Selector
-    local Connection
-    Connection = Mouse.Button1Down:Connect(function()
+    Mouse.Button1Down:Connect(function()
         if IsClickSelecting and Mouse.Target then
             local root = GetTargetRoot(Mouse.Target)
             if root and IsMoveable(root) and not table.find(Selection, root) then
@@ -97,23 +120,14 @@ function Tool.Init(Tab)
     Tab:CreateAction("Bring All Selected", "Teleport", function()
         local char = Player.Character
         if not char or #Selection == 0 then return end
-        
-        -- Target position: 5 studs in front of player
         local targetPos = char.HumanoidRootPart.Position + (char.HumanoidRootPart.CFrame.LookVector * 7)
-        
         for i, obj in pairs(Selection) do
             local main = obj:FindFirstChild("Main") or obj:FindFirstChildOfClass("BasePart")
             if main then
-                -- 1. Move the CFrame
                 main.CFrame = CFrame.new(targetPos + Vector3.new(0, i * 2, 0))
-                
-                -- 2. Force network ownership (wake up physics)
-                if DragRemote then
-                    DragRemote:FireServer(obj)
-                end
+                if DragRemote then DragRemote:FireServer(obj) end
             end
         end
-        print("Moved " .. #Selection .. " items.")
     end)
 
     Tab:CreateAction("Clear Selection", "Deselect All", function()
