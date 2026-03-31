@@ -99,23 +99,13 @@ function GetWood.Init(Tab, Library)
         local axe = GetAxe()
         if not axe or not targetPart then return end
 
-        local handle = axe:FindFirstChild("Handle")
-        if not handle then return end
+        -- Force mouse target to the wood part so AxeClient registers the hit
+        local mouse = LocalPlayer:GetMouse()
+        mouse.Target = targetPart
 
-        -- Try firing any RemoteEvent inside the axe
-        local remote = axe:FindFirstChildOfClass("RemoteEvent")
-        if remote then
-            remote:FireServer(targetPart, targetPart.Position)
-        end
-
-        -- Physically nudge the handle into the wood so Touched fires server-side
-        local originalCFrame = handle.CFrame
-        handle.CFrame = targetPart.CFrame
-        task.wait(0.05)
-        handle.CFrame = originalCFrame
-
-        -- Play the swing animation
         axe:Activate()
+
+        task.wait(0.05)
     end
 
     local function StartFarming()
@@ -181,16 +171,14 @@ function GetWood.Init(Tab, Library)
     end
 
     -- UI
-    Tab:CreateAction("Debug: Scan Axe", "Scan", function()
-        local axe = GetCharacter():FindFirstChildOfClass("Tool")
-        if axe then
-            print("Axe name:", axe.Name)
-            for _, v in pairs(axe:GetDescendants()) do
-                print(v.ClassName, v.Name)
+    Tab:CreateAction("Debug: Scan Remotes", "Scan", function()
+        print("=== ReplicatedStorage Remotes ===")
+        for _, v in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                print(v.ClassName, "| Path:", v:GetFullName())
             end
-        else
-            print("No tool equipped")
         end
+        print("--- Done ---")
     end)
 
     Tab:CreateSection("Wood Farming")
