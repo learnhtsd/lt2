@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.036"
+local Version = "v0.0.037"
 
 -- ==========================================
 -- UI ENGINE START
@@ -586,7 +586,7 @@ local GhostModule = LoadModule("GhostSuite")
 if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
 
 local WorldModule = LoadModule("World")
-if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab) end 
+if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end 
 
 local SettingsModule = LoadModule("Settings")
 if SettingsModule and SettingsModule.Init then  
@@ -597,4 +597,4 @@ local GetWoodModule = LoadModule("GetWood")
 if GetWoodModule and GetWoodModule.Init then GetWoodModule.Init(WoodTab) end 
 
 local ToolModule = LoadModule("Tool")
-if ToolModule and ToolModule.Init then ToolModule.Init(ToolTab) end  
+if ToolModule and ToolModule.Init then ToolModule.Init(ToolTab, Library) end
