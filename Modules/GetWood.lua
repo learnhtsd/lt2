@@ -1,6 +1,6 @@
 local GetWood = {}
 
-function Wood.Init(Tab, Library)
+function GetWood.Init(Tab, Library)
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
