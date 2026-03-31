@@ -2,94 +2,85 @@ local Tool = {}
 
 local Player = game.Players.LocalPlayer
 local Mouse = Player:GetMouse()
-local UIS = game:GetService("UserInputService")
-
 local DragRemote = game.ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("ClientIsDragging")
 
--- State
 local SelectedObjects = {}
 local Highlights = {}
-local DebugMode = false
 local ClickSelectEnabled = false
 
--- =========================
--- VISUAL HELPER FUNCTIONS
--- =========================
+-- Visuals
 local function AddHighlight(part)
     if not part or Highlights[part] then return end
     local hl = Instance.new("Highlight")
     hl.Adornee = part
-    hl.FillColor = Color3.fromRGB(0, 255, 100)
+    hl.FillColor = Color3.fromRGB(0, 255, 255) -- Cyan for "Slide Mode"
     hl.Parent = (game:GetService("CoreGui") or part)
     Highlights[part] = hl
 end
 
 local function RemoveHighlight(part)
-    if Highlights[part] then
-        Highlights[part]:Destroy()
-        Highlights[part] = nil
-    end
+    if Highlights[part] then Highlights[part]:Destroy() Highlights[part] = nil end
 end
 
 function Tool.Init(Tab, Lib)
-    Tab:CreateSection("Drag TP System")
+    Tab:CreateSection("Advanced Slide TP")
 
     Tab:CreateAction("Selection", "Deselect All", function()
         for part, _ in pairs(Highlights) do RemoveHighlight(part) end
         table.clear(SelectedObjects)
-        if Lib then Lib:Notify("Selection", "Cleared", 2) end
     end)
 
     Tab:CreateToggle("Click Select", false, function(state)
         ClickSelectEnabled = state
     end)
 
-    -- MAIN TP BUTTON (RE-ENGINEERED)
-    Tab:CreateAction("Selection", "TP to Me (Force Sync)", function()
+    Tab:CreateAction("Selection", "Slide TP (Anti-Cheat Bypass)", function()
         local char = Player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if not hrp or #SelectedObjects == 0 then return end
 
-        for i, obj in ipairs(SelectedObjects) do
-            local part = obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")) or obj
-            if not part then continue end
+        for i, part in ipairs(SelectedObjects) do
+            if not part:IsA("BasePart") then continue end
 
-            local targetCF = hrp.CFrame * CFrame.new((i % 5) * 3, 2, -7)
-
-            -- STEP 1: Request Ownership (Grab)
-            DragRemote:FireServer(part, true)
-            task.wait(0.2) -- Wait for server to acknowledge the "Grab"
-
-            -- STEP 2: Move the item locally
-            part.CFrame = targetCF
-            part.AssemblyLinearVelocity = Vector3.new(0, 1, 0) -- Tiny nudge to keep physics awake
+            local startPos = part.Position
+            local endPos = hrp.Position + Vector3.new((i % 5) * 3, 2, -7)
+            local distance = (startPos - endPos).Magnitude
             
-            -- STEP 3: Tell Server "I am moving this now"
-            -- We fire this multiple times to ensure the server updates the position record
-            for _ = 1, 3 do
-                DragRemote:FireServer(part, targetCF)
-                task.wait(0.05)
+            -- 1. GRAB
+            DragRemote:FireServer(part, true)
+            task.wait(0.1)
+
+            -- 2. THE SLIDE (Bypasses distance checks)
+            local steps = math.floor(distance / 25) -- Move 25 studs per "tick"
+            for s = 1, steps do
+                local nextPos = startPos:Lerp(endPos, s/steps)
+                local nextCF = CFrame.new(nextPos)
+                
+                part.CFrame = nextCF
+                DragRemote:FireServer(part, nextCF)
+                
+                -- This wait is tiny, but enough to let the server heartbeat catch up
+                if s % 2 == 0 then task.wait() end 
             end
 
-            -- STEP 4: Release (Drop)
+            -- 3. FINAL SNAP
+            part.CFrame = CFrame.new(endPos)
+            DragRemote:FireServer(part, CFrame.new(endPos))
+            
+            -- 4. DROP
             task.wait(0.1)
             DragRemote:FireServer(part, false)
             
-            -- STEP 5: Final Velocity Reset (Prevents it from flying away)
-            task.wait(0.1)
-            pcall(function()
-                part.AssemblyLinearVelocity = Vector3.new(0, -0.5, 0)
-            end)
+            -- Wake up physics
+            part.AssemblyLinearVelocity = Vector3.new(0, -1, 0)
         end
-
-        if Lib then Lib:Notify("Success", "Items Synced to Server", 3) end
+        
+        if Lib then Lib:Notify("Success", "Slide Complete", 2) end
     end)
 
-    -- INPUT LISTENER
     Mouse.Button1Down:Connect(function()
         if not Mouse.Target or not ClickSelectEnabled then return end
         local target = Mouse.Target
-        
         local index = table.find(SelectedObjects, target)
         if index then
             table.remove(SelectedObjects, index)
