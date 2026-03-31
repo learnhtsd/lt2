@@ -22,8 +22,8 @@ function PlayerMovement.Init(Tab)
     _G.InfJump = false
 
     -- Flight States
-    _G.FlyMasterSwitch = false -- Dictates if the hotkey is allowed to work
-    _G.IsFlying = false        -- The actual active state of flight
+    _G.FlyMasterSwitch = true
+    _G.IsFlying = false
     _G.FlySpeed = 50
 
     _G.Noclip = false
@@ -32,7 +32,7 @@ function PlayerMovement.Init(Tab)
     _G.ClickTP = false
 
     -- Hard Dragger State
-    _G.HardDragger = true
+    _G.HardDragger = false
     local draggedPart = nil
     local dragBP = nil
     local dragBG = nil
@@ -137,20 +137,20 @@ function PlayerMovement.Init(Tab)
     -- SPEED SECTION
     Tab:CreateSection("Speed & Sprint")
     Tab:CreateToggle("Enable WalkSpeed", false, function(s) _G.SpeedEnabled = s end)
-    Tab:CreateSlider("Walk Value", 16, 500, 20, function(v) _G.WalkSpeed = v end)
+    Tab:CreateSlider("Walk Value", 16, 1000, 16, function(v) _G.WalkSpeed = v end)
     Tab:CreateToggle("Enable Sprinting", false, function(s) _G.SprintEnabled = s end)
-    Tab:CreateSlider("Sprint Value", 16, 1000, 40, function(v) _G.SprintSpeed = v end)
+    Tab:CreateSlider("Sprint Value", 16, 1000, 32, function(v) _G.SprintSpeed = v end)
     Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
 
     -- JUMPING SECTION
     Tab:CreateSection("Jumping")
     Tab:CreateToggle("Enable Jump Height", false, function(s) _G.JumpEnabled = s end)
-    Tab:CreateSlider("Jump Power", 50, 500, 50, function(v) _G.JumpHeight = v end)
+    Tab:CreateSlider("Jump Power", 16, 500, 16, function(v) _G.JumpHeight = v end)
     Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
 
     -- FLIGHT SECTION
     Tab:CreateSection("Flight")
-    Tab:CreateToggle("Enable Fly Hotkey", false, function(s) 
+    Tab:CreateToggle("Enable Fly Hotkey", true, function(s) 
         _G.FlyMasterSwitch = s 
         -- If toggle is turned off, force stop flying instantly
         if not s and _G.IsFlying then
@@ -158,7 +158,7 @@ function PlayerMovement.Init(Tab)
             UpdateFlyPhysics(false)
         end
     end)
-    Tab:CreateSlider("Fly Speed", 16, 2000, 100, function(v) _G.FlySpeed = v end)
+    Tab:CreateSlider("Fly Speed", 16, 2500, 250, function(v) _G.FlySpeed = v end)
     Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
         -- FIX: Only allow the hotkey to work if the toggle is enabled
         if _G.FlyMasterSwitch then
@@ -175,7 +175,7 @@ function PlayerMovement.Init(Tab)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
 
     -- LT2 Hard Dragger Toggle (Fixed Syntax Error Here)
-    Tab:CreateToggle("LT2 Hard Dragger", true, function(s) 
+    Tab:CreateToggle("LT2 Hard Dragger", false, function(s) 
         _G.HardDragger = s 
         -- Clean up movers if disabled while holding something
         if not s then
