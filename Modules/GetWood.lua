@@ -39,33 +39,42 @@ function GetWood.Init(Tab, Library)
         return nil
     end
 
-    local function GetTreeModel(name)
-        local closestTree = nil
-        local closestDist = math.huge
-    
+    local function GetTreeModel()
         local char = GetCharacter()
         local hrp = char:WaitForChild("HumanoidRootPart")
     
-        for _, tree in pairs(workspace:GetDescendants()) do
-            if tree:IsA("Model") then
-                -- Check if it's a tree by having wood parts
-                local hasWood = false
+        local closestTree = nil
+        local closestDist = math.huge
     
-                for _, v in pairs(tree:GetDescendants()) do
+        for _, model in pairs(workspace:GetDescendants()) do
+            if model:IsA("Model") then
+                local parts = {}
+                local minY, maxY
+    
+                for _, v in pairs(model:GetDescendants()) do
                     if v:IsA("BasePart") and v.Name:lower():find("wood") then
-                        hasWood = true
-                        break
+                        table.insert(parts, v)
+    
+                        if not minY or v.Position.Y < minY then minY = v.Position.Y end
+                        if not maxY or v.Position.Y > maxY then maxY = v.Position.Y end
                     end
                 end
     
-                if hasWood then
-                    local part = tree:FindFirstChildWhichIsA("BasePart")
-                    if part then
-                        local dist = (part.Position - hrp.Position).Magnitude
+                -- Must have enough parts to be a real tree
+                if #parts >= 6 then
+                    local height = (maxY - minY)
     
-                        if dist < closestDist then
-                            closestDist = dist
-                            closestTree = tree
+                    -- Must be tall (filters out cut logs)
+                    if height > 15 then
+                        local basePart = parts[1]
+                        local dist = (basePart.Position - hrp.Position).Magnitude
+    
+                        -- Ignore trees too close (likely your base)
+                        if dist > 50 then
+                            if dist < closestDist then
+                                closestDist = dist
+                                closestTree = model
+                            end
                         end
                     end
                 end
