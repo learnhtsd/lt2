@@ -12,19 +12,19 @@ function PlayerMovement.Init(Tab)
     -- STATE VARIABLES
     -- ===========================
     _G.SpeedEnabled = false
-    _G.WalkSpeed = 50
+    _G.WalkSpeed = 16
     _G.SprintEnabled = false
-    _G.SprintSpeed = 100
+    _G.SprintSpeed = 32
     _G.IsSprinting = false
 
     _G.JumpEnabled = false
-    _G.JumpHeight = 50
+    _G.JumpHeight = 16
     _G.InfJump = false
 
     -- Flight States
     _G.FlyMasterSwitch = true
     _G.IsFlying = false
-    _G.FlySpeed = 50
+    _G.FlySpeed = 250
 
     _G.Noclip = false
     _G.AntiFling = false
