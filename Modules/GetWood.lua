@@ -18,11 +18,25 @@ function GetWood.Init(Tab, Library)
 
     local function GetAxe()
         local char = GetCharacter()
+        local backpack = LocalPlayer:WaitForChild("Backpack")
+    
+        -- 1. Check equipped tool first
         for _, v in pairs(char:GetChildren()) do
-            if v:IsA("Tool") and v.Name:lower():find("axe") then
+            if v:IsA("Tool") then
                 return v
             end
         end
+    
+        -- 2. If not equipped, grab one from backpack and equip it
+        for _, v in pairs(backpack:GetChildren()) do
+            if v:IsA("Tool") then
+                v.Parent = char
+                task.wait(0.1)
+                return v
+            end
+        end
+    
+        return nil
     end
 
     local function GetTreeModel(name)
