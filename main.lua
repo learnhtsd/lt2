@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.026"
+local Version = "v0.0.027"
 
 -- ==========================================
 -- UI ENGINE START
@@ -517,6 +517,9 @@ if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) 
 
 local GhostModule = LoadModule("GhostSuite")
 if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
+
+local WorldModule = LoadModule("World")
+if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab) end 
 
 local SettingsModule = LoadModule("Settings")
 if SettingsModule and SettingsModule.Init then  
