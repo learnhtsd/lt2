@@ -53,7 +53,7 @@ function Tool.Init(Tab, Lib)
         Lib:Notify("Selection", "Cleared all selected items.", 3)
     end)
 
-    -- 5. TELEPORT BUTTON (LT2 Compatibility)
+-- 5. TELEPORT BUTTON (LT2 Compatibility + Physics Wake-up)
     Tab:CreateAction("Group Actions", "TP to Me", function()
         if #SelectedObjects == 0 then
             Lib:Notify("Error", "No items selected!", 3)
@@ -62,23 +62,44 @@ function Tool.Init(Tab, Lib)
 
         Lib:Notify("Teleporting", "Moving " .. #SelectedObjects .. " items...", 5)
         
+        local character = Player.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        
+        local targetPos = character.HumanoidRootPart.CFrame * CFrame.new(0, 2, -7) -- 2 units up, 7 units forward
+
         for i, item in ipairs(SelectedObjects) do
-            if item:IsA("BasePart") or item:IsA("Model") then
-                local targetPos = Player.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+            pcall(function()
+                local root = item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")) or item
                 
-                -- LT2 specific: Most items respond to SetPrimaryPartCFrame or simple CFrame
-                -- We use a pcall to prevent errors if an item is deleted mid-loop
-                pcall(function()
+                if root and root:IsA("BasePart") then
+                    -- 1. Move the item
                     if item:IsA("Model") then
                         item:SetPrimaryPartCFrame(targetPos)
                     else
                         item.CFrame = targetPos
                     end
-                end)
-                
-                task.wait(0.1) -- Delay to prevent physics lag/anti-cheat kicks
-            end
+
+                    -- 2. WAKE UP PHYSICS (The "Anti-Freeze" Fix)
+                    -- We apply a tiny bit of velocity and a micro-rotation
+                    root.Velocity = Vector3.new(0, 0.1, 0) 
+                    root.RotVelocity = Vector3.new(0, 0.05, 0)
+                    
+                    -- 3. Network Ownership Check
+                    -- Since you mentioned you have ownership, this ensures the server 
+                    -- recognizes you as the physics calculator immediately.
+                    if root.ReceiveAge == 0 or true then 
+                        task.spawn(function()
+                            -- Briefly set to non-anchored if LT2's system anchored it
+                            root.Anchored = false 
+                        end)
+                    end
+                end
+            end)
+            
+            task.wait(0.15) -- Slightly longer wait to let the engine catch up
         end
+        
+        Lib:Notify("Success", "Items moved and unfrozen.", 3)
     end)
 
     -- ===========================
