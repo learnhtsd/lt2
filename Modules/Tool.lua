@@ -53,53 +53,50 @@ function Tool.Init(Tab, Lib)
         Lib:Notify("Selection", "Cleared all selected items.", 3)
     end)
 
--- 5. TELEPORT BUTTON (LT2 Compatibility + Physics Wake-up)
+-- 5. KRON-STYLE TELEPORT (Snap-Claim Logic)
     Tab:CreateAction("Group Actions", "TP to Me", function()
         if #SelectedObjects == 0 then
             Lib:Notify("Error", "No items selected!", 3)
             return
         end
 
-        Lib:Notify("Teleporting", "Moving " .. #SelectedObjects .. " items...", 5)
-        
-        local character = Player.Character
-        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-        
-        local targetPos = character.HumanoidRootPart.CFrame * CFrame.new(0, 2, -7) -- 2 units up, 7 units forward
+        local char = Player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        local originalPos = hrp.CFrame -- Remember where we started
+        Lib:Notify("Teleporting", "Processing " .. #SelectedObjects .. " items...", 3)
 
         for i, item in ipairs(SelectedObjects) do
             pcall(function()
-                local root = item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")) or item
+                local targetPart = item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")) or item
                 
-                if root and root:IsA("BasePart") then
-                    -- 1. Move the item
+                if targetPart and targetPart:IsA("BasePart") then
+                    -- STEP 1: Teleport Player to the item to gain Network Ownership
+                    hrp.CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
+                    task.wait(0.1) -- Short wait for the engine to register you are there
+
+                    -- STEP 2: Move the item to our original saved position
+                    local dropPos = originalPos * CFrame.new(0, 2, -7)
                     if item:IsA("Model") then
-                        item:SetPrimaryPartCFrame(targetPos)
+                        item:SetPrimaryPartCFrame(dropPos)
                     else
-                        item.CFrame = targetPos
+                        item.CFrame = dropPos
                     end
 
-                    -- 2. WAKE UP PHYSICS (The "Anti-Freeze" Fix)
-                    -- We apply a tiny bit of velocity and a micro-rotation
-                    root.Velocity = Vector3.new(0, 0.1, 0) 
-                    root.RotVelocity = Vector3.new(0, 0.05, 0)
+                    -- STEP 3: "Kick" the physics so it doesn't freeze
+                    targetPart.Velocity = Vector3.new(0, 1, 0)
+                    targetPart.RotVelocity = Vector3.new(0, 0.1, 0)
                     
-                    -- 3. Network Ownership Check
-                    -- Since you mentioned you have ownership, this ensures the server 
-                    -- recognizes you as the physics calculator immediately.
-                    if root.ReceiveAge == 0 or true then 
-                        task.spawn(function()
-                            -- Briefly set to non-anchored if LT2's system anchored it
-                            root.Anchored = false 
-                        end)
-                    end
+                    -- STEP 4: Teleport Player back to original spot to move the next one
+                    hrp.CFrame = originalPos
                 end
             end)
             
-            task.wait(0.15) -- Slightly longer wait to let the engine catch up
+            task.wait(0.1) -- Delay between items to prevent LT2 anti-cheat flags
         end
-        
-        Lib:Notify("Success", "Items moved and unfrozen.", 3)
+
+        Lib:Notify("Success", "All items processed!", 3)
     end)
 
     -- ===========================
