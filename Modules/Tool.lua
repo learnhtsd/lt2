@@ -53,7 +53,7 @@ function Tool.Init(Tab, Lib)
         Lib:Notify("Selection", "Cleared all selected items.", 3)
     end)
 
--- 5. KRON-STYLE TELEPORT (Snap-Claim Logic)
+-- 5. "STAY PUT" TELEPORT (Anti-Snapback Logic)
     Tab:CreateAction("Group Actions", "TP to Me", function()
         if #SelectedObjects == 0 then
             Lib:Notify("Error", "No items selected!", 3)
@@ -64,39 +64,47 @@ function Tool.Init(Tab, Lib)
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
 
-        local originalPos = hrp.CFrame -- Remember where we started
-        Lib:Notify("Teleporting", "Processing " .. #SelectedObjects .. " items...", 3)
+        local originalPos = hrp.CFrame
+        Lib:Notify("Teleporting", "Moving " .. #SelectedObjects .. " items...", 3)
 
         for i, item in ipairs(SelectedObjects) do
             pcall(function()
+                -- Find the part we are actually moving
                 local targetPart = item:IsA("Model") and (item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")) or item
                 
                 if targetPart and targetPart:IsA("BasePart") then
-                    -- STEP 1: Teleport Player to the item to gain Network Ownership
+                    -- STEP 1: Fly to the item to claim ownership
                     hrp.CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
-                    task.wait(0.1) -- Short wait for the engine to register you are there
+                    task.wait(0.1) 
 
-                    -- STEP 2: Move the item to our original saved position
-                    local dropPos = originalPos * CFrame.new(0, 2, -7)
+                    -- STEP 2: Move the item to you
+                    local dropPos = originalPos * CFrame.new(0, 2, -5)
+                    
                     if item:IsA("Model") then
                         item:SetPrimaryPartCFrame(dropPos)
                     else
                         item.CFrame = dropPos
                     end
 
-                    -- STEP 3: "Kick" the physics so it doesn't freeze
-                    targetPart.Velocity = Vector3.new(0, 1, 0)
-                    targetPart.RotVelocity = Vector3.new(0, 0.1, 0)
+                    -- STEP 3: THE FIX - "Force Settle"
+                    -- We briefly anchor it at the destination so the server 
+                    -- acknowledges "This is its new home" before physics takes over.
+                    targetPart.Anchored = true
+                    task.wait(0.1) 
+                    targetPart.Anchored = false
+
+                    -- STEP 4: Physics Kick
+                    targetPart.Velocity = Vector3.new(0, -1, 0) -- Push it into the ground slightly
                     
-                    -- STEP 4: Teleport Player back to original spot to move the next one
+                    -- STEP 5: Snap back to start
                     hrp.CFrame = originalPos
                 end
             end)
             
-            task.wait(0.1) -- Delay between items to prevent LT2 anti-cheat flags
+            task.wait(0.1) -- Small delay to keep the server happy
         end
 
-        Lib:Notify("Success", "All items processed!", 3)
+        Lib:Notify("Success", "Items moved and settled.", 3)
     end)
 
     -- ===========================
