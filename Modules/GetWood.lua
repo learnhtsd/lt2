@@ -10,9 +10,9 @@ local TreeTypes = {
     "Spooky", "Sinister", "Cave", "Cocoa", "Oof", "Phantom"
 }
 
--- We target the game's standard interaction remote directly
-local InteractionRemote = game:GetService("ReplicatedStorage"):FindFirstChild("Interaction") 
-    and game:GetService("ReplicatedStorage").Interaction:FindFirstChild("RemoteProxy")
+-- Target the game's main interaction system
+local Interaction = game:GetService("ReplicatedStorage"):FindFirstChild("Interaction")
+local Remote = Interaction and (Interaction:FindFirstChild("RemoteProxy") or Interaction:FindFirstChild("VerifyAction"))
 
 local function GetNearestTree(treeName)
     local closestTree = nil
@@ -50,21 +50,14 @@ function GetWood.Init(Tab)
         local char = Player.Character
         local tool = char:FindFirstChildOfClass("Tool")
         
-        -- Fallback: If no Interaction remote, search tool for ANY remote
-        local remote = InteractionRemote
-        if not remote and tool then
-            for _, v in pairs(tool:GetDescendants()) do
-                if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
-                    remote = v
-                    break
-                end
-            end
-        end
-
         if not tool then
-            warn("Please hold your axe!")
+            warn("Equip your axe first!")
             return
         end
+
+        -- Find the tool's specific remote if the global one isn't responding
+        local toolRemote = tool:FindFirstChild("RemoteClick") or tool:FindFirstChild("Click")
+        local activeRemote = toolRemote or Remote
 
         local target = GetNearestTree(SelectedTree)
         if not target then
@@ -73,50 +66,56 @@ function GetWood.Init(Tab)
         end
 
         IsFarming = true
-        print("Farming started. Using tool: " .. tool.Name)
-        
-        local oldPos = char.HumanoidRootPart.CFrame
         local woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
 
         -- Move to tree
         char.HumanoidRootPart.CFrame = woodSection.CFrame * CFrame.new(0, 2, 2)
         task.wait(0.5)
 
+        print("Attempting to chop with: " .. activeRemote.Name)
+
         while IsFarming and target and target.Parent do
-            -- Re-check wood section if it updates
             woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
             
-            if woodSection then
-                -- Standard LT2 Cut Argument structure
+            if woodSection and activeRemote then
+                -- Generate realistic click data
+                local rayParams = RaycastParams.new()
+                rayParams.FilterDescendantsInstances = {char}
+                rayParams.FilterType = Enum.RaycastFilterType.Exclude
+                
+                -- We "aim" from the player to the wood
+                local direction = (woodSection.Position - char.HumanoidRootPart.Position).Unit * 10
+                local result = workspace:Raycast(char.HumanoidRootPart.Position, direction, rayParams)
+
+                local hitPos = result and result.Position or woodSection.Position
+                local hitNormal = result and result.Normal or Vector3.new(0, 1, 0)
+
                 local args = {
                     ["Part"] = woodSection,
-                    ["Pos"] = woodSection.Position,
-                    ["Normal"] = Vector3.new(0, 1, 0)
+                    ["Pos"] = hitPos,
+                    ["Normal"] = hitNormal
                 }
-                
-                -- Fire the remote (Supports Event or Function)
-                if remote then
-                    if remote:IsA("RemoteEvent") then
-                        remote:FireServer(args)
-                    else
-                        remote:InvokeServer(args)
-                    end
+
+                -- Execute based on Remote type
+                if activeRemote:IsA("RemoteEvent") then
+                    activeRemote:FireServer(args)
+                elseif activeRemote:IsA("RemoteFunction") then
+                    activeRemote:InvokeServer(args)
                 end
             end
             
-            task.wait(0.18)
+            task.wait(0.2) -- LT2 anticheat is sensitive to speeds under 0.15
             
             if not target:FindFirstChild("WoodSection") and not target:FindFirstChild("Base") then
                 break
             end
         end
 
-        char.HumanoidRootPart.CFrame = oldPos
         IsFarming = false
-        print("Done!")
+        print("Chop sequence finished.")
     end)
 
-    Tab:CreateToggle("Stop Farming", false, function(state)
+    Tab:CreateToggle("Stop", false, function(state)
         IsFarming = false
     end)
 end
