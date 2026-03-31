@@ -2,25 +2,27 @@ local Tool = {}
 
 local Player = game.Players.LocalPlayer
 local Mouse = Player:GetMouse()
+local RunService = game:GetService("RunService")
 
 -- Variable for toggle
 local InspectorEnabled = false 
 
 function Tool.Init(Tab, Lib)
+    -- This part works (you see the text)
     Tab:CreateSection("Diagnostic Tools")
     
-    local InspectorLabel = Tab:CreateLabel("Hovering: None")
+    -- FIXED: Changed CreateLabel to CreateAction since your Library might not support Labels
+    Tab:CreateAction("Hovering: None", "INFO", function() end)
 
     -- ===========================
     -- OBJECT INSPECTOR
     -- ===========================
     Tab:CreateToggle("Object Inspector", false, function(state)
         InspectorEnabled = state
-        if state then
-            Lib:Notify("Inspector", "Enabled! Right-click an object to log its name.", 4)
-        else
-            InspectorLabel:SetText("Hovering: None")
-            Lib:Notify("Inspector", "Disabled.", 2)
+        
+        -- Safety check for the Notification system
+        if Lib and Lib.Notify then
+            Lib:Notify("Inspector", state and "Enabled! Right-click to log." or "Disabled.", 3)
         end
     end)
 
@@ -30,10 +32,10 @@ function Tool.Init(Tab, Lib)
             local t = Mouse.Target
             local info = string.format("Name: %s | Class: %s", t.Name, t.ClassName)
             
-            -- Send the notification to the bottom right
-            Lib:Notify("Object Identified", info, 5)
+            if Lib and Lib.Notify then
+                Lib:Notify("Object Identified", info, 5)
+            end
             
-            -- Print to console (F9) for easy copying
             print("--------------------------")
             print("INSPECTED OBJECT:")
             print("Name: " .. t.Name)
@@ -41,18 +43,6 @@ function Tool.Init(Tab, Lib)
             print("Parent: " .. (t.Parent and t.Parent.Name or "Nil"))
             print("Full Path: " .. t:GetFullName())
             print("--------------------------")
-        end
-    end)
-
-    -- Real-time label update
-    game:GetService("RunService").RenderStepped:Connect(function()
-        if InspectorEnabled then
-            local target = Mouse.Target
-            if target then
-                InspectorLabel:SetText(string.format("Hovering: %s [%s]", target.Name, target.ClassName))
-            else
-                InspectorLabel:SetText("Hovering: Nil")
-            end
         end
     end)
 end
