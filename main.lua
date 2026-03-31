@@ -642,7 +642,7 @@ if SettingsModule and SettingsModule.Init then
 end
 
 local GetWoodModule = LoadModule("GetWood")
-if GetWoodModule and GetWoodModule.Init then GetWood.Init(Tab, Library) end
+if GetWoodModule and GetWoodModule.Init then GetWoodModule.Init(WoodTab) end
 
 local ToolModule = LoadModule("Tool")
 if ToolModule and ToolModule.Init then ToolModule.Init(ToolTab, Library) end
