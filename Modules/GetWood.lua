@@ -34,24 +34,23 @@ function GetWood.Init(Tab, Library)
 
         return nil
     end
-    
+
     local function GetTreeModel()
         if not SelectedTree then return nil end
-    
+
         local char = GetCharacter()
         local hrp = char:WaitForChild("HumanoidRootPart")
-    
+
         local closestTree = nil
         local closestDist = math.huge
-    
+
         for _, model in pairs(workspace:GetDescendants()) do
             if model:IsA("Model") and model.Parent and model.Parent.Name == "TreeRegion" then
-                -- Check the TreeClass StringValue
                 local treeClass = model:FindFirstChild("TreeClass")
                 if treeClass and treeClass.Value == SelectedTree then
                     local woodParts = {}
                     local minY, maxY
-    
+
                     for _, v in pairs(model:GetDescendants()) do
                         if v:IsA("BasePart") and v.Name:lower():find("wood") then
                             table.insert(woodParts, v)
@@ -59,13 +58,13 @@ function GetWood.Init(Tab, Library)
                             if not maxY or v.Position.Y > maxY then maxY = v.Position.Y end
                         end
                     end
-    
+
                     if #woodParts >= 6 then
                         local height = maxY - minY
                         if height > 15 then
                             local basePart = woodParts[1]
                             local dist = (basePart.Position - hrp.Position).Magnitude
-    
+
                             if dist > 50 and dist < closestDist then
                                 closestDist = dist
                                 closestTree = model
@@ -75,14 +74,13 @@ function GetWood.Init(Tab, Library)
                 end
             end
         end
-    
+
         return closestTree
     end
 
     local function GetLowestLog(tree)
         local lowest
         for _, v in pairs(tree:GetDescendants()) do
-            -- FIX: Only target actual Wood parts, not hitboxes/invisible parts
             if v:IsA("BasePart") and v.Name:lower():find("wood") then
                 if not lowest or v.Position.Y < lowest.Position.Y then
                     lowest = v
@@ -97,18 +95,26 @@ function GetWood.Init(Tab, Library)
         hrp.CFrame = cf
     end
 
-    -- FIX 2: Use the correct RemoteEvent that LT2 axes actually use
     local function SwingAxe(targetPart)
         local axe = GetAxe()
         if not axe or not targetPart then return end
 
-        -- LT2 axes fire a RemoteEvent inside the tool to register hits server-side
+        local handle = axe:FindFirstChild("Handle")
+        if not handle then return end
+
+        -- Try firing any RemoteEvent inside the axe
         local remote = axe:FindFirstChildOfClass("RemoteEvent")
         if remote then
             remote:FireServer(targetPart, targetPart.Position)
         end
 
-        -- Also trigger Activated so the server-side swing script runs
+        -- Physically nudge the handle into the wood so Touched fires server-side
+        local originalCFrame = handle.CFrame
+        handle.CFrame = targetPart.CFrame
+        task.wait(0.05)
+        handle.CFrame = originalCFrame
+
+        -- Play the swing animation
         axe:Activate()
     end
 
@@ -144,11 +150,11 @@ function GetWood.Init(Tab, Library)
             local log = GetLowestLog(tree)
             if not log then break end
 
-            -- Teleport slightly in front of the log, not inside it
-            Teleport(CFrame.new(log.Position + Vector3.new(0, 3, 3)))
-            task.wait(0.1)
+            -- Teleport right next to the log
+            Teleport(CFrame.new(log.Position + Vector3.new(3, 2, 0)))
+            task.wait(0.15)
             SwingAxe(log)
-            task.wait(0.3)
+            task.wait(0.4)
         end
 
         if OriginalCFrame then
@@ -175,35 +181,18 @@ function GetWood.Init(Tab, Library)
     end
 
     -- UI
-    Tab:CreateAction("Debug: Print Trees", "Scan", function()
-        for _, model in pairs(workspace:GetDescendants()) do
-            if model:IsA("Model") then
-                local woodCount = 0
-                local minY, maxY
-                for _, v in pairs(model:GetDescendants()) do
-                    if v:IsA("BasePart") and v.Name:lower():find("wood") then
-                        woodCount = woodCount + 1
-                        if not minY or v.Position.Y < minY then minY = v.Position.Y end
-                        if not maxY or v.Position.Y > maxY then maxY = v.Position.Y end
-                    end
-                end
-                if woodCount >= 6 then
-                    local height = maxY - minY
-                    print(string.format("[TREE?] Model: '%s' | Parent: '%s' | WoodParts: %d | Height: %.1f", 
-                        model.Name, model.Parent.Name, woodCount, height))
-                    
-                    -- Also print any StringValues inside (tree type tag)
-                    for _, v in pairs(model:GetChildren()) do
-                        if v:IsA("StringValue") or v:IsA("IntValue") then
-                            print(string.format("  └ Value: '%s' = '%s'", v.Name, tostring(v.Value)))
-                        end
-                    end
-                end
+    Tab:CreateAction("Debug: Scan Axe", "Scan", function()
+        local axe = GetCharacter():FindFirstChildOfClass("Tool")
+        if axe then
+            print("Axe name:", axe.Name)
+            for _, v in pairs(axe:GetDescendants()) do
+                print(v.ClassName, v.Name)
             end
+        else
+            print("No tool equipped")
         end
-        print("--- Scan complete ---")
     end)
-    
+
     Tab:CreateSection("Wood Farming")
 
     Tab:CreateDropdown("Select Tree", Trees, nil, function(value)
