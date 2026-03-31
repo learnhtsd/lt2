@@ -21,7 +21,9 @@ function PlayerMovement.Init(Tab)
     _G.JumpHeight = 50
     _G.InfJump = false
 
-    _G.FlyEnabled = false
+    -- Flight States
+    _G.FlyMasterSwitch = false -- Dictates if the hotkey is allowed to work
+    _G.IsFlying = false        -- The actual active state of flight
     _G.FlySpeed = 50
 
     _G.Noclip = false
@@ -30,8 +32,6 @@ function PlayerMovement.Init(Tab)
     _G.ClickTP = false
 
     -- Hard Dragger State
-    _G.HardDragger = false
-    -- Hard Dragger State (Now TRUE by default)
     _G.HardDragger = true
     local draggedPart = nil
     local dragBP = nil
@@ -66,7 +66,16 @@ function PlayerMovement.Init(Tab)
         else
             if flyVelocity then flyVelocity:Destroy(); flyVelocity = nil end
             if flyGyro then flyGyro:Destroy(); flyGyro = nil end
-            if hum then hum.PlatformStand = false end
+            
+            -- FIX: Reset velocities and force the humanoid out of the floating state
+            if hrp then
+                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            end
+            if hum then 
+                hum.PlatformStand = false 
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
         end
     end
 
@@ -141,11 +150,21 @@ function PlayerMovement.Init(Tab)
 
     -- FLIGHT SECTION
     Tab:CreateSection("Flight")
-    Tab:CreateToggle("Enable Fly", false, function(s) _G.FlyEnabled = s UpdateFlyPhysics(s) end)
+    Tab:CreateToggle("Enable Fly Hotkey", false, function(s) 
+        _G.FlyMasterSwitch = s 
+        -- If toggle is turned off, force stop flying instantly
+        if not s and _G.IsFlying then
+            _G.IsFlying = false
+            UpdateFlyPhysics(false)
+        end
+    end)
     Tab:CreateSlider("Fly Speed", 16, 300, 50, function(v) _G.FlySpeed = v end)
     Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
-        _G.FlyEnabled = not _G.FlyEnabled 
-        UpdateFlyPhysics(_G.FlyEnabled) 
+        -- FIX: Only allow the hotkey to work if the toggle is enabled
+        if _G.FlyMasterSwitch then
+            _G.IsFlying = not _G.IsFlying 
+            UpdateFlyPhysics(_G.IsFlying) 
+        end
     end)
 
     -- UTILITY SECTION
@@ -155,9 +174,7 @@ function PlayerMovement.Init(Tab)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
 
-    -- LT2 Hard Dragger Toggle
-    Tab:CreateToggle("LT2 Hard Dragger", false, function(s) 
-    -- LT2 Hard Dragger Toggle (UI defaults to TRUE now)
+    -- LT2 Hard Dragger Toggle (Fixed Syntax Error Here)
     Tab:CreateToggle("LT2 Hard Dragger", true, function(s) 
         _G.HardDragger = s 
         -- Clean up movers if disabled while holding something
@@ -227,7 +244,7 @@ function PlayerMovement.Init(Tab)
         end
 
         -- Fly 
-        if _G.FlyEnabled and hrp then
+        if _G.IsFlying and hrp then
             if not hrp:FindFirstChild("ExploitFlyVelocity") then UpdateFlyPhysics(true) end
             if flyVelocity and flyGyro then
                 local cam = Workspace.CurrentCamera
