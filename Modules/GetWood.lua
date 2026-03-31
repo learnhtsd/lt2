@@ -103,21 +103,20 @@ function GetWood.Init(Tab, Library)
 
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     
-    local function SwingAxe(targetPart)
+local function SwingAxe(targetPart)
         local axe = GetAxe()
         if not axe or not targetPart then return end
     
-        local remote = ReplicatedStorage:FindFirstChild("Interaction") 
-            or ReplicatedStorage:FindFirstChild("RemoteEvent")
-    
-        if not remote then
-            warn("No remote found")
-            return
+        -- 1. Trigger the Tool's internal ClickEvent (This does the actual damage)
+        local clickEvent = axe:FindFirstChild("ClickEvent")
+        if clickEvent then
+            -- Arguments: Target Part, Hit Position
+            clickEvent:FireServer(targetPart, targetPart.Position)
         end
-    
-        pcall(function()
-            remote:FireServer(targetPart, targetPart.Position)
-        end)
+
+        -- 2. Play the swing animation so it looks natural
+        -- Most axes use 'Tool:Activate()' to trigger the built-in swing animation
+        axe:Activate()
     end
 
     local function StartFarming()
