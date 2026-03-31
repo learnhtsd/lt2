@@ -13,7 +13,7 @@ local function AddHighlight(part)
     if not part or Highlights[part] then return end
     local hl = Instance.new("Highlight")
     hl.Adornee = part
-    hl.FillColor = Color3.fromRGB(0, 255, 255) -- Cyan for "Slide Mode"
+    hl.FillColor = Color3.fromRGB(255, 170, 0) -- Orange for "Ghost Mode"
     hl.Parent = (game:GetService("CoreGui") or part)
     Highlights[part] = hl
 end
@@ -23,7 +23,7 @@ local function RemoveHighlight(part)
 end
 
 function Tool.Init(Tab, Lib)
-    Tab:CreateSection("Advanced Slide TP")
+    Tab:CreateSection("Ghost-Grab TP (Long Distance)")
 
     Tab:CreateAction("Selection", "Deselect All", function()
         for part, _ in pairs(Highlights) do RemoveHighlight(part) end
@@ -34,50 +34,51 @@ function Tool.Init(Tab, Lib)
         ClickSelectEnabled = state
     end)
 
-    Tab:CreateAction("Selection", "Slide TP (Anti-Cheat Bypass)", function()
+    Tab:CreateAction("Selection", "Ghost TP (No Distance Limit)", function()
         local char = Player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if not hrp or #SelectedObjects == 0 then return end
 
+        -- Save where we are standing right now
+        local originalPos = hrp.CFrame
+
         for i, part in ipairs(SelectedObjects) do
             if not part:IsA("BasePart") then continue end
 
-            local startPos = part.Position
-            local endPos = hrp.Position + Vector3.new((i % 5) * 3, 2, -7)
-            local distance = (startPos - endPos).Magnitude
-            
-            -- 1. GRAB
+            local targetPos = originalPos * CFrame.new((i % 5) * 4, 2, -10)
+
+            -- 1. TELEPORT TO THE ITEM (GHOSTING)
+            -- We do this so the server thinks we are close enough to touch it
+            hrp.CFrame = part.CFrame * CFrame.new(0, 5, 0)
+            task.wait(0.15) -- Wait for server to register our new position
+
+            -- 2. GRAB WHILE NEARBY
             DragRemote:FireServer(part, true)
             task.wait(0.1)
 
-            -- 2. THE SLIDE (Bypasses distance checks)
-            local steps = math.floor(distance / 25) -- Move 25 studs per "tick"
-            for s = 1, steps do
-                local nextPos = startPos:Lerp(endPos, s/steps)
-                local nextCF = CFrame.new(nextPos)
-                
-                part.CFrame = nextCF
-                DragRemote:FireServer(part, nextCF)
-                
-                -- This wait is tiny, but enough to let the server heartbeat catch up
-                if s % 2 == 0 then task.wait() end 
-            end
+            -- 3. TELEPORT BACK HOME
+            hrp.CFrame = originalPos
+            task.wait(0.1)
 
-            -- 3. FINAL SNAP
-            part.CFrame = CFrame.new(endPos)
-            DragRemote:FireServer(part, CFrame.new(endPos))
+            -- 4. BRING ITEM TO US
+            part.CFrame = targetPos
+            DragRemote:FireServer(part, targetPos)
             
-            -- 4. DROP
+            -- 5. DROP
             task.wait(0.1)
             DragRemote:FireServer(part, false)
             
-            -- Wake up physics
+            -- Prevent "Physics Sleep"
             part.AssemblyLinearVelocity = Vector3.new(0, -1, 0)
         end
         
-        if Lib then Lib:Notify("Success", "Slide Complete", 2) end
+        -- Return to original spot just in case
+        hrp.CFrame = originalPos
+
+        if Lib then Lib:Notify("Success", "Ghost-Grab Finished", 2) end
     end)
 
+    -- Selection Logic
     Mouse.Button1Down:Connect(function()
         if not Mouse.Target or not ClickSelectEnabled then return end
         local target = Mouse.Target
