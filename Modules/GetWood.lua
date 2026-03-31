@@ -34,45 +34,48 @@ function GetWood.Init(Tab, Library)
 
         return nil
     end
-
-    -- FIX 1: Filter models by SelectedTree name
+    
     local function GetTreeModel()
         if not SelectedTree then return nil end
-
+    
         local char = GetCharacter()
         local hrp = char:WaitForChild("HumanoidRootPart")
-
+    
         local closestTree = nil
         local closestDist = math.huge
-
+    
         for _, model in pairs(workspace:GetDescendants()) do
-            if model:IsA("Model") and model.Name:lower():find(SelectedTree:lower()) then
-                local woodParts = {}
-                local minY, maxY
-
-                for _, v in pairs(model:GetDescendants()) do
-                    if v:IsA("BasePart") and v.Name:lower():find("wood") then
-                        table.insert(woodParts, v)
-                        if not minY or v.Position.Y < minY then minY = v.Position.Y end
-                        if not maxY or v.Position.Y > maxY then maxY = v.Position.Y end
+            if model:IsA("Model") and model.Parent and model.Parent.Name == "TreeRegion" then
+                -- Check the TreeClass StringValue
+                local treeClass = model:FindFirstChild("TreeClass")
+                if treeClass and treeClass.Value == SelectedTree then
+                    local woodParts = {}
+                    local minY, maxY
+    
+                    for _, v in pairs(model:GetDescendants()) do
+                        if v:IsA("BasePart") and v.Name:lower():find("wood") then
+                            table.insert(woodParts, v)
+                            if not minY or v.Position.Y < minY then minY = v.Position.Y end
+                            if not maxY or v.Position.Y > maxY then maxY = v.Position.Y end
+                        end
                     end
-                end
-
-                if #woodParts >= 6 then
-                    local height = (maxY - minY)
-                    if height > 15 then
-                        local basePart = woodParts[1]
-                        local dist = (basePart.Position - hrp.Position).Magnitude
-
-                        if dist > 50 and dist < closestDist then
-                            closestDist = dist
-                            closestTree = model
+    
+                    if #woodParts >= 6 then
+                        local height = maxY - minY
+                        if height > 15 then
+                            local basePart = woodParts[1]
+                            local dist = (basePart.Position - hrp.Position).Magnitude
+    
+                            if dist > 50 and dist < closestDist then
+                                closestDist = dist
+                                closestTree = model
+                            end
                         end
                     end
                 end
             end
         end
-
+    
         return closestTree
     end
 
