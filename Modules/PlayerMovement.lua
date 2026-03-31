@@ -29,8 +29,8 @@ function PlayerMovement.Init(Tab)
     _G.WaterWalk = false
     _G.ClickTP = false
     
-    -- Hard Dragger State
-    _G.HardDragger = false
+    -- Hard Dragger State (Now TRUE by default)
+    _G.HardDragger = true
     local draggedPart = nil
     local dragBP = nil
     local dragBG = nil
@@ -153,8 +153,8 @@ function PlayerMovement.Init(Tab)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
     
-    -- LT2 Hard Dragger Toggle
-    Tab:CreateToggle("LT2 Hard Dragger", false, function(s) 
+    -- LT2 Hard Dragger Toggle (UI defaults to TRUE now)
+    Tab:CreateToggle("LT2 Hard Dragger", true, function(s) 
         _G.HardDragger = s 
         -- Clean up movers if disabled while holding something
         if not s then
