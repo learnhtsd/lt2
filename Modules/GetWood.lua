@@ -26,11 +26,39 @@ function GetWood.Init(Tab, Library)
     end
 
     local function GetTreeModel(name)
+        local closestTree = nil
+        local closestDist = math.huge
+    
+        local char = GetCharacter()
+        local hrp = char:WaitForChild("HumanoidRootPart")
+    
         for _, tree in pairs(workspace:GetDescendants()) do
-            if tree:IsA("Model") and tree.Name:lower():find(name:lower()) then
-                return tree
+            if tree:IsA("Model") then
+                -- Check if it's a tree by having wood parts
+                local hasWood = false
+    
+                for _, v in pairs(tree:GetDescendants()) do
+                    if v:IsA("BasePart") and v.Name:lower():find("wood") then
+                        hasWood = true
+                        break
+                    end
+                end
+    
+                if hasWood then
+                    local part = tree:FindFirstChildWhichIsA("BasePart")
+                    if part then
+                        local dist = (part.Position - hrp.Position).Magnitude
+    
+                        if dist < closestDist then
+                            closestDist = dist
+                            closestTree = tree
+                        end
+                    end
+                end
             end
         end
+    
+        return closestTree
     end
 
     local function GetLowestLog(tree)
