@@ -596,5 +596,9 @@ end
 local GetWoodModule = LoadModule("GetWood")
 if GetWoodModule and GetWoodModule.Init then GetWoodModule.Init(WoodTab) end 
 
+-- Find this block at the bottom of your main script:
 local ToolModule = LoadModule("Tool")
-if ToolModule and ToolModule.Init then ToolModule.Init(ToolTab) end 
+if ToolModule and ToolModule.Init then 
+    -- Ensure you are passing BOTH the Tab and the Library
+    ToolModule.Init(ToolTab, Library) 
+end
