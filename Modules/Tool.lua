@@ -8,13 +8,12 @@ local Selection = {}
 local IsLassoing = false
 local IsClickSelecting = false
 local LassoRange = 25
-local InspectorEnabled = false -- New Toggle Variable
+local InspectorEnabled = false 
 
 -- LT2 Dragging Remote
 local DragRemote = game:GetService("ReplicatedStorage"):FindFirstChild("Interaction") 
     and game:GetService("ReplicatedStorage").Interaction:FindFirstChild("ClientIsDragging")
 
--- Check if object is moveable
 local function IsMoveable(obj)
     if not obj or not obj:IsA("Model") then return false end
     if obj:FindFirstChild("TreeClass") or obj:FindFirstChild("WoodSection") then return true end
@@ -30,11 +29,12 @@ local function GetTargetRoot(obj)
     return obj
 end
 
-function Tool.Init(Tab)
+-- Added 'Lib' parameter to receive the Library table
+function Tool.Init(Tab, Lib)
     Tab:CreateSection("Object Management")
     
     local CountLabel = Tab:CreateLabel("Items Selected: 0")
-    local InspectorLabel = Tab:CreateLabel("Hovering: None") -- Label for Object Name
+    local InspectorLabel = Tab:CreateLabel("Hovering: None")
 
     local function UpdateUI()
         if CountLabel and CountLabel.SetText then
@@ -43,26 +43,42 @@ function Tool.Init(Tab)
     end
 
     -- ===========================
-    -- NEW: OBJECT INSPECTOR
+    -- OBJECT INSPECTOR w/ NOTIFS
     -- ===========================
     Tab:CreateToggle("Object Inspector", false, function(state)
         InspectorEnabled = state
-        if not state then
+        if state then
+            Lib:Notify("Inspector", "Enabled! Right-click an object to log its name.", 4)
+        else
             InspectorLabel:SetText("Hovering: None")
+            Lib:Notify("Inspector", "Disabled.", 2)
         end
     end)
 
-    -- Loop to update Inspector Label
+    -- Right Click to Log/Notify Name
+    Mouse.Button2Down:Connect(function()
+        if InspectorEnabled and Mouse.Target then
+            local t = Mouse.Target
+            local info = string.format("Name: %s | Class: %s", t.Name, t.ClassName)
+            
+            -- Send the notification
+            Lib:Notify("Object Identified", info, 5)
+            
+            -- Print to console for easy copying
+            print("--------------------------")
+            print("INSPECTED OBJECT:")
+            print("Name: " .. t.Name)
+            print("Class: " .. t.ClassName)
+            print("Parent: " .. (t.Parent and t.Parent.Name or "Nil"))
+            print("--------------------------")
+        end
+    end)
+
     game:GetService("RunService").RenderStepped:Connect(function()
         if InspectorEnabled then
             local target = Mouse.Target
             if target then
-                -- Shows Name [Class] | Parent Name
-                InspectorLabel:SetText(string.format("Hovering: %s [%s] | Parent: %s", 
-                    target.Name, 
-                    target.ClassName, 
-                    (target.Parent and target.Parent.Name or "None")
-                ))
+                InspectorLabel:SetText(string.format("Hovering: %s [%s]", target.Name, target.ClassName))
             else
                 InspectorLabel:SetText("Hovering: Nil")
             end
@@ -74,10 +90,12 @@ function Tool.Init(Tab)
     -- ===========================
     Tab:CreateToggle("Click Select", false, function(state)
         IsClickSelecting = state
+        Lib:Notify("Tool", state and "Click Selection Active" or "Click Selection Off", 2)
     end)
 
-    Tab:CreateToggle("Lasso (Auto-Select Nearby)", false, function(state)
+    Tab:CreateToggle("Lasso (Auto-Select)", false, function(state)
         IsLassoing = state
+        Lib:Notify("Tool", state and "Lasso Started" or "Lasso Stopped", 2)
         if IsLassoing then
             task.spawn(function()
                 while IsLassoing do
@@ -118,9 +136,14 @@ function Tool.Init(Tab)
     end)
 
     Tab:CreateAction("Bring All Selected", "Teleport", function()
+        if #Selection == 0 then 
+            Lib:Notify("Error", "No items selected to bring!", 3)
+            return 
+        end
+        
         local char = Player.Character
-        if not char or #Selection == 0 then return end
         local targetPos = char.HumanoidRootPart.Position + (char.HumanoidRootPart.CFrame.LookVector * 7)
+        
         for i, obj in pairs(Selection) do
             local main = obj:FindFirstChild("Main") or obj:FindFirstChildOfClass("BasePart")
             if main then
@@ -128,9 +151,11 @@ function Tool.Init(Tab)
                 if DragRemote then DragRemote:FireServer(obj) end
             end
         end
+        Lib:Notify("Success", "Moved " .. #Selection .. " items.", 3)
     end)
 
     Tab:CreateAction("Clear Selection", "Deselect All", function()
+        local count = #Selection
         for _, obj in pairs(Selection) do
             if obj:FindFirstChild("SelectionHighlight") then
                 obj.SelectionHighlight:Destroy()
@@ -138,6 +163,7 @@ function Tool.Init(Tab)
         end
         Selection = {}
         UpdateUI()
+        Lib:Notify("Tool", "Cleared " .. count .. " items from selection.", 2)
     end)
 end
 
