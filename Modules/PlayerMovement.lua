@@ -6,6 +6,7 @@ function PlayerMovement.Init(Tab)
     local UserInputService = game:GetService("UserInputService")
     local Workspace = game:GetService("Workspace")
     local LocalPlayer = Players.LocalPlayer
+    local Mouse = LocalPlayer:GetMouse()
 
     -- ===========================
     -- STATE VARIABLES
@@ -27,6 +28,12 @@ function PlayerMovement.Init(Tab)
     _G.AntiFling = false
     _G.WaterWalk = false
     _G.ClickTP = false
+    
+    -- Hard Dragger State
+    _G.HardDragger = false
+    local draggedPart = nil
+    local dragBP = nil
+    local dragBG = nil
 
     local flyVelocity = nil
     local flyGyro = nil
@@ -61,14 +68,46 @@ function PlayerMovement.Init(Tab)
         end
     end
 
-    -- Click TP 
+    -- Input Began (Click TP & Hard Drag Start)
     UserInputService.InputBegan:Connect(function(input, processed)
+        -- Click TP
         if not processed and _G.ClickTP and input.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            local Mouse = LocalPlayer:GetMouse()
             local char = LocalPlayer.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
                 char.HumanoidRootPart.CFrame = CFrame.new(Mouse.Hit.Position + Vector3.new(0, 3, 0))
             end
+        end
+
+        -- Hard Dragger Start
+        if not processed and _G.HardDragger and input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local target = Mouse.Target
+            -- Only grab unanchored parts
+            if target and not target.Anchored then
+                draggedPart = target
+                
+                -- Create overpowering BodyPosition
+                dragBP = Instance.new("BodyPosition")
+                dragBP.Name = "HardDragBP"
+                dragBP.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                dragBP.P = 100000
+                dragBP.Parent = draggedPart
+
+                -- Create overpowering BodyGyro (keeps it from spinning wildly)
+                dragBG = Instance.new("BodyGyro")
+                dragBG.Name = "HardDragBG"
+                dragBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                dragBG.P = 100000
+                dragBG.Parent = draggedPart
+            end
+        end
+    end)
+
+    -- Input Ended (Hard Drag End)
+    UserInputService.InputEnded:Connect(function(input, processed)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if dragBP then dragBP:Destroy(); dragBP = nil end
+            if dragBG then dragBG:Destroy(); dragBG = nil end
+            draggedPart = nil
         end
     end)
 
@@ -113,6 +152,18 @@ function PlayerMovement.Init(Tab)
     Tab:CreateToggle("Anti-Fling", false, function(s) _G.AntiFling = s end)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
+    
+    -- LT2 Hard Dragger Toggle
+    Tab:CreateToggle("LT2 Hard Dragger", false, function(s) 
+        _G.HardDragger = s 
+        -- Clean up movers if disabled while holding something
+        if not s then
+            if dragBP then dragBP:Destroy(); dragBP = nil end
+            if dragBG then dragBG:Destroy(); dragBG = nil end
+            draggedPart = nil
+        end
+    end)
+
     Tab:CreateAction("Reset Character", "Kill", function()
         if LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
     end)
@@ -126,6 +177,17 @@ function PlayerMovement.Init(Tab)
         
         local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart")
+
+        -- Hard Dragger Logic
+        if _G.HardDragger and draggedPart and dragBP and dragBG then
+            local hitPos = Mouse.Hit.Position
+            -- Lifts the item slightly above the mouse position so it doesn't drag under the floor
+            dragBP.Position = hitPos + Vector3.new(0, (draggedPart.Size.Y / 2) + 2, 0)
+            -- Stabilizes the object facing the player
+            if char:FindFirstChild("Head") then
+                dragBG.CFrame = CFrame.new(draggedPart.Position, char.Head.Position)
+            end
+        end
 
         -- Noclip
         if _G.Noclip then
