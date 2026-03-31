@@ -10,20 +10,40 @@ local TreeTypes = {
     "Spooky", "Sinister", "Cave", "Cocoa", "Oof", "Phantom"
 }
 
--- Finds the remote even if it's hidden in a folder inside the axe
-local function FindAxeRemote(tool)
-    if not tool then return nil end
-    -- Check common names first
-    local common = tool:FindFirstChild("RemoteClick") or tool:FindFirstChild("Click")
-    if common and common:IsA("RemoteEvent") then return common end
+-- This function now scans YOUR CHARACTER directly for anything that looks like an axe
+local function GetAxeAndRemote()
+    local char = Player.Character
+    if not char then return nil, nil end
+
+    -- 1. Look for a tool in the character (equipped)
+    local tool = char:FindFirstChildOfClass("Tool")
     
-    -- Search everywhere inside the tool for any RemoteEvent
-    for _, obj in pairs(tool:GetDescendants()) do
-        if obj:IsA("RemoteEvent") then
-            return obj
+    -- 2. If no 'Tool' class found, look for any Model in the character that might be the axe
+    if not tool then
+        for _, obj in pairs(char:GetChildren()) do
+            if obj:IsA("Model") and (obj:FindFirstChild("RemoteClick") or obj:FindFirstChild("Click")) then
+                tool = obj
+                break
+            end
         end
     end
-    return nil
+
+    -- 3. Find the Remote inside whatever we found
+    if tool then
+        local remote = tool:FindFirstChild("RemoteClick") or tool:FindFirstChild("Click")
+        if not remote then
+            -- Last resort: find any RemoteEvent inside the object
+            for _, v in pairs(tool:GetDescendants()) do
+                if v:IsA("RemoteEvent") then
+                    remote = v
+                    break
+                end
+            end
+        end
+        return tool, remote
+    end
+
+    return nil, nil
 end
 
 local function GetNearestTree(treeName)
@@ -59,43 +79,30 @@ function GetWood.Init(Tab)
     Tab:CreateAction("Auto Farm", "Start", function()
         if IsFarming then return end
         
-        local char = Player.Character
-        local tool = char:FindFirstChildOfClass("Tool")
-        
-        -- If not in hand, check backpack and try to equip it
-        if not tool then
-            local backpackTool = Player.Backpack:FindFirstChildOfClass("Tool")
-            if backpackTool then
-                backpackTool.Parent = char
-                task.wait(0.5)
-                tool = backpackTool
-            end
-        end
-
-        local remote = FindAxeRemote(tool)
+        local tool, remote = GetAxeAndRemote()
         
         if not tool or not remote then
-            warn("ERROR: No Axe found in hand or backpack!")
+            warn("STILL NOT FOUND. Name of what you are holding: " .. (Player.Character:FindFirstChildOfClass("Tool") and Player.Character:FindFirstChildOfClass("Tool").Name or "Nothing"))
             return
         end
 
         local target = GetNearestTree(SelectedTree)
         if not target then
-            warn("ERROR: No " .. SelectedTree .. " trees found nearby.")
+            warn("No " .. SelectedTree .. " found nearby.")
             return
         end
 
         IsFarming = true
-        print("Farming started using Remote: " .. remote.Name)
+        print("Success! Using Axe: " .. tool.Name .. " | Remote: " .. remote.Name)
         
+        local char = Player.Character
         local oldPos = char.HumanoidRootPart.CFrame
         local woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
 
-        -- Move to tree
+        -- Teleport
         char.HumanoidRootPart.CFrame = woodSection.CFrame * CFrame.new(0, 2, 2)
         task.wait(0.5)
 
-        -- Chop Loop
         while IsFarming and target and target.Parent do
             remote:FireServer({
                 ["Part"] = woodSection,
@@ -111,7 +118,7 @@ function GetWood.Init(Tab)
 
         char.HumanoidRootPart.CFrame = oldPos
         IsFarming = false
-        print("Done!")
+        print("Cycle Finished.")
     end)
 
     Tab:CreateToggle("Stop Farming", false, function(state)
