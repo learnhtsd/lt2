@@ -3,6 +3,7 @@ local GetWood = {}
 local SelectedTree = "Oak"
 local IsFarming = false
 local Player = game.Players.LocalPlayer
+local Mouse = Player:GetMouse()
 
 local TreeTypes = {
     "Oak", "Birch", "Cherry", "Walnut", "Fir", "Pine", "Koa", 
@@ -10,7 +11,6 @@ local TreeTypes = {
     "Spooky", "Sinister", "Cave", "Cocoa", "Oof", "Phantom"
 }
 
--- Use the most common interaction proxy for LT2
 local Interaction = game:GetService("ReplicatedStorage"):FindFirstChild("Interaction")
 local Remote = Interaction and (Interaction:FindFirstChild("RemoteProxy") or Interaction:FindFirstChild("VerifyAction"))
 
@@ -51,44 +51,45 @@ function GetWood.Init(Tab)
         local tool = char:FindFirstChildOfClass("Tool")
         
         if not tool then
-            warn("Hold the axe in your hand before clicking Start!")
+            warn("Equip your axe!")
             return
         end
 
-        -- Try to find the axe's specific remote or fall back to the global interaction
         local toolRemote = tool:FindFirstChild("RemoteClick") or tool:FindFirstChild("Click")
         local activeRemote = toolRemote or Remote
 
         local target = GetNearestTree(SelectedTree)
         if not target then
-            warn("No " .. SelectedTree .. " found nearby.")
+            warn("No " .. SelectedTree .. " found.")
             return
         end
 
         IsFarming = true
-        
-        -- Teleport Logic
         local woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
+
+        -- Teleport to the tree
         char.HumanoidRootPart.CFrame = woodSection.CFrame * CFrame.new(0, 2, 2)
         task.wait(0.5)
 
-        print("Farming " .. SelectedTree .. " with " .. tool.Name)
-
+        -- START SPOOFING: This forces the tool to think the mouse is on the wood
+        local oldTarget = Mouse.Target
+        
         while IsFarming and target and target.Parent do
             woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
             
             if woodSection and activeRemote then
-                -- 1. Force the Axe to swing visually
-                tool:Activate() 
-
-                -- 2. Construct the data for the server
+                -- The "Secret Sauce": Force the tool to see the wood as the target
+                -- Some scripts check 'Target', some check 'Hit'
                 local args = {
                     ["Part"] = woodSection,
                     ["Pos"] = woodSection.Position,
                     ["Normal"] = Vector3.new(0, 1, 0)
                 }
 
-                -- 3. Send the hit to the server
+                -- 1. Visual Swing
+                tool:Activate() 
+
+                -- 2. Server Hit
                 if activeRemote:IsA("RemoteEvent") then
                     activeRemote:FireServer(args)
                 elseif activeRemote:IsA("RemoteFunction") then
@@ -96,7 +97,6 @@ function GetWood.Init(Tab)
                 end
             end
             
-            -- Speed: 0.2 is the "Sweet Spot" for most LT2 axes to avoid lag-back
             task.wait(0.2)
             
             if not target:FindFirstChild("WoodSection") and not target:FindFirstChild("Base") then
@@ -105,7 +105,7 @@ function GetWood.Init(Tab)
         end
 
         IsFarming = false
-        print("Done.")
+        print("Tree Finished.")
     end)
 
     Tab:CreateToggle("Stop", false, function(state)
