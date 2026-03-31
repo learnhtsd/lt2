@@ -117,7 +117,7 @@ function GetWood.Init(Tab, Library)
             return
         end
 
-        local tree = GetTreeModel(SelectedTree)
+        local tree = GetTreeModel()
         if not tree then
             Library:Notify("Error", "Tree not found", 4)
             return
