@@ -21,12 +21,11 @@ local function AddHighlight(part)
     
     local hl = Instance.new("Highlight")
     hl.Adornee = part
-    hl.FillColor = Color3.fromRGB(0, 255, 100) -- Green selection
+    hl.FillColor = Color3.fromRGB(0, 255, 100)
     hl.OutlineColor = Color3.fromRGB(255, 255, 255)
     hl.FillTransparency = 0.5
     hl.OutlineTransparency = 0.2
     
-    -- Attempt to hide it in CoreGui, fallback to the part if exploit doesn't support it
     local success = pcall(function()
         hl.Parent = game:GetService("CoreGui")
     end)
@@ -64,7 +63,7 @@ function Tool.Init(Tab, Lib)
         end
     end)
 
-    -- DESELECT ALL (Updated)
+    -- DESELECT ALL
     Tab:CreateAction("Selection", "Deselect All", function()
         ClearAllSelections()
         if Lib then Lib:Notify("Selection", "Cleared all selected items", 2) end
@@ -75,7 +74,7 @@ function Tool.Init(Tab, Lib)
         ClickSelectEnabled = state
     end)
 
-    -- MAIN TP BUTTON (FIXED)
+    -- MAIN TP BUTTON (FIXED FOR FROZEN ITEMS)
     Tab:CreateAction("Selection", "TP to Me (Drag)", function()
         local char = Player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -95,40 +94,39 @@ function Tool.Init(Tab, Lib)
             local targetPos = hrp.Position + offset
             local targetCF = CFrame.new(targetPos)
 
-            -- 🔥 DRAG START
+            -- 🔥 1. DRAG START
             pcall(function()
                 DragRemote:FireServer(part, true)
             end)
 
-            task.wait(0.1)
+            task.wait(0.15) -- Slightly longer wait to ensure server registers pickup
 
-            -- 🔥 LOCAL MOVE (Fix: Most drag systems require you to actually move it locally)
+            -- 🔥 2. LOCAL MOVE
             pcall(function()
                 part.CFrame = targetCF
-                -- Kill momentum so it doesn't fly away
-                part.AssemblyLinearVelocity = Vector3.zero
-                part.AssemblyAngularVelocity = Vector3.zero
+                -- Give it a tiny upward nudge instead of 0 to prevent the physics engine from freezing it
+                part.AssemblyLinearVelocity = Vector3.new(0, 0.5, 0) 
             end)
 
-            -- 🔥 DRAG MOVE (Send updated CFrame to server)
+            -- 🔥 3. DRAG MOVE (Tell server where it went)
             pcall(function()
                 DragRemote:FireServer(part, targetCF)
             end)
 
-            task.wait(0.1)
+            task.wait(0.15) -- Crucial wait so the server doesn't drop it before moving it
 
-            -- 🔥 DRAG END
+            -- 🔥 4. DRAG END (Drop)
             pcall(function()
                 DragRemote:FireServer(part, false)
             end)
 
-            task.wait(0.15)
+            task.wait(0.1)
         end
         
         -- Optional: Automatically clear selections after teleporting
-        -- ClearAllSelections() 
+        ClearAllSelections() 
 
-        if Lib then Lib:Notify("Success", "Moved using drag system", 3) end
+        if Lib then Lib:Notify("Success", "Moved without freezing!", 3) end
     end)
 
     -- =========================
@@ -172,7 +170,7 @@ function Tool.Init(Tab, Lib)
             print("==== END DEBUG ====")
         end
 
-        -- NORMAL SELECT (Updated for Toggle/Deselect)
+        -- NORMAL SELECT
         if ClickSelectEnabled then
             local existingIndex = table.find(SelectedObjects, target)
             
