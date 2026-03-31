@@ -4,29 +4,30 @@ local SelectedTree = "Oak"
 local IsFarming = false
 local Player = game.Players.LocalPlayer
 
--- Updated tree names to match LT2 internal values
 local TreeTypes = {
     "Oak", "Birch", "Cherry", "Walnut", "Fir", "Pine", "Koa", 
     "Volcano", "Frost", "Gold", "Silver", "Palm", "Swamp", 
     "Spooky", "Sinister", "Cave", "Cocoa", "Oof", "Phantom"
 }
 
+-- Improved tree detection
 local function GetNearestTree(treeName)
     local closestTree = nil
     local shortestDist = math.huge
     local char = Player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
 
-    -- LT2 trees are often nested. We check Workspace and potential folders.
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name == "TreeClass" and obj.Value == treeName then
-            local tree = obj.Parent
-            local cutPart = tree:FindFirstChild("WoodSection") or tree:FindFirstChild("Base")
+    -- LT2 trees are usually directly in Workspace or a "Trees" folder
+    for _, obj in pairs(workspace:GetChildren()) do
+        -- Check if it's a Tree model (LT2 trees have a TreeClass value)
+        local treeClass = obj:FindFirstChild("TreeClass")
+        if treeClass and treeClass.Value == treeName then
+            local woodSection = obj:FindFirstChild("WoodSection") or obj:FindFirstChild("Base")
             
-            if cutPart then
-                local dist = (char.HumanoidRootPart.Position - cutPart.Position).Magnitude
+            if woodSection then
+                local dist = (char.HumanoidRootPart.Position - woodSection.Position).Magnitude
                 if dist < shortestDist then
-                    closestTree = tree
+                    closestTree = obj
                     shortestDist = dist
                 end
             end
@@ -40,59 +41,80 @@ function GetWood.Init(Tab)
 
     Tab:CreateDropdown("Select Tree Type", TreeTypes, "Oak", function(choice)
         SelectedTree = choice
+        print("Selected Tree: " .. choice)
     end)
 
     Tab:CreateAction("Auto Farm", "Start", function()
-        if IsFarming then return end
+        if IsFarming then 
+            print("Already farming!")
+            return 
+        end
         
         local char = Player.Character
-        local tool = char and char:FindFirstChildOfClass("Tool")
+        local tool = char:FindFirstChildOfClass("Tool")
         
-        if not tool or not tool:FindFirstChild("RemoteClick") then
-            warn("Equip an axe first!")
+        -- LT2 axes often use "RemoteClick" or just "Click"
+        local remote = tool and (tool:FindFirstChild("RemoteClick") or tool:FindFirstChild("Click"))
+        
+        if not tool or not remote then
+            warn("Check failed: Equip your axe first!")
             return
         end
 
         local target = GetNearestTree(SelectedTree)
         if not target then
-            warn("No " .. SelectedTree .. " found nearby.")
+            warn("No " .. SelectedTree .. " found in range.")
             return
         end
 
+        print("Target found: " .. target.Name .. ". Starting farm...")
         IsFarming = true
+        
         local oldPos = char.HumanoidRootPart.CFrame
-        local woodSection = target:FindFirstChild("WoodSection")
+        local woodSection = target:FindFirstChild("WoodSection") or target:FindFirstChild("Base")
 
-        -- Move to tree
-        char.HumanoidRootPart.CFrame = woodSection.CFrame * CFrame.new(0, 0, 2)
-        task.wait(0.3)
+        -- Teleport slightly above/beside the tree
+        char.HumanoidRootPart.CFrame = woodSection.CFrame * CFrame.new(0, 2, 2)
+        task.wait(0.5)
 
-        -- Chop chop
-        repeat
-            tool.RemoteClick:FireServer({
+        -- Chop Loop
+        while IsFarming and target and target.Parent do
+            remote:FireServer({
                 ["Part"] = woodSection,
                 ["Pos"] = woodSection.Position,
                 ["Normal"] = Vector3.new(0, 1, 0)
             })
-            task.wait(0.15)
-        until not target:Parent() or not IsFarming
+            task.wait(0.2) -- Slightly slower to prevent kick/lag
+            
+            -- Exit if the tree is destroyed
+            if not target:FindFirstChild("WoodSection") and not target:FindFirstChild("Base") then
+                break
+            end
+        end
 
-        -- Return home
+        print("Tree cut. Returning...")
         char.HumanoidRootPart.CFrame = oldPos
         
-        -- Bring wood back
-        task.wait(0.5)
-        for _, log in pairs(workspace.LogFolder:GetChildren()) do
-            if log:FindFirstChild("Owner") and log.Owner.Value == Player then
-                log.CFrame = oldPos * CFrame.new(0, 5, 0)
+        -- Bring wood back (checks LogFolder for logs owned by player)
+        task.wait(1)
+        local logFolder = workspace:FindFirstChild("LogFolder")
+        if logFolder then
+            for _, log in pairs(logFolder:GetChildren()) do
+                if log:FindFirstChild("Owner") and log.Owner.Value == Player then
+                    log.CFrame = oldPos * CFrame.new(0, 10, 0)
+                end
             end
         end
         
         IsFarming = false
+        print("Farm cycle complete.")
     end)
 
-    Tab:CreateToggle("Emergency Stop", false, function(state)
-        IsFarming = not state -- If toggle is ON, IsFarming becomes false
+    Tab:CreateToggle("Stop Farming", false, function(state)
+        if state then
+            IsFarming = false
+            print("Emergency Stop Activated")
+        end
     end)
 end
 
