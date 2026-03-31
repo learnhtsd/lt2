@@ -83,6 +83,73 @@ function Library:CreateWindow()
     ContentContainer.ClipsDescendants = true -- KEEP THIS TRUE
     ContentContainer.Parent = MainFrame
 
+    local NotificationContainer = Instance.new("Frame")
+    NotificationContainer.Name = "NotificationContainer"
+    NotificationContainer.Size = UDim2.new(0, 250, 1, -20)
+    NotificationContainer.Position = UDim2.new(1, -260, 0, 10)
+    NotificationContainer.BackgroundTransparency = 1
+    NotificationContainer.Parent = ScreenGui
+    
+    local NotifList = Instance.new("UIListLayout")
+    NotifList.Parent = NotificationContainer
+    NotifList.VerticalAlignment = Enum.VerticalAlignment.Bottom
+    NotifList.SortOrder = Enum.SortOrder.LayoutOrder
+    NotifList.Padding = UDim.new(0, 8)
+    
+    function Library:Notify(Title, Text, Duration)
+        Duration = Duration or 5
+        
+        local NotifFrame = Instance.new("Frame")
+        NotifFrame.Size = UDim2.new(1, 0, 0, 0) -- Starts at 0 height for animation
+        NotifFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+        NotifFrame.BorderSizePixel = 0
+        NotifFrame.ClipsDescendants = true
+        NotifFrame.Parent = NotificationContainer
+        
+        local Corner = Instance.new("UICorner", NotifFrame)
+        Corner.CornerRadius = UDim.new(0, 6)
+        
+        local Stroke = Instance.new("UIStroke")
+        Stroke.Parent = NotifFrame
+        Stroke.Color = Color3.fromRGB(74, 120, 255)
+        Stroke.Thickness = 1
+        
+        local TitleLabel = Instance.new("TextLabel")
+        TitleLabel.Size = UDim2.new(1, -20, 0, 20)
+        TitleLabel.Position = UDim2.new(0, 10, 0, 5)
+        TitleLabel.BackgroundTransparency = 1
+        TitleLabel.Text = Title:upper()
+        TitleLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+        TitleLabel.Font = Enum.Font.GothamBold
+        TitleLabel.TextSize = 12
+        TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        TitleLabel.Parent = NotifFrame
+    
+        local ContentLabel = Instance.new("TextLabel")
+        ContentLabel.Size = UDim2.new(1, -20, 0, 30)
+        ContentLabel.Position = UDim2.new(0, 10, 0, 22)
+        ContentLabel.BackgroundTransparency = 1
+        ContentLabel.Text = Text
+        ContentLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        ContentLabel.Font = Enum.Font.Gotham
+        ContentLabel.TextSize = 11
+        ContentLabel.TextWrapped = true
+        ContentLabel.TextXAlignment = Enum.TextXAlignment.Left
+        ContentLabel.Parent = NotifFrame
+    
+        -- Animation: Slide In & Expand
+        TweenService:Create(NotifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 60)}):Play()
+        
+        -- Auto-Destroy
+        task.delay(Duration, function()
+            local Tween = TweenService:Create(NotifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1})
+            Tween:Play()
+            Tween.Completed:Connect(function()
+                NotifFrame:Destroy()
+            end)
+        end)
+    end
+    
     -- Draggable
     local dragging, dragInput, dragStart, startPos
     MainFrame.InputBegan:Connect(function(input)
