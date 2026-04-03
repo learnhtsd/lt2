@@ -20,9 +20,9 @@ function TeleportModule.Init(Tab)
     local staticLocations = {
         ["Stores"] = {
             {"Wood R Us", Vector3.new(265, 3, 57)},
-            {"Land Store", Vector3.new(160, 3, 115)},
-            {"Boxed Cars", Vector3.new(509, 3, -146)},
-            {"Fancy Furnishings", Vector3.new(491, 3, -172)},
+            {"Land Store", Vector3.new(257, 3, -99)},
+            {"Boxed Cars", Vector3.new(510, 3, -1465)},
+            {"Fancy Furnishings", Vector3.new(500, 3, -1720)},
             {"Fine Arts Shop", Vector3.new(5207, -166, 719)},
             {"The Link", Vector3.new(4607, 7, -795)}
         },
@@ -30,7 +30,7 @@ function TeleportModule.Init(Tab)
             {"Volcano (Fire)", Vector3.new(-1585, 622, 1140)},
             {"Snow Mountain", Vector3.new(1448, 413, 3186)},
             {"Swamp (Gold)", Vector3.new(-1209, 132, -801)},
-            {"Palm Island", Vector3.new(2549, 3, -1668)},
+            {"Palm Island", Vector3.new(2000, -6, -1500)},
             {"Cave (End Times)", Vector3.new(3581, -179, 430)}
         }
     }
