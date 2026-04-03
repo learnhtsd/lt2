@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.082"
+local Version = "v0.0.083"
 
 -- ==========================================
 -- UI ENGINE START
@@ -754,3 +754,6 @@ local AntiVoidModule = LoadModule("AntiVoid")
 if AntiVoidModule and AntiVoidModule.Init then AntiVoidModule.Init(ProtectionTab) end
 local AntiRagdollModule = LoadModule("AntiRagdoll")
 if AntiRagdollModule and AntiRagdollModule.Init then AntiRagdollModule.Init(ProtectionTab) end
+
+local LooseObjectTeleportModule = LoadModule("LooseObjectTeleport")
+if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(Tool) end
