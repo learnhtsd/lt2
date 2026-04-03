@@ -30,11 +30,12 @@ function TeleportModule.Init(Tab)
         ["Fancy Furnishings"] = Vector3.new(500, 3, -1720),
         ["Fine Arts Shop"] = Vector3.new(5207, -166, 719),
         ["The Link"] = Vector3.new(4607, 7, -795),
-        ["Volcano (Fire)"] = Vector3.new(-1585, 622, 1140),
+        ["Volcano"] = Vector3.new(-1585, 622, 1140),
         ["Snow Mountain"] = Vector3.new(1448, 413, 3186),
-        ["Swamp (Gold)"] = Vector3.new(-1209, 132, -801),
-        ["Palm Island"] = Vector3.new(2000, -6, -1500),
-        ["Cave (End Times)"] = Vector3.new(3581, -179, 430)
+        ["Swamp"] = Vector3.new(-1209, 132, -801),
+        ["Palm Island #1"] = Vector3.new(2000, -6, -1500),
+        ["Lonecave"] = Vector3.new(3581, -179, 430)
+        ["Power of Ease"] = Vector3.new(1065, -17, 1133)
     }
 
     local poiNames = {}
