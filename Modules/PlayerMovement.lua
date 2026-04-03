@@ -13,13 +13,13 @@ function PlayerMovement.Init(Tab)
     -- STATE VARIABLES
     -- ===========================
     _G.SpeedEnabled = false
-    _G.WalkSpeed = 16
+    _G.WalkSpeed = 32
     _G.SprintEnabled = false
-    _G.SprintSpeed = 32
+    _G.SprintSpeed = 64
     _G.IsSprinting = false
 
     _G.JumpEnabled = false
-    _G.JumpHeight = 16
+    _G.JumpHeight = 100
     _G.InfJump = false
 
     -- Flight States
@@ -31,12 +31,6 @@ function PlayerMovement.Init(Tab)
     _G.Noclip = false
     _G.WaterWalk = false
     _G.ClickTP = false
-
-    -- Hard Dragger State
-    _G.HardDragger = false
-    local draggedPart = nil
-    local dragBP = nil
-    local dragBG = nil
 
     local flyVelocity = nil
     local flyGyro = nil
@@ -90,30 +84,6 @@ function PlayerMovement.Init(Tab)
                 char.HumanoidRootPart.CFrame = CFrame.new(Mouse.Hit.Position + Vector3.new(0, 3, 0))
             end
         end
-
-        if not processed and _G.HardDragger and input.UserInputType == Enum.UserInputType.MouseButton1 then
-            local target = Mouse.Target
-            if target and not target.Anchored then
-                draggedPart = target
-                dragBP = Instance.new("BodyPosition")
-                dragBP.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                dragBP.P = 100000
-                dragBP.Parent = draggedPart
-
-                dragBG = Instance.new("BodyGyro")
-                dragBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-                dragBG.P = 100000
-                dragBG.Parent = draggedPart
-            end
-        end
-    end)
-
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if dragBP then dragBP:Destroy(); dragBP = nil end
-            if dragBG then dragBG:Destroy(); dragBG = nil end
-            draggedPart = nil
-        end
     end)
 
     UserInputService.JumpRequest:Connect(function()
@@ -130,7 +100,7 @@ function PlayerMovement.Init(Tab)
     -- CAMERA SECTION
     Tab:CreateSection("Camera Settings")
     
-    Tab:CreateSlider("Field of View", 1, 120, 70, function(v)
+    Tab:CreateSlider("Field of View", 60, 120, 70, function(v)
         Camera.FieldOfView = v
     end)
 
@@ -143,22 +113,18 @@ function PlayerMovement.Init(Tab)
         end
     end)
 
-    Tab:CreateSlider("Max Zoom Distance", 128, 10000, 128, function(v)
-        LocalPlayer.CameraMaxZoomDistance = v
-    end)
-
     -- SPEED SECTION
     Tab:CreateSection("Speed & Sprint")
     Tab:CreateToggle("Enable WalkSpeed", false, function(s) _G.SpeedEnabled = s end)
-    Tab:CreateSlider("Walk Value", 16, 1000, 16, function(v) _G.WalkSpeed = v end)
+    Tab:CreateSlider("Walk Value", 16, 400, 32, function(v) _G.WalkSpeed = v end)
     Tab:CreateToggle("Enable Sprinting", false, function(s) _G.SprintEnabled = s end)
-    Tab:CreateSlider("Sprint Value", 16, 1000, 32, function(v) _G.SprintSpeed = v end)
+    Tab:CreateSlider("Sprint Value", 32, 800, 64, function(v) _G.SprintSpeed = v end)
     Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
 
     -- JUMPING SECTION
     Tab:CreateSection("Jumping")
     Tab:CreateToggle("Enable Jump Height", false, function(s) _G.JumpEnabled = s end)
-    Tab:CreateSlider("Jump Power", 16, 500, 16, function(v) _G.JumpHeight = v end)
+    Tab:CreateSlider("Jump Power", 50, 800, 100, function(v) _G.JumpHeight = v end)
     Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
 
     -- FLIGHT SECTION
@@ -170,7 +136,7 @@ function PlayerMovement.Init(Tab)
             UpdateFlyPhysics(false)
         end
     end)
-    Tab:CreateSlider("Fly Speed", 16, 2500, 250, function(v) _G.FlySpeed = v end)
+    Tab:CreateSlider("Fly Speed", 32, 1600, 20, function(v) _G.FlySpeed = v end)
     Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
         if _G.FlyMasterSwitch then
             _G.IsFlying = not _G.IsFlying 
@@ -183,15 +149,6 @@ function PlayerMovement.Init(Tab)
     Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
-
-    Tab:CreateToggle("LT2 Hard Dragger", false, function(s) 
-        _G.HardDragger = s 
-        if not s then
-            if dragBP then dragBP:Destroy(); dragBP = nil end
-            if dragBG then dragBG:Destroy(); dragBG = nil end
-            draggedPart = nil
-        end
-    end)
 
     Tab:CreateAction("Reset Character", "Kill", function()
         if LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
@@ -206,15 +163,6 @@ function PlayerMovement.Init(Tab)
 
         local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart")
-
-        -- Hard Dragger Logic
-        if _G.HardDragger and draggedPart and dragBP and dragBG then
-            local hitPos = Mouse.Hit.Position
-            dragBP.Position = hitPos + Vector3.new(0, (draggedPart.Size.Y / 2) + 2, 0)
-            if char:FindFirstChild("Head") then
-                dragBG.CFrame = CFrame.new(draggedPart.Position, char.Head.Position)
-            end
-        end
 
         -- Noclip
         if _G.Noclip then
