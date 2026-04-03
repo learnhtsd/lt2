@@ -26,7 +26,7 @@ function AntiRagdoll.Init(Tab)
 
 
     -- UI SECTIONS
-    Tab:CreateToggle("Anti-Ragdoll / No Trip", false, function(s)
+    Tab:CreateToggle("Anti-Ragdoll", false, function(s)
         _G.AntiRagdollEnabled = s
         
         local char = LocalPlayer.Character
