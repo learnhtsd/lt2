@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.078"
+local Version = "v0.0.079"
 
 -- ==========================================
 -- UI ENGINE START
@@ -12,7 +12,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
 for _, v in pairs(CoreGui:GetChildren()) do
-    if v.Name == "NexusCustomHub" then v:Destroy() end
+    if v.Name == "DynxeLT2Hub" then v:Destroy() end
 end
 
 function Library:CreateWindow()
@@ -20,7 +20,7 @@ function Library:CreateWindow()
     local CurrentTab = nil
 
     local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "NexusCustomHub"
+    ScreenGui.Name = "DynxeLT2Hub"
     ScreenGui.Parent = CoreGui
 
     local MainFrame = Instance.new("Frame")
@@ -49,7 +49,7 @@ function Library:CreateWindow()
     HeaderTitle.Size = UDim2.new(1, -75, 0, 30)
     HeaderTitle.Position = UDim2.new(0, 65, 0, 10)
     HeaderTitle.BackgroundTransparency = 1
-    HeaderTitle.Text = "<b>Lumber Tycoon 2</b> <font color=\"#4a78ff\">Hub</font> <font color=\"#555555\" size=\"12\">" .. Version .. "</font>"
+    HeaderTitle.Text = "<b>Dynxe Hub2</b> <font color=\"#4a78ff\">LT2</font> <font color=\"#555555\" size=\"12\">" .. Version .. "</font>"
     HeaderTitle.RichText = true
     HeaderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     HeaderTitle.Font = Enum.Font.GothamMedium
@@ -207,36 +207,37 @@ function Library:CreateWindow()
         FallbackText.TextSize = 14
         FallbackText.Name = "TabIconText"
 
-        -- ③ Fetch and save PNG icon from GitHub, then load as custom asset
-        local folderName = "NexusHubIcons"
-        local fileName = TabName .. ".png"
+        -- ③ Fetch and save PNG icon from GitHub
+        local folderName = "DynxeLT2"
+        -- We add the version to the filename so it creates a NEW file whenever you update the version at the top
+        local fileName = TabName .. "_" .. Version:gsub("%.", "") .. ".png" 
         local filePath = folderName .. "/" .. fileName
         local finalAssetUrl = ""
-
-        -- Verify executor supports required functions
+        
         if isfolder and makefolder and writefile and isfile and getcustomasset then
             if not isfolder(folderName) then
                 makefolder(folderName)
             end
-
+        
+            -- If this specific version of the icon doesn't exist, download it
             if not isfile(filePath) then
+                -- Add tick() to the URL to bypass GitHub/Roblox web cache
                 local iconUrl = string.format(
-                    "https://raw.githubusercontent.com/%s/%s/%s/Icons/%s.png",
-                    User, Repo, Branch, TabName
+                    "https://raw.githubusercontent.com/%s/%s/%s/Icons/%s.png?t=%s",
+                    User, Repo, Branch, TabName, tick()
                 )
-                -- Download the image securely
+                
                 local success, imgData = pcall(function() return game:HttpGet(iconUrl) end)
+                
+                -- Check if it's actually an image and not a 404 page
                 if success and imgData and not imgData:match("404: Not Found") then
                     writefile(filePath, imgData)
                 end
             end
-
-            -- Convert local file to Roblox asset
+        
             if isfile(filePath) then
                 finalAssetUrl = getcustomasset(filePath)
             end
-        else
-            warn("Executor does not support file saving/custom assets. Using fallback text.")
         end
 
         local TabIcon = Instance.new("ImageLabel")
