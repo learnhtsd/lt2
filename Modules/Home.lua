@@ -1,13 +1,17 @@
 local HomeModule = {}
 
 function HomeModule.Init(Tab, Library)
-    -- 1. Welcome InfoBox
-    Tab:CreateInfoBox("Nexus Custom Hub", "Welcome to the ultimate Lumber Tycoon 2 companion. Use the sidebar to navigate through the different categories.")
+    -- Get the local player
+    local Player = game:GetService("Players").LocalPlayer
+    local Username = Player.Name -- This is their @name
+    
+    -- 1. Welcome InfoBox (Updated with @username)
+    Tab:CreateInfoBox("Hello, " .. Username .. "!", "Thank you for using Dynxe. You are currently using a early version of Dynxe. Im alone and need time :)")
 
     -- 2. Script Details Section
     Tab:CreateSection("Script Status")
     
-    Tab:CreateInfoBox("Version Info", "Current Version: v0.0.053\nStatus: [ ONLINE ]\nLast Updated: March 2026")
+    Tab:CreateInfoBox("Information", "Current Version: v0.0.075\nStatus: yup is working\nLast Updated: March 2026")
 
     -- 3. Socials / Links Section
     Tab:CreateSection("Community & Support")
@@ -29,15 +33,6 @@ function HomeModule.Init(Tab, Library)
             Library:Notify("System", "Link copied (Executor doesn't support opening browsers)", 3)
         end
     end)
-
-    -- 4. Keybinds Reminder
-    Tab:CreateSection("Quick Tips")
-    
-    Tab:CreateInfoBox("", "• Press 'RightShift' to hide/show the UI.\n• If icons don't load, wait a few seconds and rejoin.\n• Use 'Ghost Suite' for seamless building.")
-
-    -- 5. Credits
-    Tab:CreateSection("Credits")
-    Tab:CreateInfoBox("Developed By", "Main Developer: learnhtsd\nUI Design: Nexus Team\nSpecial thanks to the LT2 Community.")
 end
 
 return HomeModule
