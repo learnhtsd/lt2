@@ -107,6 +107,21 @@ function PlayerMovement.Init(Tab)
     -- UI SECTIONS
     -- ===========================
 
+    -- SPEED SECTION
+    Tab:CreateSection("Speed & Sprint")
+    Tab:CreateSlider("Walk Speed", 16, 400, 16, function(v) _G.WalkSpeed = v end)
+    Tab:CreateSlider("Jump Hight", 50, 800, 50, function(v) _G.JumpHeight = v end)
+    Tab:CreateSlider("Sprint Speed", 32, 800, 64, function(v) _G.SprintSpeed = v end)
+    Tab:CreateSlider("Fly Speed", 32, 1600, 250, function(v) _G.FlySpeed = v end)
+    Tab:CreateToggle("Sprint", false, function(s) _G.SprintEnabled = s end)
+    Tab:CreateToggle("Fly", true, function(s) 
+        _G.FlyMasterSwitch = s 
+        if not s and _G.IsFlying then
+            _G.IsFlying = false
+            UpdateFlyPhysics(false)
+        end
+    end)
+
     -- CAMERA SECTION
     Tab:CreateSection("Camera Settings")
     Tab:CreateSlider("Field of View", 60, 120, 70, function(v) Camera.FieldOfView = v end)
@@ -114,38 +129,17 @@ function PlayerMovement.Init(Tab)
         LocalPlayer.CameraMaxZoomDistance = s and 10000 or 128
         LocalPlayer.CameraMinZoomDistance = 0.5
     end)
-
-    -- SPEED SECTION
-    Tab:CreateSection("Speed & Sprint")
-    Tab:CreateSlider("Walk Speed", 16, 400, 16, function(v) _G.WalkSpeed = v end)
-    Tab:CreateToggle("Sprint Toggle", false, function(s) _G.SprintEnabled = s end)
-    Tab:CreateSlider("Sprint Speed", 32, 800, 64, function(v) _G.SprintSpeed = v end)
+    
+    -- UTILITY SECTION
+    Tab:CreateSection("Utility")
     Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
-
-    -- JUMPING SECTION
-    Tab:CreateSection("Jumping")
-    Tab:CreateSlider("Jump Power", 50, 800, 50, function(v) _G.JumpHeight = v end)
-    Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
-
-    -- FLIGHT SECTION
-    Tab:CreateSection("Flight")
-    Tab:CreateToggle("Enable Fly Hotkey", true, function(s) 
-        _G.FlyMasterSwitch = s 
-        if not s and _G.IsFlying then
-            _G.IsFlying = false
-            UpdateFlyPhysics(false)
-        end
-    end)
-    Tab:CreateSlider("Fly Speed", 32, 1600, 250, function(v) _G.FlySpeed = v end)
     Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
         if _G.FlyMasterSwitch then
             _G.IsFlying = not _G.IsFlying 
             UpdateFlyPhysics(_G.IsFlying) 
         end
     end)
-
-    -- UTILITY SECTION
-    Tab:CreateSection("Utility")
+    Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
     Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
