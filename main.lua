@@ -531,30 +531,40 @@ function Library:CreateWindow()
 
         function Tab:CreateInfoBox(Title, Description)
             local InfoFrame = Instance.new("Frame")
-            InfoFrame.Size = UDim2.new(1, 0, 0, 0) -- Height auto-calculates below
+            InfoFrame.Size = UDim2.new(1, 0, 0, 0) 
             InfoFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+            InfoFrame.AutomaticSize = Enum.AutomaticSize.Y -- Auto-resizes based on the TextContainer
             InfoFrame.Parent = TabPage
             Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(InfoFrame)
             
-            -- Subtle blue left border to indicate "Info"
+            -- Subtle blue left border
             local Accent = Instance.new("Frame")
-            Accent.Size = UDim2.new(0, 2, 1, 0)
+            Accent.Size = UDim2.new(0, 2, 1, 0) -- Stretches to match InfoFrame's calculated height
             Accent.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
             Accent.BorderSizePixel = 0
             Accent.Parent = InfoFrame
             Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 2)
 
+            -- THE FIX: A dedicated container for the text
+            -- This prevents the UIListLayout from affecting the Accent line
+            local TextContainer = Instance.new("Frame")
+            TextContainer.BackgroundTransparency = 1
+            TextContainer.Position = UDim2.new(0, 12, 0, 0)
+            TextContainer.Size = UDim2.new(1, -12, 0, 0)
+            TextContainer.AutomaticSize = Enum.AutomaticSize.Y
+            TextContainer.Parent = InfoFrame
+
             local InfoLayout = Instance.new("UIListLayout")
-            InfoLayout.Parent = InfoFrame
+            InfoLayout.Parent = TextContainer
             InfoLayout.Padding = UDim.new(0, 4)
             InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
             local InfoPadding = Instance.new("UIPadding")
-            InfoPadding.Parent = InfoFrame
-            InfoPadding.PaddingLeft = UDim.new(0, 12)
-            InfoPadding.PaddingRight = UDim.new(0, 10)
+            InfoPadding.Parent = TextContainer
             InfoPadding.PaddingTop = UDim.new(0, 8)
             InfoPadding.PaddingBottom = UDim.new(0, 8)
+            InfoPadding.PaddingRight = UDim.new(0, 10)
 
             -- Title Logic
             if Title and Title ~= "" then
@@ -567,12 +577,12 @@ function Library:CreateWindow()
                 TitleLabel.TextSize = 13
                 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
                 TitleLabel.LayoutOrder = 1
-                TitleLabel.Parent = InfoFrame
+                TitleLabel.Parent = TextContainer
             end
 
             -- Description Logic
             local DescLabel = Instance.new("TextLabel")
-            DescLabel.Size = UDim2.new(1, 0, 0, 0) -- Automatic height
+            DescLabel.Size = UDim2.new(1, 0, 0, 0)
             DescLabel.BackgroundTransparency = 1
             DescLabel.Text = Description
             DescLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
@@ -582,11 +592,7 @@ function Library:CreateWindow()
             DescLabel.TextXAlignment = Enum.TextXAlignment.Left
             DescLabel.AutomaticSize = Enum.AutomaticSize.Y
             DescLabel.LayoutOrder = 2
-            DescLabel.Parent = InfoFrame
-
-            -- Auto-resize the main container based on content
-            InfoFrame.AutomaticSize = Enum.AutomaticSize.Y
-            AddDepthStroke(InfoFrame)
+            DescLabel.Parent = TextContainer
         end
         
         function Tab:CreateDropdown(Title, Options, Default, Callback)
