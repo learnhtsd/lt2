@@ -12,14 +12,12 @@ function PlayerMovement.Init(Tab)
     -- ===========================
     -- STATE VARIABLES
     -- ===========================
-    _G.SpeedEnabled = false
-    _G.WalkSpeed = 32
+    _G.WalkSpeed = 16
     _G.SprintEnabled = false
     _G.SprintSpeed = 64
     _G.IsSprinting = false
 
-    _G.JumpEnabled = false
-    _G.JumpHeight = 100
+    _G.JumpHeight = 50
     _G.InfJump = false
 
     -- Flight States
@@ -50,7 +48,6 @@ function PlayerMovement.Init(Tab)
         end
     end
 
-    -- Clean up on init
     CleanupOrphanedFlyObjects()
 
     -- ===========================
@@ -83,17 +80,13 @@ function PlayerMovement.Init(Tab)
             
             if hum then 
                 hum.PlatformStand = false 
-            end
-
-            -- Let gravity take over naturally instead of setting velocity to zero
-            if hrp then
                 task.wait(0.05)
                 hum:ChangeState(Enum.HumanoidStateType.Freefall)
             end
         end
     end
 
-    -- Input Began
+    -- Inputs
     UserInputService.InputBegan:Connect(function(input, processed)
         if not processed and _G.ClickTP and input.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             local char = LocalPlayer.Character
@@ -116,33 +109,17 @@ function PlayerMovement.Init(Tab)
 
     -- CAMERA SECTION
     Tab:CreateSection("Camera Settings")
-    
-    Tab:CreateSlider("Field of View", 60, 120, 70, function(v)
-        Camera.FieldOfView = v
-    end)
-
+    Tab:CreateSlider("Field of View", 60, 120, 70, function(v) Camera.FieldOfView = v end)
     Tab:CreateToggle("Infinite Zoom", false, function(s)
-        if s then
-            LocalPlayer.CameraMaxZoomDistance = 10000
-            LocalPlayer.CameraMinZoomDistance = 0.5
-        else
-            LocalPlayer.CameraMaxZoomDistance = 128
-        end
+        LocalPlayer.CameraMaxZoomDistance = s and 10000 or 128
+        LocalPlayer.CameraMinZoomDistance = 0.5
     end)
 
     -- SPEED SECTION
-    Tab:CreateSection("Speed & Sprint")
-    Tab:CreateToggle("Enable WalkSpeed", false, function(s) _G.SpeedEnabled = s end)
-    Tab:CreateSlider("Walk Value", 16, 400, 32, function(v) _G.WalkSpeed = v end)
-    Tab:CreateToggle("Enable Sprinting", false, function(s) _G.SprintEnabled = s end)
-    Tab:CreateSlider("Sprint Value", 32, 800, 64, function(v) _G.SprintSpeed = v end)
-    Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
-
-    -- JUMPING SECTION
-    Tab:CreateSection("Jumping")
-    Tab:CreateToggle("Enable Jump Height", false, function(s) _G.JumpEnabled = s end)
-    Tab:CreateSlider("Jump Power", 50, 800, 100, function(v) _G.JumpHeight = v end)
-    Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
+    Tab:CreateSection("Movement")
+    Tab:CreateSlider("Walk Speed", 16, 400, 16, function(v) _G.WalkSpeed = v end)
+    Tab:CreateSlider("Jump Power", 50, 800, 50, function(v) _G.JumpHeight = v end)
+    Tab:CreateSlider("Sprint Speed", 32, 800, 64, function(v) _G.SprintSpeed = v end)
 
     -- FLIGHT SECTION
     Tab:CreateSection("Flight")
@@ -163,10 +140,12 @@ function PlayerMovement.Init(Tab)
 
     -- UTILITY SECTION
     Tab:CreateSection("Utility")
+    Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
+    Tab:CreateToggle("Sprint Toggle", false, function(s) _G.SprintEnabled = s end)
+    Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
     Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
-
     Tab:CreateAction("Reset Character", "Kill", function()
         if LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
     end)
@@ -188,25 +167,25 @@ function PlayerMovement.Init(Tab)
             end
         end
 
+        -- Speed/Jump Loop Logic
+        if hum then
+            -- Jump Power Application
+            hum.UseJumpPower = true
+            hum.JumpPower = _G.JumpHeight
+
+            -- Speed Logic
+            if _G.SprintEnabled and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or _G.IsSprinting) then
+                hum.WalkSpeed = _G.SprintSpeed
+            else
+                hum.WalkSpeed = _G.WalkSpeed
+            end
+        end
+
         -- Water Walk
         if _G.WaterWalk and hrp then
             if hrp.Position.Y <= 1 and hrp.Position.Y >= -5 then
                 hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
                 hrp.CFrame = hrp.CFrame + Vector3.new(0, 0.1, 0)
-            end
-        end
-
-        -- Speed/Jump Logic
-        if hum then
-            if _G.SprintEnabled and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or _G.IsSprinting) then
-                hum.WalkSpeed = _G.SprintSpeed
-            elseif _G.SpeedEnabled then
-                hum.WalkSpeed = _G.WalkSpeed
-            end
-
-            if _G.JumpEnabled then
-                hum.UseJumpPower = true
-                hum.JumpPower = _G.JumpHeight
             end
         end
 
