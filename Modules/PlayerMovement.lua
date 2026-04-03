@@ -14,7 +14,7 @@ function PlayerMovement.Init(Tab)
     -- ===========================
     _G.WalkSpeed = 16
     _G.SprintEnabled = false
-    _G.SprintSpeed = 64
+    _G.SprintSpeed = 32
     _G.IsSprinting = false
 
     _G.JumpHeight = 50
@@ -28,6 +28,12 @@ function PlayerMovement.Init(Tab)
     _G.Noclip = false
     _G.WaterWalk = false
     _G.ClickTP = false
+
+    -- Camera States
+    _G.ShiftLockEnabled = false
+    _G.FreecamEnabled = false
+    local freecamCFrame = CFrame.new()
+    local camRotX, camRotY = 0, 0
 
     local flyVelocity = nil
     local flyGyro = nil
@@ -111,10 +117,10 @@ function PlayerMovement.Init(Tab)
     Tab:CreateSection("Movement")
     Tab:CreateSlider("Walk Speed", 16, 400, 16, function(v) _G.WalkSpeed = v end)
     Tab:CreateSlider("Jump Power", 50, 800, 50, function(v) _G.JumpHeight = v end)
-    Tab:CreateSlider("Sprint Speed", 32, 800, 64, function(v) _G.SprintSpeed = v end)
+    Tab:CreateSlider("Sprint Speed", 32, 800, 32, function(v) _G.SprintSpeed = v end)
     Tab:CreateSlider("Fly Speed", 32, 1600, 250, function(v) _G.FlySpeed = v end)
-    Tab:CreateToggle("Sprint Toggle", false, function(s) _G.SprintEnabled = s end)
-    Tab:CreateToggle("Enable Fly", true, function(s) 
+    Tab:CreateToggle("Toggle Sprint", false, function(s) _G.SprintEnabled = s end)
+    Tab:CreateToggle("Toggle Fly", true, function(s) 
         _G.FlyMasterSwitch = s 
         if not s and _G.IsFlying then
             _G.IsFlying = false
@@ -124,6 +130,37 @@ function PlayerMovement.Init(Tab)
     
     -- CAMERA SECTION
     Tab:CreateSection("Camera Settings")
+    Tab:CreateToggle("Force Shift Lock", false, function(s)
+        _G.ShiftLockEnabled = s
+        if not s then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            Mouse.Icon = ""
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.AutoRotate = true
+                hum.CameraOffset = Vector3.new(0, 0, 0)
+            end
+        else
+            Mouse.Icon = "rbxasset://textures/MouseLockedCursor.png"
+        end
+    end)
+
+    Tab:CreateToggle("Freecam", false, function(s)
+        _G.FreecamEnabled = s
+        if s then
+            freecamCFrame = Camera.CFrame
+            local rx, ry, rz = Camera.CFrame:ToEulerAnglesYXZ()
+            camRotX = math.deg(ry)
+            camRotY = math.deg(rx)
+            Camera.CameraType = Enum.CameraType.Scriptable
+        else
+            Camera.CameraType = Enum.CameraType.Custom
+            Camera.CameraSubject = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        end
+    end)
+
     Tab:CreateSlider("Field of View", 60, 120, 70, function(v) Camera.FieldOfView = v end)
     Tab:CreateToggle("Infinite Zoom", false, function(s)
         LocalPlayer.CameraMaxZoomDistance = s and 10000 or 128
@@ -148,8 +185,51 @@ function PlayerMovement.Init(Tab)
     end)
 
     -- ===========================
-    -- MASTER LOOP
+    -- MASTER LOOPS
     -- ===========================
+    
+    -- RenderStepped handles visual/camera updates cleanly
+    RunService.RenderStepped:Connect(function()
+        if _G.FreecamEnabled then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+            local delta = UserInputService:GetMouseDelta()
+
+            -- Apply rotation
+            camRotX = camRotX - delta.X * 0.2
+            camRotY = math.clamp(camRotY - delta.Y * 0.2, -89, 89)
+
+            local moveVec = Vector3.new()
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec = moveVec + Vector3.new(0, 0, -1) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec = moveVec + Vector3.new(0, 0, 1) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec = moveVec + Vector3.new(-1, 0, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec = moveVec + Vector3.new(1, 0, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveVec = moveVec + Vector3.new(0, 1, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveVec = moveVec + Vector3.new(0, -1, 0) end
+
+            freecamCFrame = CFrame.new(freecamCFrame.Position)
+                * CFrame.Angles(0, math.rad(camRotX), 0)
+                * CFrame.Angles(math.rad(camRotY), 0, 0)
+
+            -- Scale movement dynamically with FlySpeed
+            freecamCFrame = freecamCFrame * CFrame.new(moveVec * (_G.FlySpeed / 50))
+            Camera.CFrame = freecamCFrame
+
+        elseif _G.ShiftLockEnabled then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+            if hum and hrp then
+                hum.AutoRotate = false
+                hum.CameraOffset = Vector3.new(1.75, 0, 0)
+                local look = Camera.CFrame.LookVector
+                hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + Vector3.new(look.X, 0, look.Z))
+            end
+        end
+    end)
+
+    -- Stepped handles character physics
     RunService.Stepped:Connect(function()
         local char = LocalPlayer.Character
         if not char then return end
@@ -166,11 +246,9 @@ function PlayerMovement.Init(Tab)
 
         -- Speed/Jump Loop Logic
         if hum then
-            -- Jump Power Application
             hum.UseJumpPower = true
             hum.JumpPower = _G.JumpHeight
 
-            -- Speed Logic
             if _G.SprintEnabled and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or _G.IsSprinting) then
                 hum.WalkSpeed = _G.SprintSpeed
             else
@@ -187,7 +265,7 @@ function PlayerMovement.Init(Tab)
         end
 
         -- Fly Logic
-        if _G.IsFlying and hrp then
+        if _G.IsFlying and hrp and not _G.FreecamEnabled then
             if not hrp:FindFirstChild("ExploitFlyVelocity") then UpdateFlyPhysics(true) end
             if flyVelocity and flyGyro then
                 local moveVector = Vector3.new(0, 0, 0)
