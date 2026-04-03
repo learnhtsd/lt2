@@ -26,7 +26,6 @@ function PlayerMovement.Init(Tab)
     _G.FlyMasterSwitch = true
     _G.IsFlying = false
     _G.FlySpeed = 250
-    local lastFlyVelocity = Vector3.zero
 
     _G.Noclip = false
     _G.WaterWalk = false
@@ -34,6 +33,25 @@ function PlayerMovement.Init(Tab)
 
     local flyVelocity = nil
     local flyGyro = nil
+
+    -- ===========================
+    -- CLEANUP ORPHANED OBJECTS
+    -- ===========================
+    local function CleanupOrphanedFlyObjects()
+        local char = LocalPlayer.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local orphanedVelocity = hrp:FindFirstChild("ExploitFlyVelocity")
+                local orphanedGyro = hrp:FindFirstChild("ExploitFlyGyro")
+                if orphanedVelocity then orphanedVelocity:Destroy() end
+                if orphanedGyro then orphanedGyro:Destroy() end
+            end
+        end
+    end
+
+    -- Clean up on init
+    CleanupOrphanedFlyObjects()
 
     -- ===========================
     -- PHYSICS & UTILS
@@ -48,6 +66,7 @@ function PlayerMovement.Init(Tab)
                 flyVelocity = Instance.new("BodyVelocity")
                 flyVelocity.Name = "ExploitFlyVelocity"
                 flyVelocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                flyVelocity.Velocity = Vector3.new(0, 0, 0)
                 flyVelocity.Parent = hrp
             end
             if not flyGyro or not flyGyro.Parent then
@@ -64,15 +83,13 @@ function PlayerMovement.Init(Tab)
             
             if hum then 
                 hum.PlatformStand = false 
-                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
             end
 
+            -- Let gravity take over naturally instead of setting velocity to zero
             if hrp then
-                hrp.AssemblyLinearVelocity = lastFlyVelocity
+                task.wait(0.05)
+                hum:ChangeState(Enum.HumanoidStateType.Freefall)
             end
-            
-            task.wait(0.1)
-            if hum then hum:ChangeState(Enum.HumanoidStateType.Freefall) end
         end
     end
 
@@ -136,7 +153,7 @@ function PlayerMovement.Init(Tab)
             UpdateFlyPhysics(false)
         end
     end)
-    Tab:CreateSlider("Fly Speed", 32, 1600, 20, function(v) _G.FlySpeed = v end)
+    Tab:CreateSlider("Fly Speed", 32, 1600, 250, function(v) _G.FlySpeed = v end)
     Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
         if _G.FlyMasterSwitch then
             _G.IsFlying = not _G.IsFlying 
@@ -206,7 +223,6 @@ function PlayerMovement.Init(Tab)
                 local vel = (moveVector.Magnitude > 0) and (moveVector.Unit * _G.FlySpeed) or Vector3.new(0,0,0)
                 flyVelocity.Velocity = vel
                 flyGyro.CFrame = Camera.CFrame
-                lastFlyVelocity = vel
             end
         end
     end)
