@@ -108,7 +108,7 @@ function PlayerMovement.Init(Tab)
     -- ===========================
 
     -- SPEED SECTION
-    Tab:CreateSection("Speed & Sprint")
+    Tab:CreateSection("Movement")
     Tab:CreateSlider("Walk Speed", 16, 400, 16, function(v) _G.WalkSpeed = v end)
     Tab:CreateSlider("Jump Hight", 50, 800, 50, function(v) _G.JumpHeight = v end)
     Tab:CreateSlider("Sprint Speed", 32, 800, 64, function(v) _G.SprintSpeed = v end)
