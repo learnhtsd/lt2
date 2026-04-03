@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.080"
+local Version = "v0.0.081"
 
 -- ==========================================
 -- UI ENGINE START
@@ -721,7 +721,7 @@ if HomeModule and HomeModule.Init then
 end
 
 local MovementModule = LoadModule("PlayerMovement")
-if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end
+if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab, Library) end
 
 local TeleportModule = LoadModule("Teleport")
 if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) end
