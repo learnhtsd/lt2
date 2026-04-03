@@ -9,7 +9,7 @@ function AntiVoid.Init(Tab)
     -- STATE VARIABLES
     -- ===========================
     _G.AntiVoidEnabled = false
-    _G.VoidThreshold = -60 
+    local VOID_THRESHOLD = -60 -- Hardcoded threshold
 
     -- ===========================
     -- HELPER: GET PLOT OR SPAWN
@@ -37,14 +37,8 @@ function AntiVoid.Init(Tab)
     -- ===========================
     -- UI SECTION
     -- ===========================
-    Tab:CreateSection("Auto Plot Protection")
-
     Tab:CreateToggle("Enable Anti-Void", false, function(state)
         _G.AntiVoidEnabled = state
-    end)
-
-    Tab:CreateSlider("Void Depth", -500, 0, -60, function(value)
-        _G.VoidThreshold = value
     end)
 
     -- ===========================
@@ -56,7 +50,8 @@ function AntiVoid.Init(Tab)
         local char = LocalPlayer.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
-        if hrp and hrp.Position.Y < _G.VoidThreshold then
+        -- Check against the fixed -60 threshold
+        if hrp and hrp.Position.Y < VOID_THRESHOLD then
             -- Stop all falling momentum immediately
             hrp.AssemblyLinearVelocity = Vector3.zero
             hrp.AssemblyAngularVelocity = Vector3.zero
