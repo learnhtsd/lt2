@@ -1,14 +1,14 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.095"
+local Version = "v0.0.094"
+
 
 -- UI ENGINE START
 local Library = {}
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 
 for _, v in pairs(CoreGui:GetChildren()) do
     if v.Name == "DynxeLT2Hub" then v:Destroy() end
@@ -21,8 +21,6 @@ function Library:CreateWindow()
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "DynxeLT2Hub"
     ScreenGui.Parent = CoreGui
-    -- Ignore Gui Inset so Tooltip mouse calculations are accurate
-    ScreenGui.IgnoreGuiInset = true 
 
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
@@ -103,101 +101,6 @@ function Library:CreateWindow()
     ContentContainer.BackgroundTransparency = 1
     ContentContainer.ClipsDescendants = true
     ContentContainer.Parent = MainFrame
-
-    -- ================= TOOLTIP SYSTEM ================= --
-    local TooltipFrame = Instance.new("Frame")
-    TooltipFrame.Name = "GlobalTooltip"
-    TooltipFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-    TooltipFrame.AutomaticSize = Enum.AutomaticSize.XY
-    TooltipFrame.ZIndex = 100
-    TooltipFrame.Visible = false
-    TooltipFrame.Parent = ScreenGui
-
-    Instance.new("UICorner", TooltipFrame).CornerRadius = UDim.new(0, 6)
-    
-    local TooltipStroke = Instance.new("UIStroke", TooltipFrame)
-    TooltipStroke.Color = Color3.fromRGB(74, 120, 255)
-    TooltipStroke.Thickness = 1
-
-    local TooltipPadding = Instance.new("UIPadding", TooltipFrame)
-    TooltipPadding.PaddingTop = UDim.new(0, 8)
-    TooltipPadding.PaddingBottom = UDim.new(0, 8)
-    TooltipPadding.PaddingLeft = UDim.new(0, 10)
-    TooltipPadding.PaddingRight = UDim.new(0, 10)
-
-    local TooltipLabel = Instance.new("TextLabel")
-    TooltipLabel.BackgroundTransparency = 1
-    TooltipLabel.AutomaticSize = Enum.AutomaticSize.XY
-    TooltipLabel.Text = ""
-    TooltipLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
-    TooltipLabel.Font = Enum.Font.Gotham
-    TooltipLabel.TextSize = 12
-    TooltipLabel.TextWrapped = true
-    TooltipLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TooltipLabel.ZIndex = 101
-    TooltipLabel.Parent = TooltipFrame
-
-    local TooltipConstraint = Instance.new("UISizeConstraint", TooltipLabel)
-    TooltipConstraint.MaxWidth = 250
-
-    local tooltipConn
-    local function ShowTooltip(text)
-        TooltipLabel.Text = text
-        TooltipFrame.Visible = true
-
-        if tooltipConn then tooltipConn:Disconnect() end
-        tooltipConn = RunService.RenderStepped:Connect(function()
-            local mousePos = UserInputService:GetMouseLocation()
-            TooltipFrame.Position = UDim2.new(0, mousePos.X + 15, 0, mousePos.Y + 15)
-        end)
-    end
-
-    local function HideTooltip()
-        TooltipFrame.Visible = false
-        if tooltipConn then
-            tooltipConn:Disconnect()
-            tooltipConn = nil
-        end
-    end
-
-    local function AttachTooltip(TitleLabel, TooltipText)
-        if not TooltipText or TooltipText == "" then return end
-
-        local InfoIcon = Instance.new("TextLabel")
-        InfoIcon.Name = "InfoIcon"
-        InfoIcon.Size = UDim2.new(0, 14, 0, 14)
-        InfoIcon.AnchorPoint = Vector2.new(0, 0.5)
-        InfoIcon.Position = UDim2.new(0, TitleLabel.TextBounds.X + 6, 0.5, 0)
-        InfoIcon.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-        InfoIcon.TextColor3 = Color3.fromRGB(180, 180, 180)
-        InfoIcon.Text = "?"
-        InfoIcon.Font = Enum.Font.GothamBold
-        InfoIcon.TextSize = 10
-        InfoIcon.Parent = TitleLabel
-        Instance.new("UICorner", InfoIcon).CornerRadius = UDim.new(1, 0)
-
-        -- Automatically reposition if the title text gets updated (e.g., Sliders)
-        TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(function()
-            InfoIcon.Position = UDim2.new(0, TitleLabel.TextBounds.X + 6, 0.5, 0)
-        end)
-
-        InfoIcon.MouseEnter:Connect(function()
-            TweenService:Create(InfoIcon, TweenInfo.new(0.2), {
-                BackgroundColor3 = Color3.fromRGB(74, 120, 255),
-                TextColor3 = Color3.fromRGB(255, 255, 255)
-            }):Play()
-            ShowTooltip(TooltipText)
-        end)
-
-        InfoIcon.MouseLeave:Connect(function()
-            TweenService:Create(InfoIcon, TweenInfo.new(0.2), {
-                BackgroundColor3 = Color3.fromRGB(35, 35, 42),
-                TextColor3 = Color3.fromRGB(180, 180, 180)
-            }):Play()
-            HideTooltip()
-        end)
-    end
-    -- ================================================== --
 
     local NotificationContainer = Instance.new("Frame")
     NotificationContainer.Name = "NotificationContainer"
@@ -412,7 +315,7 @@ function Library:CreateWindow()
             Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         end
 
-        function Tab:CreateSection(Name, TooltipText)
+        function Tab:CreateSection(Name)
             local SectionLabel = Instance.new("TextLabel")
             SectionLabel.Size = UDim2.new(1, 0, 0, 20)
             SectionLabel.BackgroundTransparency = 1
@@ -422,11 +325,9 @@ function Library:CreateWindow()
             SectionLabel.TextSize = 11
             SectionLabel.TextXAlignment = Enum.TextXAlignment.Left
             SectionLabel.Parent = TabPage
-            
-            AttachTooltip(SectionLabel, TooltipText)
         end
 
-        function Tab:CreateAction(Title, ButtonText, Callback, TooltipText)
+        function Tab:CreateAction(Title, ButtonText, Callback)
             local ActionFrame = Instance.new("Frame")
             ActionFrame.Size = UDim2.new(1, 0, 0, 28)
             ActionFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
@@ -444,8 +345,6 @@ function Library:CreateWindow()
             TitleLabel.TextSize = 12
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = ActionFrame
-            
-            AttachTooltip(TitleLabel, TooltipText)
 
             local ActionBtn = Instance.new("TextButton")
             ActionBtn.Size = UDim2.new(0, 70, 0, 20)
@@ -462,7 +361,7 @@ function Library:CreateWindow()
             ActionBtn.MouseButton1Click:Connect(Callback)
         end
 
-        function Tab:CreateToggle(Title, Default, Callback, TooltipText)
+        function Tab:CreateToggle(Title, Default, Callback)
             local Toggled = Default
             local ToggleFrame = Instance.new("Frame")
             ToggleFrame.Size = UDim2.new(1, 0, 0, 28)
@@ -481,8 +380,6 @@ function Library:CreateWindow()
             TitleLabel.TextSize = 12
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = ToggleFrame
-            
-            AttachTooltip(TitleLabel, TooltipText)
 
             local ToggleBG = Instance.new("TextButton")
             ToggleBG.Size = UDim2.new(0, 34, 0, 18)
@@ -511,7 +408,7 @@ function Library:CreateWindow()
             end)
         end
 
-        function Tab:CreateSlider(Title, Min, Max, Default, Callback, TooltipText)
+        function Tab:CreateSlider(Title, Min, Max, Default, Callback)
             local SliderFrame = Instance.new("Frame")
             SliderFrame.Size = UDim2.new(1, 0, 0, 38)
             SliderFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
@@ -529,8 +426,6 @@ function Library:CreateWindow()
             TitleLabel.TextSize = 12
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = SliderFrame
-            
-            AttachTooltip(TitleLabel, TooltipText)
 
             local SliderBG = Instance.new("Frame")
             SliderBG.Size = UDim2.new(1, -20, 0, 4)
@@ -575,7 +470,7 @@ function Library:CreateWindow()
             end)
         end
 
-        function Tab:CreateKeybind(Title, Default, Callback, TooltipText)
+        function Tab:CreateKeybind(Title, Default, Callback)
             local KeyName = (typeof(Default) == "EnumItem") and Default.Name or Default.UserInputType.Name
             local KeybindFrame = Instance.new("Frame")
             KeybindFrame.Size = UDim2.new(1, 0, 0, 28)
@@ -594,8 +489,6 @@ function Library:CreateWindow()
             TitleLabel.TextSize = 12
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = KeybindFrame
-            
-            AttachTooltip(TitleLabel, TooltipText)
 
             local BindBtn = Instance.new("TextButton")
             BindBtn.Size = UDim2.new(0, 70, 0, 20)
@@ -637,7 +530,7 @@ function Library:CreateWindow()
             end)
         end
 
-        function Tab:CreateInfoBox(Title, Description, TooltipText)
+        function Tab:CreateInfoBox(Title, Description)
             local InfoFrame = Instance.new("Frame")
             InfoFrame.Size = UDim2.new(1, 0, 0, 0) 
             InfoFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
@@ -654,6 +547,8 @@ function Library:CreateWindow()
             Accent.Parent = InfoFrame
             Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 2)
 
+            -- THE FIX: A dedicated container for the text
+            -- This prevents the UIListLayout from affecting the Accent line
             local TextContainer = Instance.new("Frame")
             TextContainer.BackgroundTransparency = 1
             TextContainer.Position = UDim2.new(0, 12, 0, 0)
@@ -672,6 +567,7 @@ function Library:CreateWindow()
             InfoPadding.PaddingBottom = UDim.new(0, 8)
             InfoPadding.PaddingRight = UDim.new(0, 10)
 
+            -- Title Logic
             if Title and Title ~= "" then
                 local TitleLabel = Instance.new("TextLabel")
                 TitleLabel.Size = UDim2.new(1, 0, 0, 18)
@@ -683,10 +579,9 @@ function Library:CreateWindow()
                 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
                 TitleLabel.LayoutOrder = 1
                 TitleLabel.Parent = TextContainer
-                
-                AttachTooltip(TitleLabel, TooltipText)
             end
 
+            -- Description Logic
             local DescLabel = Instance.new("TextLabel")
             DescLabel.Size = UDim2.new(1, 0, 0, 0)
             DescLabel.BackgroundTransparency = 1
@@ -701,7 +596,7 @@ function Library:CreateWindow()
             DescLabel.Parent = TextContainer
         end
         
-        function Tab:CreateDropdown(Title, Options, Default, Callback, TooltipText)
+        function Tab:CreateDropdown(Title, Options, Default, Callback)
             local Dropdown = {
                 Open = false,
                 Selected = Default or "Select..."
@@ -731,8 +626,6 @@ function Library:CreateWindow()
             TitleLabel.TextSize = 12
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = Header
-            
-            AttachTooltip(TitleLabel, TooltipText)
 
             local SelectedLabel = Instance.new("TextLabel")
             SelectedLabel.Size = UDim2.new(0.4, -25, 1, 0)
@@ -796,6 +689,7 @@ function Library:CreateWindow()
     return Window
 end
 
+
 -- SCRIPT EXECUTION
 local HubWindow = Library:CreateWindow()
 
@@ -819,3 +713,51 @@ local function LoadModule(ModuleName)
     end
     warn("Failed to load module: " .. ModuleName)
 end
+ 
+local HomeModule = LoadModule("Home")
+if HomeModule and HomeModule.Init then 
+    HomeModule.Init(HomeTab, Library) 
+end
+
+local MovementModule = LoadModule("PlayerMovement")
+if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end
+
+local TeleportModule = LoadModule("Teleport")
+if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) end
+
+local GhostModule = LoadModule("GhostSuite")
+if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
+
+local WorldModule = LoadModule("World")
+if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end
+
+local SettingsModule = LoadModule("Settings")
+if SettingsModule and SettingsModule.Init then
+    SettingsModule.Init(SettingsTab, {User = User, Repo = Repo, Branch = Branch})
+end
+
+local GetWoodModule = LoadModule("GetWood")
+if GetWoodModule and GetWoodModule.Init then
+    GetWoodModule.Init(WoodTab, Library)
+end
+
+local DraggerModule = LoadModule("HardDragger")
+if DraggerModule and DraggerModule.Init then DraggerModule.Init(ToolTab) end
+
+local AntiFlingModule = LoadModule("AntiFling")
+if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(ProtectionTab) end
+local AntiVoidModule = LoadModule("AntiVoid")
+if AntiVoidModule and AntiVoidModule.Init then AntiVoidModule.Init(ProtectionTab) end
+local AntiRagdollModule = LoadModule("AntiRagdoll")
+if AntiRagdollModule and AntiRagdollModule.Init then AntiRagdollModule.Init(ProtectionTab) end
+local AntiAFKModule = LoadModule("AntiAFK")
+if AntiAFKModule and AntiAFKModule.Init then AntiAFKModule.Init(ProtectionTab) end
+
+local LooseObjectTeleportModule = LoadModule("LooseObjectTeleport")
+if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(ToolTab, Library) end
+
+local PlayPositionNotifyModule = LoadModule("PlayPositionNotify")
+if PlayPositionNotifyModule and PlayPositionNotifyModule.Init then PlayPositionNotifyModule.Init(ToolTab, Library) end
+
+local TreeCamModule = LoadModule("TreeCam")
+if TreeCamModule and TreeCamModule.Init then TreeCamModule.Init(WoodTab) end
