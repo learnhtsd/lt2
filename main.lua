@@ -745,9 +745,6 @@ end
 local DraggerModule = LoadModule("HardDragger")
 if DraggerModule and DraggerModule.Init then DraggerModule.Init(ToolTab) end
 
-local ToolModule = LoadModule("Tool")
-if ToolModule and ToolModule.Init then ToolModule.Init(ToolTab, Library) end
-
 local AntiFlingModule = LoadModule("AntiFling")
 if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(ProtectionTab) end
 local AntiVoidModule = LoadModule("AntiVoid")
