@@ -107,14 +107,6 @@ function PlayerMovement.Init(Tab)
     -- UI SECTIONS
     -- ===========================
 
-    -- CAMERA SECTION
-    Tab:CreateSection("Camera Settings")
-    Tab:CreateSlider("Field of View", 60, 120, 70, function(v) Camera.FieldOfView = v end)
-    Tab:CreateToggle("Infinite Zoom", false, function(s)
-        LocalPlayer.CameraMaxZoomDistance = s and 10000 or 128
-        LocalPlayer.CameraMinZoomDistance = 0.5
-    end)
-
     -- SPEED SECTION
     Tab:CreateSection("Movement")
     Tab:CreateSlider("Walk Speed", 16, 400, 16, function(v) _G.WalkSpeed = v end)
@@ -135,6 +127,15 @@ function PlayerMovement.Init(Tab)
             _G.IsFlying = not _G.IsFlying 
             UpdateFlyPhysics(_G.IsFlying) 
         end
+    end)
+
+    
+    -- CAMERA SECTION
+    Tab:CreateSection("Camera Settings")
+    Tab:CreateSlider("Field of View", 60, 120, 70, function(v) Camera.FieldOfView = v end)
+    Tab:CreateToggle("Infinite Zoom", false, function(s)
+        LocalPlayer.CameraMaxZoomDistance = s and 10000 or 128
+        LocalPlayer.CameraMinZoomDistance = 0.5
     end)
 
     -- UTILITY SECTION
