@@ -3,9 +3,8 @@ local Repo = "lt2"
 local Branch = "main" 
 local Version = "v0.0.094"
 
--- ==========================================
+
 -- UI ENGINE START
--- ==========================================
 local Library = {}
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -690,9 +689,8 @@ function Library:CreateWindow()
     return Window
 end
 
--- ==========================================
+
 -- SCRIPT EXECUTION
--- ==========================================
 local HubWindow = Library:CreateWindow()
 
 local HomeTab       = HubWindow:CreateTab("Home")
