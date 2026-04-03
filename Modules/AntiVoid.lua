@@ -9,24 +9,46 @@ function AntiVoid.Init(Tab)
     -- STATE VARIABLES
     -- ===========================
     _G.AntiVoidEnabled = false
-    _G.VoidThreshold = -500 -- The Y-level where teleport triggers
-    _G.SafeYLevel = 50      -- How high to teleport you back up
+    _G.VoidThreshold = -60 
+
+    -- ===========================
+    -- HELPER: GET PLOT OR SPAWN
+    -- ===========================
+    local function GetSafeDestination()
+        -- 1. Try to find the player's plot in LT2
+        local properties = workspace:FindFirstChild("Properties")
+        if properties then
+            for _, plot in ipairs(properties:GetChildren()) do
+                local owner = plot:FindFirstChild("Owner")
+                if owner and owner.Value == LocalPlayer then
+                    local origin = plot:FindFirstChild("Origin")
+                    if origin then
+                        -- Return the center of the plot, slightly raised
+                        return origin.CFrame + Vector3.new(0, 5, 0)
+                    end
+                end
+            end
+        end
+
+        -- 2. Fallback to Baseplate/Spawn area if no plot found
+        return CFrame.new(0, 10, 0) 
+    end
 
     -- ===========================
     -- UI SECTION
     -- ===========================
-    Tab:CreateSection("Void Protection")
+    Tab:CreateSection("Auto Plot Protection")
 
     Tab:CreateToggle("Enable Anti-Void", false, function(state)
         _G.AntiVoidEnabled = state
     end)
 
-    Tab:CreateSlider("Void Depth", -2000, -100, -500, function(value)
+    Tab:CreateSlider("Void Depth", -500, 0, -60, function(value)
         _G.VoidThreshold = value
     end)
 
     -- ===========================
-    -- ANTI-VOID LOGIC
+    -- MASTER LOGIC
     -- ===========================
     RunService.Heartbeat:Connect(function()
         if not _G.AntiVoidEnabled then return end
@@ -34,16 +56,13 @@ function AntiVoid.Init(Tab)
         local char = LocalPlayer.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
-        if hrp then
-            -- Check if the player has fallen below the threshold
-            if hrp.Position.Y < _G.VoidThreshold then
-                -- Reset velocity so you don't keep falling after TP
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                
-                -- Teleport back to the center of the map at a safe height
-                -- You can change Vector3.new(0, _G.SafeYLevel, 0) to a specific spawn location
-                hrp.CFrame = CFrame.new(hrp.Position.X, _G.SafeYLevel, hrp.Position.Z)
-            end
+        if hrp and hrp.Position.Y < _G.VoidThreshold then
+            -- Stop all falling momentum immediately
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            
+            -- Automatically find where to go and warp
+            hrp.CFrame = GetSafeDestination()
         end
     end)
 end
