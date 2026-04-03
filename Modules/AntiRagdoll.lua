@@ -5,14 +5,12 @@ function AntiRagdoll.Init(Tab)
     local RunService = game:GetService("RunService")
     local LocalPlayer = Players.LocalPlayer
 
-    -- ===========================
+
     -- STATE VARIABLES
-    -- ===========================
     _G.AntiRagdollEnabled = false
 
-    -- ===========================
+
     -- CORE LOGIC
-    -- ===========================
     local function SetStates(hum, state)
         if not hum then return end
         
@@ -26,11 +24,8 @@ function AntiRagdoll.Init(Tab)
         end
     end
 
-    -- ===========================
-    -- UI SECTIONS
-    -- ===========================
-    Tab:CreateSection("Character Stability")
 
+    -- UI SECTIONS
     Tab:CreateToggle("Anti-Ragdoll / No Trip", false, function(s)
         _G.AntiRagdollEnabled = s
         
@@ -40,12 +35,7 @@ function AntiRagdoll.Init(Tab)
             SetStates(hum, s)
         end
     end)
-
-    Tab:CreateInfoBox("Anti-Ragdoll", "Prevents your character from losing balance, tripping, or being knocked down by physics objects.")
-
-    -- ===========================
     -- MASTER LOOP
-    -- ===========================
     RunService.Stepped:Connect(function()
         if not _G.AntiRagdollEnabled then return end
         
