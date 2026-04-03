@@ -1,46 +1,50 @@
--- Inside your Init function where 'Tab' is defined
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local AntiFlingModule = {}
 
--- STATE VARIABLE
-_G.AntiFlingEnabled = false
+function AntiFlingModule.Init(Tab)
+    local RunService  = game:GetService("RunService")
+    local Players     = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
 
--- SETTINGS (Adjustable)
-local MaxHorizontalSpeed = 100 
-local MaxRotationSpeed = 10    
-local MaxVerticalSpeed = 250   
+    local MaxHorizontalSpeed = 100
+    local MaxRotationSpeed   = 10
+    local MaxVerticalSpeed   = 250
 
--- UI SECTION
-Tab:CreateToggle("Anti-Fling", false, function(state)
-    _G.AntiFlingEnabled = state
-end)
+    -- UI first — always build the toggle before connecting anything
+    Tab:CreateSection("Anti-Fling")
+    Tab:CreateToggle("Anti-Fling", false, function(state)
+        _G.AntiFlingEnabled = state
+    end)
 
--- MASTER LOGIC
-RunService.Heartbeat:Connect(function()
-    if not _G.AntiFlingEnabled then return end
-    
-    local Character = LocalPlayer.Character
-    local Root = Character and Character:FindFirstChild("HumanoidRootPart")
-    
-    if Root then
-        -- 1. KILL ROTATION (Prevents the spin-out)
-        if Root.AssemblyAngularVelocity.Magnitude > MaxRotationSpeed then
-            Root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        end
-        
-        -- 2. LIMIT HORIZONTAL VELOCITY (Allows jumping/flying)
-        local Velocity = Root.AssemblyLinearVelocity
-        local HorizontalVelocity = Vector3.new(Velocity.X, 0, Velocity.Z)
-        
-        if HorizontalVelocity.Magnitude > MaxHorizontalSpeed then
-            local NewHorizontal = HorizontalVelocity.Unit * MaxHorizontalSpeed
-            Root.AssemblyLinearVelocity = Vector3.new(NewHorizontal.X, Velocity.Y, NewHorizontal.Z)
+    -- Connect after UI is built, and store it so Unload can clean it up
+    local conn = RunService.Heartbeat:Connect(function()
+        if not _G.AntiFlingEnabled then return end
+
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        -- 1. Kill rotation
+        if root.AssemblyAngularVelocity.Magnitude > MaxRotationSpeed then
+            root.AssemblyAngularVelocity = Vector3.zero
         end
 
-        -- 3. EXTREME VERTICAL SAFETY
-        if math.abs(Velocity.Y) > MaxVerticalSpeed then
-            Root.AssemblyLinearVelocity = Vector3.new(Root.AssemblyLinearVelocity.X, 0, Root.AssemblyLinearVelocity.Z)
+        -- 2. Limit horizontal velocity
+        local vel  = root.AssemblyLinearVelocity
+        local hVel = Vector3.new(vel.X, 0, vel.Z)
+        if hVel.Magnitude > MaxHorizontalSpeed then
+            local capped = hVel.Unit * MaxHorizontalSpeed
+            root.AssemblyLinearVelocity = Vector3.new(capped.X, vel.Y, capped.Z)
         end
-    end
-end)
+
+        -- 3. Kill extreme vertical
+        if math.abs(root.AssemblyLinearVelocity.Y) > MaxVerticalSpeed then
+            local v = root.AssemblyLinearVelocity
+            root.AssemblyLinearVelocity = Vector3.new(v.X, 0, v.Z)
+        end
+    end)
+
+    _G.NexusConnections = _G.NexusConnections or {}
+    table.insert(_G.NexusConnections, conn)
+end
+
+return AntiFlingModule
