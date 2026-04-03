@@ -129,11 +129,26 @@ function World.Init(Tab, Lib)
         end
     end)
     Tab:CreateToggle("Toggle Volcano Boulders", false, function(s)
-    _G.VolcanoBouldersRemoved = s
-    if Lib and Lib.Notify then
-        Lib:Notify("Environment", s and "Volcano ramp cleared!" or "Volcano restored.", 3)
-    end
-
+            _G.VolcanoBouldersRemoved = s
+            -- 1. Handle Static Crater Boulders (The ones in your photo)
+            for _, data in pairs(volcanoCraterParts) do
+                if data.Instance and data.Instance.Parent then
+                    data.Instance.Transparency = s and 1 or data.OriginalTransparency
+                    data.Instance.CanCollide = not s
+                    -- Sink them so they don't burn your truck
+                    if s then
+                        data.Instance.CFrame = data.Instance.CFrame * CFrame.new(0, -500, 0)
+                    else
+                        -- To restore perfectly, we'd need to cache CFrames, 
+                        -- but usually, a simple vertical move back works:
+                        data.Instance.CFrame = data.Instance.CFrame * CFrame.new(0, 500, 0)
+                    end
+                end
+            end
+            
+            if Lib and Lib.Notify then
+                Lib:Notify("Environment", s and "Volcano cleared!" or "Volcano restored.", 3)
+            end
         end)
 
     -- ===========================
@@ -158,15 +173,12 @@ function World.Init(Tab, Lib)
             if atm then atm.Density = 0 end
         end
 
-        -- DYNAMIC VOLCANO BOULDER REMOVAL
+        -- 2. Handle DYNAMIC Rolling Boulders (The ones that spawn later)
         if _G.VolcanoBouldersRemoved then
-            -- We look for boulders specifically in the Volcano region or by name
             for _, obj in pairs(Workspace:GetChildren()) do
-                -- LT2 uses "Boulder" for the rolling ones, but they usually have a "LavaLight" or "Lava" child
                 if obj.Name == "Boulder" and (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
                     obj.CanCollide = false
                     obj.Transparency = 1
-                    -- Teleport them under the map so they don't touch your wood/truck
                     if obj:IsA("BasePart") then
                         obj.CFrame = obj.CFrame * CFrame.new(0, -500, 0) 
                     end
