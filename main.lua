@@ -756,4 +756,4 @@ local AntiRagdollModule = LoadModule("AntiRagdoll")
 if AntiRagdollModule and AntiRagdollModule.Init then AntiRagdollModule.Init(ProtectionTab) end
 
 local LooseObjectTeleportModule = LoadModule("LooseObjectTeleport")
-if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(Tool) end
+if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(ToolTab) end
