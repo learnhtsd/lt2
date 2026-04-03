@@ -10,7 +10,7 @@ function TreeCam.Init(Tab)
     
     -- STATE VARIABLES
     _G.LoneTreeCamEnabled = false
-    local TreePosition = Vector3.new(-50, -215, -1315) -- The target
+    local TreePosition = Vector3.new(-50, -215, -1350) -- The target
     local Distance = 25 -- How far back the camera stays
     local Yaw = 0   -- Horizontal rotation
     local Pitch = 0 -- Vertical rotation
