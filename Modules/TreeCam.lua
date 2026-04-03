@@ -3,36 +3,56 @@ local TreeCam = {}
 function TreeCam.Init(Tab)
     local Workspace = game:GetService("Workspace")
     local RunService = game:GetService("RunService")
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
+    local UserInputService = game:GetService("UserInputService")
+    local UserSettings = UserSettings():GetService("UserGameSettings")
+    
+    local Camera = Workspace.CurrentCamera
     
     -- STATE VARIABLES
     _G.LoneTreeCamEnabled = false
-    local Camera = Workspace.CurrentCamera
-    
-    -- The coordinates for the Lone Cave Tree (End Times/Blue Wood area)
-    -- Adjust these slightly if the angle isn't to your liking
-    local TreeCFrame = CFrame.new(635, -165, 415) 
-    local ViewCFrame = CFrame.new(610, -150, 400) -- Positioning the camera back a bit to see the tree
+    local TreePosition = Vector3.new(-50, -215, -1315) -- The target
+    local Distance = 25 -- How far back the camera stays
+    local Yaw = 0   -- Horizontal rotation
+    local Pitch = 0 -- Vertical rotation
 
     -- UI SECTION
-    Tab:CreateToggle("View Lone Cave Tree", false, function(state)
+    Tab:CreateToggle("Orbit Lone Cave Tree", false, function(state)
         _G.LoneTreeCamEnabled = state
         
         if state then
-            -- Set camera to Scriptable so we can move it
             Camera.CameraType = Enum.CameraType.Scriptable
+            -- Reset angles when opening so it's not jarring
+            Yaw = 0
+            Pitch = 0
         else
-            -- Set back to Custom so it follows the player again
             Camera.CameraType = Enum.CameraType.Custom
         end
     end)
 
+    -- INPUT HANDLING
+    UserInputService.InputChanged:Connect(function(input, processed)
+        if not _G.LoneTreeCamEnabled then return end
+        
+        -- Only rotate if Right Mouse Button is held down
+        if input.UserInputType == Enum.UserInputType.MouseMovement and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+            local Delta = input.Delta
+            local Sensitivity = UserSettings.MouseSensitivity
+            
+            -- Adjust Yaw and Pitch based on mouse movement
+            Yaw = Yaw - (Delta.X * Sensitivity * 0.5)
+            Pitch = math.clamp(Pitch - (Delta.Y * Sensitivity * 0.5), -80, 80) -- Clamp to prevent flipping over
+        end
+    end)
+
     -- MASTER LOGIC
-    -- We use RenderStepped to keep the camera locked while the toggle is on
     RunService.RenderStepped:Connect(function()
         if _G.LoneTreeCamEnabled then
-            Camera.CFrame = CFrame.lookAt(ViewCFrame.Position, TreeCFrame.Position)
+            -- Calculate the new CFrame based on rotation and distance
+            local Rotation = CFrame.Angles(0, math.rad(Yaw), 0) * CFrame.Angles(math.rad(Pitch), 0, 0)
+            local targetCFrame = CFrame.new(TreePosition) * Rotation * CFrame.new(0, 0, Distance)
+            
+            -- Smoothly interpolate or set directly (using direct for responsiveness)
+            Camera.CFrame = CFrame.lookAt(targetCFrame.Position, TreePosition)
         end
     end)
 end
