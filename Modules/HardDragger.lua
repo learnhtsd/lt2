@@ -15,7 +15,7 @@ function HardDragger.Init(Tab, Library)
         DragStrength = 1e8,
         Snappiness = 150,
         HoldDistance = 10, -- Distance from the CHARACTER
-        MaxDragRadius = 20,
+        MaxDragRadius = 10,
         MaxThrowSpeed = 300
     }
 
@@ -173,8 +173,8 @@ function HardDragger.Init(Tab, Library)
     end)
 
     Tab:CreateSlider("Snappiness", 50, 300, 150, function(v) Config.Snappiness = v end)
-    Tab:CreateSlider("Hold Distance", 5, 25, 10, function(v) Config.HoldDistance = v end)
-    Tab:CreateSlider("Max Radius", 10, 100, 20, function(v) Config.MaxDragRadius = v end)
+    Tab:CreateSlider("Hold Distance", 5, 20, 10, function(v) Config.HoldDistance = v end)
+    Tab:CreateSlider("Max Radius", 5, 100, 10, function(v) Config.MaxDragRadius = v end)
 end
 
 return HardDragger
