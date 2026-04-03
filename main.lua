@@ -754,3 +754,6 @@ if AntiRagdollModule and AntiRagdollModule.Init then AntiRagdollModule.Init(Prot
 
 local LooseObjectTeleportModule = LoadModule("LooseObjectTeleport")
 if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(ToolTab, Library) end
+
+local PlayPositionNotifyModule = LoadModule("PlayPositionNotify")
+if PlayPositionNotifyModule and PlayPositionNotifyModule.Init then PlayPositionNotifyModule.Init(ToolTab, Library) end
