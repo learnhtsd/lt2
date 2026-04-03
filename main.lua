@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.079"
+local Version = "v0.0.080"
 
 -- ==========================================
 -- UI ENGINE START
@@ -752,4 +752,5 @@ local AntiFlingModule = LoadModule("AntiFling")
 if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(ProtectionTab) end
 local AntiVoidModule = LoadModule("AntiVoid")
 if AntiVoidModule and AntiVoidModule.Init then AntiVoidModule.Init(ProtectionTab) end
-
+local AntiRagdollModule = LoadModule("AntiRagdoll")
+if AntiRagdollModule and AntiRagdollModule.Init then AntiRagdollModule.Init(ProtectionTab) end
