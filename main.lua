@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.071"
+local Version = "v0.0.072"
 
 -- ==========================================
 -- UI ENGINE START
@@ -732,6 +732,11 @@ end
 local GetWoodModule = LoadModule("GetWood")
 if GetWoodModule and GetWoodModule.Init then
     GetWoodModule.Init(WoodTab, Library)
+end
+
+local DraggerModule = LoadModule("HardDragger")
+if DraggerModule and DraggerModule.Init then 
+    DraggerModule.Init(ToolTab) -- Putting it in the "Tool" tab
 end
 
 local ToolModule = LoadModule("Tool")
