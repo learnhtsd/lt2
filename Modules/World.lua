@@ -120,14 +120,21 @@ function World.Init(Tab, Lib)
     end)
 
     -- NEW TOGGLE FOR BOULDERS
-    Tab:CreateToggle("Remove Boulders", false, function(s)
+    Tab:CreateToggle("Toggle Tundra Boulders", false, function(s)
         _G.BouldersRemoved = s
         ToggleBoulders(s)
         
         if Lib and Lib.Notify then
             Lib:Notify("Environment", s and "Boulders cleared!" or "Boulders restored.", 3)
         end
-    end) 
+    end)
+    Tab:CreateToggle("Toggle Volcano Boulders", false, function(s)
+    _G.VolcanoBouldersRemoved = s
+    if Lib and Lib.Notify then
+        Lib:Notify("Environment", s and "Volcano ramp cleared!" or "Volcano restored.", 3)
+    end
+
+        end)
 
     -- ===========================
     -- MASTER LOOP
@@ -149,6 +156,22 @@ function World.Init(Tab, Lib)
             Lighting.FogEnd = 1e6
             local atm = Lighting:FindFirstChildOfClass("Atmosphere")
             if atm then atm.Density = 0 end
+        end
+
+        -- DYNAMIC VOLCANO BOULDER REMOVAL
+        if _G.VolcanoBouldersRemoved then
+            -- We look for boulders specifically in the Volcano region or by name
+            for _, obj in pairs(Workspace:GetChildren()) do
+                -- LT2 uses "Boulder" for the rolling ones, but they usually have a "LavaLight" or "Lava" child
+                if obj.Name == "Boulder" and (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
+                    obj.CanCollide = false
+                    obj.Transparency = 1
+                    -- Teleport them under the map so they don't touch your wood/truck
+                    if obj:IsA("BasePart") then
+                        obj.CFrame = obj.CFrame * CFrame.new(0, -500, 0) 
+                    end
+                end
+            end
         end
     end)
 end
