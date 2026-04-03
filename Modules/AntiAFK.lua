@@ -5,23 +5,18 @@ function AntiAFK.Init(Tab)
     local VirtualUser = game:GetService("VirtualUser")
     local LocalPlayer = Players.LocalPlayer
 
-    -- ===========================
+
     -- STATE VARIABLES
-    -- ===========================
     _G.AntiAFKEnabled = false
 
-    -- ===========================
-    -- UI SECTION
-    -- ===========================
-    Tab:CreateSection("AFK Protection")
 
+    -- UI SECTION
     Tab:CreateToggle("Enable Anti-AFK", false, function(state)
         _G.AntiAFKEnabled = state
     end)
 
-    -- ===========================
+
     -- MASTER LOGIC
-    -- ===========================
     -- Connect to the Idled event of the player
     LocalPlayer.Idled:Connect(function()
         if _G.AntiAFKEnabled then
