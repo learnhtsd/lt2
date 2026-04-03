@@ -6,10 +6,10 @@ function AntiFling.Init(Tab)
     local LocalPlayer = Players.LocalPlayer
 
     -- STATE VARIABLES
-    _G.AntiFlingEnabled = false
+    _G.AntiFlingEnabled = true
     
     -- UI SECTION
-    Tab:CreateToggle("Anti-Fling", false, function(state)
+    Tab:CreateToggle("Anti-Fling", true, function(state)
         _G.AntiFlingEnabled = state
     end)
     
