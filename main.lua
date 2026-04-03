@@ -733,7 +733,7 @@ if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end
 
 local SettingsModule = LoadModule("Settings")
 if SettingsModule and SettingsModule.Init then
-    SettingsModule.Init(SettingsTab, {User = User, Repo = Repo, Branch = Branch})
+    SettingsModule.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch})
 end
 
 local GetWoodModule = LoadModule("GetWood")
