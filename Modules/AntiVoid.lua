@@ -5,15 +5,13 @@ function AntiVoid.Init(Tab)
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
-    -- ===========================
+
     -- STATE VARIABLES
-    -- ===========================
     _G.AntiVoidEnabled = false
     local VOID_THRESHOLD = -60 -- Hardcoded threshold
 
-    -- ===========================
+
     -- HELPER: GET PLOT OR SPAWN
-    -- ===========================
     local function GetSafeDestination()
         -- 1. Try to find the player's plot in LT2
         local properties = workspace:FindFirstChild("Properties")
@@ -34,16 +32,14 @@ function AntiVoid.Init(Tab)
         return CFrame.new(0, 10, 0) 
     end
 
-    -- ===========================
+
     -- UI SECTION
-    -- ===========================
     Tab:CreateToggle("Enable Anti-Void", false, function(state)
         _G.AntiVoidEnabled = state
     end)
 
-    -- ===========================
+
     -- MASTER LOGIC
-    -- ===========================
     RunService.Heartbeat:Connect(function()
         if not _G.AntiVoidEnabled then return end
 
