@@ -14,18 +14,27 @@ function World.Init(Tab, Lib)
     _G.ShadowsEnabled = true
     _G.FogEnabled = true
     _G.WaterEnabled = true
+    _G.BouldersRemoved = false -- NEW
     _G.PostProcessing = true
 
     local waterParts = {}
+    local boulderParts = {} -- NEW
     local effectCache = {}
 
-    -- Pre-scan for Water parts and Post-Processing effects
+    -- Pre-scan for Water, Boulders, and Post-Processing effects
     local function ScanWorld()
-        waterParts = {} -- Reset
+        waterParts = {}
+        boulderParts = {} -- Reset
+        
         for _, obj in pairs(Workspace:GetDescendants()) do
+            -- Cache Water
             if obj:IsA("BasePart") and obj.Name == "Water" then
-                -- Store original transparency to restore it correctly later
                 table.insert(waterParts, {Instance = obj, OriginalTransparency = obj.Transparency})
+            end
+            
+            -- Cache Boulders (LT2 Specific)
+            if obj:IsA("BasePart") and (obj.Name == "Boulder" or obj.Name == "SmallBoulder") then
+                table.insert(boulderParts, {Instance = obj, OriginalTransparency = obj.Transparency})
             end
         end
 
@@ -46,16 +55,25 @@ function World.Init(Tab, Lib)
         for _, data in pairs(waterParts) do
             local part = data.Instance
             if part and part.Parent then
+                part.Transparency = state and data.OriginalTransparency or 1
+                part.CanCollide = false
+                part.CanTouch = state -- Disables drowning/lava logic when water is "off"
+            end
+        end
+    end
+
+    local function ToggleBoulders(state) -- NEW logic
+        for _, data in pairs(boulderParts) do
+            local part = data.Instance
+            if part and part.Parent then
                 if state then
-                    -- Restore Water
-                    part.Transparency = data.OriginalTransparency
-                    part.CanCollide = false -- Usually water is non-collidable anyway
-                    part.CanTouch = true    -- Allows swimming/damage scripts to work
-                else
-                    -- Disable Water
+                    -- "Remove" Boulders
                     part.Transparency = 1
                     part.CanCollide = false
-                    part.CanTouch = false   -- This prevents "Touch" events (like drowning/lava scripts)
+                else
+                    -- Restore Boulders
+                    part.Transparency = data.OriginalTransparency
+                    part.CanCollide = true
                 end
             end
         end
@@ -99,9 +117,15 @@ function World.Init(Tab, Lib)
     Tab:CreateToggle("Water Enabled", true, function(s)
         _G.WaterEnabled = s
         ToggleWater(s)
+    end)
+
+    -- NEW TOGGLE FOR BOULDERS
+    Tab:CreateToggle("Remove Boulders", false, function(s)
+        _G.BouldersRemoved = s
+        ToggleBoulders(s)
         
         if Lib and Lib.Notify then
-            Lib:Notify("Environment", s and "Water restored." or "Water disabled!", 3)
+            Lib:Notify("Environment", s and "Boulders cleared!" or "Boulders restored.", 3)
         end
     end) 
 
