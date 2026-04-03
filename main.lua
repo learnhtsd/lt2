@@ -754,3 +754,6 @@ local AntiVoidModule = LoadModule("AntiVoid")
 if AntiVoidModule and AntiVoidModule.Init then AntiVoidModule.Init(ProtectionTab) end
 local AntiRagdollModule = LoadModule("AntiRagdoll")
 if AntiRagdollModule and AntiRagdollModule.Init then AntiRagdollModule.Init(ProtectionTab) end
+
+local LooseObjectTeleportModule = LoadModule("LooseObjectTeleport")
+if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(ToolTab) end
