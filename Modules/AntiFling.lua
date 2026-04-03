@@ -5,23 +5,15 @@ function AntiFling.Init(Tab)
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
-    -- ===========================
     -- STATE VARIABLES
-    -- ===========================
     _G.AntiFlingEnabled = false
-
-    -- ===========================
+    
     -- UI SECTION
-    -- ===========================
-    Tab:CreateSection("Protections")
-
     Tab:CreateToggle("Anti-Fling", false, function(state)
         _G.AntiFlingEnabled = state
     end)
-
-    -- ===========================
+    
     -- ANTI-FLING LOGIC
-    -- ===========================
     RunService.Stepped:Connect(function()
         if not _G.AntiFlingEnabled then return end
 
