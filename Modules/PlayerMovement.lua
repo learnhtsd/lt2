@@ -7,6 +7,7 @@ function PlayerMovement.Init(Tab)
     local Workspace = game:GetService("Workspace")
     local LocalPlayer = Players.LocalPlayer
     local Mouse = LocalPlayer:GetMouse()
+    local Camera = Workspace.CurrentCamera
 
     -- ===========================
     -- STATE VARIABLES
@@ -28,7 +29,6 @@ function PlayerMovement.Init(Tab)
     local lastFlyVelocity = Vector3.zero
 
     _G.Noclip = false
-    _G.AntiFling = false
     _G.WaterWalk = false
     _G.ClickTP = false
 
@@ -65,7 +65,6 @@ function PlayerMovement.Init(Tab)
             end
             hum.PlatformStand = true 
         else
-            -- STOP FLYING
             if flyVelocity then flyVelocity:Destroy(); flyVelocity = nil end
             if flyGyro then flyGyro:Destroy(); flyGyro = nil end
             
@@ -74,18 +73,16 @@ function PlayerMovement.Init(Tab)
                 hum:ChangeState(Enum.HumanoidStateType.GettingUp)
             end
 
-            -- MOMENTUM FIX: Apply the last velocity so you don't drop like a stone
             if hrp then
                 hrp.AssemblyLinearVelocity = lastFlyVelocity
             end
             
-            -- Ensure gravity takes over
             task.wait(0.1)
             if hum then hum:ChangeState(Enum.HumanoidStateType.Freefall) end
         end
     end
 
-    -- Input Began (Click TP & Hard Drag Start)
+    -- Input Began
     UserInputService.InputBegan:Connect(function(input, processed)
         if not processed and _G.ClickTP and input.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             local char = LocalPlayer.Character
@@ -111,7 +108,7 @@ function PlayerMovement.Init(Tab)
         end
     end)
 
-    UserInputService.InputEnded:Connect(function(input, processed)
+    UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             if dragBP then dragBP:Destroy(); dragBP = nil end
             if dragBG then dragBG:Destroy(); dragBG = nil end
@@ -131,16 +128,22 @@ function PlayerMovement.Init(Tab)
     -- ===========================
 
     -- CAMERA SECTION
-    Tab:CreateSection("Camera")
+    Tab:CreateSection("Camera Settings")
+    
+    Tab:CreateSlider("Field of View", 1, 120, 70, function(v)
+        Camera.FieldOfView = v
+    end)
+
     Tab:CreateToggle("Infinite Zoom", false, function(s)
         if s then
             LocalPlayer.CameraMaxZoomDistance = 10000
-            LocalPlayer.CameraMinZoomDistance = 0.5 -- Allows first person
+            LocalPlayer.CameraMinZoomDistance = 0.5
         else
-            LocalPlayer.CameraMaxZoomDistance = 128 -- Default Roblox
+            LocalPlayer.CameraMaxZoomDistance = 128
         end
     end)
-    Tab:CreateSlider("Custom Zoom Distance", 128, 20000, 128, function(v)
+
+    Tab:CreateSlider("Max Zoom Distance", 128, 10000, 128, function(v)
         LocalPlayer.CameraMaxZoomDistance = v
     end)
 
@@ -178,7 +181,6 @@ function PlayerMovement.Init(Tab)
     -- UTILITY SECTION
     Tab:CreateSection("Utility")
     Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
-    Tab:CreateToggle("Anti-Fling", false, function(s) _G.AntiFling = s end)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
 
@@ -229,11 +231,6 @@ function PlayerMovement.Init(Tab)
             end
         end
 
-        -- Anti-Fling
-        if _G.AntiFling and hrp then
-            hrp.RotVelocity = Vector3.new(0, 0, 0)
-        end
-
         -- Speed/Jump Logic
         if hum then
             if _G.SprintEnabled and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or _G.IsSprinting) then
@@ -252,18 +249,15 @@ function PlayerMovement.Init(Tab)
         if _G.IsFlying and hrp then
             if not hrp:FindFirstChild("ExploitFlyVelocity") then UpdateFlyPhysics(true) end
             if flyVelocity and flyGyro then
-                local cam = Workspace.CurrentCamera
                 local moveVector = Vector3.new(0, 0, 0)
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + cam.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - cam.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - cam.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + cam.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + Camera.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - Camera.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - Camera.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + Camera.CFrame.RightVector end
                 
                 local vel = (moveVector.Magnitude > 0) and (moveVector.Unit * _G.FlySpeed) or Vector3.new(0,0,0)
                 flyVelocity.Velocity = vel
-                flyGyro.CFrame = cam.CFrame
-                
-                -- Store velocity for momentum when we stop
+                flyGyro.CFrame = Camera.CFrame
                 lastFlyVelocity = vel
             end
         end
