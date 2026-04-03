@@ -761,3 +761,5 @@ if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObject
 local PlayPositionNotifyModule = LoadModule("PlayPositionNotify")
 if PlayPositionNotifyModule and PlayPositionNotifyModule.Init then PlayPositionNotifyModule.Init(ToolTab, Library) end
 
+local TreeCamModule = LoadModule("TreeCam")
+if TreeCamModule and TreeCamModule.Init then TreeCamModule.Init(WoodTab) end
