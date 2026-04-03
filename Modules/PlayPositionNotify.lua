@@ -6,29 +6,22 @@ function PlayPositionNotify.Init(Tab, Library)
 
     Tab:CreateSection("Location Tools")
 
-    Tab:CreateAction("Get Position", "Copy Coords", function()
+    Tab:CreateAction("Get Position", "Check Coords & Copy", function()
         local Character = Player.Character
         local Root = Character and Character:FindFirstChild("HumanoidRootPart")
 
         if Root then
             local Pos = Root.Position
-            -- Rounding to 1 decimal place for a cleaner notification
-            local RoundedX = math.floor(Pos.X * 10) / 10
-            local RoundedY = math.floor(Pos.Y * 10) / 10
-            local RoundedZ = math.floor(Pos.Z * 10) / 10
+            -- Formats to 1 decimal place and creates the string
+            local CoordString = string.format("X: %.1f, Y: %.1f, Z: %.1f", Pos.X, Pos.Y, Pos.Z)
             
-            local CoordString = string.format("Vector3.new(%s, %s, %s)", RoundedX, RoundedY, RoundedZ)
-            
-            -- COPY TO CLIPBOARD
-            -- setclipboard is a standard executor function
+            -- Copies the string to your Windows/Mac clipboard
             if setclipboard then
                 setclipboard(CoordString)
-                Library:Notify("Success", "Coordinates copied to clipboard!", 3)
+                Library:Notify("Current Position", "Coordinates copied to clipboard!", 5)
             else
-                warn("Executor does not support setclipboard")
+                Library:Notify("Current Position", CoordString, 5)
             end
-            
-            Library:Notify("Current Position", CoordString, 5)
         else
             Library:Notify("Error", "Character or RootPart not found!", 3)
         end
