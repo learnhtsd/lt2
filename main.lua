@@ -693,14 +693,15 @@ end
 -- ==========================================
 local HubWindow = Library:CreateWindow()
 
-local HomeTab     = HubWindow:CreateTab("Home")
-local PlayerTab   = HubWindow:CreateTab("Player")
-local WorldTab    = HubWindow:CreateTab("World")
-local TeleportTab = HubWindow:CreateTab("Teleport")
-local WoodTab     = HubWindow:CreateTab("Wood")
-local BuildTab    = HubWindow:CreateTab("Build")
-local ToolTab     = HubWindow:CreateTab("Tool")
-local SettingsTab = HubWindow:CreateTab("Settings")
+local HomeTab       = HubWindow:CreateTab("Home")
+local PlayerTab     = HubWindow:CreateTab("Player")
+local WorldTab      = HubWindow:CreateTab("World")
+local TeleportTab   = HubWindow:CreateTab("Teleport")
+local WoodTab       = HubWindow:CreateTab("Wood")
+local BuildTab      = HubWindow:CreateTab("Build")
+local ToolTab       = HubWindow:CreateTab("Tool")
+local ProtectionTab = HubWindow:CreateTab("Protection")
+local SettingsTab   = HubWindow:CreateTab("Settings")
 
 local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s",
@@ -741,9 +742,13 @@ if GetWoodModule and GetWoodModule.Init then
 end
 
 local DraggerModule = LoadModule("HardDragger")
-if DraggerModule and DraggerModule.Init then 
-    DraggerModule.Init(ToolTab) -- Putting it in the "Tool" tab
-end
+if DraggerModule and DraggerModule.Init then DraggerModule.Init(ToolTab) end
 
 local ToolModule = LoadModule("Tool")
 if ToolModule and ToolModule.Init then ToolModule.Init(ToolTab, Library) end
+
+local AntiFlingModule = LoadModule("AntiFling")
+if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(AntiFlingTab) end
+local AntiVoidModule = LoadModule("AntiVoid")
+if AntiVoidModule and AntiVoidModule.Init then AntiVoidModule.Init(AntiVoidTab) end
+
