@@ -34,7 +34,7 @@ function TeleportModule.Init(Tab)
         ["Snow Mountain"] = Vector3.new(1448, 413, 3186),
         ["Swamp"] = Vector3.new(-1209, 132, -801),
         ["Palm Island #1"] = Vector3.new(2000, -6, -1500),
-        ["Lonecave"] = Vector3.new(3581, -179, 430)
+        ["Lonecave"] = Vector3.new(3581, -179, 430),
         ["Power of Ease"] = Vector3.new(1065, -17, 1133)
     }
 
@@ -42,7 +42,7 @@ function TeleportModule.Init(Tab)
     for name, _ in pairs(poiData) do table.insert(poiNames, name) end
     table.sort(poiNames)
 
-    Tab:CreateSection("World Teleports")
+    Tab:CreateSection("Point of Interest")
     
     Tab:CreateDropdown("Select Location", poiNames, "Select...", function(val)
         Teleport(poiData[val]) -- Teleport immediately on selection
