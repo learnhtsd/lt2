@@ -121,12 +121,6 @@ function PlayerMovement.Init(Tab)
             UpdateFlyPhysics(false)
         end
     end)
-    Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
-        if _G.FlyMasterSwitch then
-            _G.IsFlying = not _G.IsFlying 
-            UpdateFlyPhysics(_G.IsFlying) 
-        end
-    end)
     
     -- CAMERA SECTION
     Tab:CreateSection("Camera Settings")
