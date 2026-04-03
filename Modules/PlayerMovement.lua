@@ -121,14 +121,12 @@ function PlayerMovement.Init(Tab)
             UpdateFlyPhysics(false)
         end
     end)
-    
     Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
         if _G.FlyMasterSwitch then
             _G.IsFlying = not _G.IsFlying 
             UpdateFlyPhysics(_G.IsFlying) 
         end
     end)
-
     
     -- CAMERA SECTION
     Tab:CreateSection("Camera Settings")
@@ -147,6 +145,7 @@ function PlayerMovement.Init(Tab)
             UpdateFlyPhysics(_G.IsFlying) 
         end
     end)
+    Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
     Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
