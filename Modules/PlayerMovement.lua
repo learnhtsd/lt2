@@ -120,17 +120,16 @@ function PlayerMovement.Init(Tab)
     Tab:CreateSlider("Walk Speed", 16, 400, 16, function(v) _G.WalkSpeed = v end)
     Tab:CreateSlider("Jump Power", 50, 800, 50, function(v) _G.JumpHeight = v end)
     Tab:CreateSlider("Sprint Speed", 32, 800, 64, function(v) _G.SprintSpeed = v end)
-
-    -- FLIGHT SECTION
-    Tab:CreateSection("Flight")
-    Tab:CreateToggle("Enable Fly Hotkey", true, function(s) 
+    Tab:CreateSlider("Fly Speed", 32, 1600, 250, function(v) _G.FlySpeed = v end)
+    Tab:CreateToggle("Sprint Toggle", false, function(s) _G.SprintEnabled = s end)
+    Tab:CreateToggle("Enable Fly", true, function(s) 
         _G.FlyMasterSwitch = s 
         if not s and _G.IsFlying then
             _G.IsFlying = false
             UpdateFlyPhysics(false)
         end
     end)
-    Tab:CreateSlider("Fly Speed", 32, 1600, 250, function(v) _G.FlySpeed = v end)
+    
     Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
         if _G.FlyMasterSwitch then
             _G.IsFlying = not _G.IsFlying 
@@ -140,9 +139,13 @@ function PlayerMovement.Init(Tab)
 
     -- UTILITY SECTION
     Tab:CreateSection("Utility")
-    Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
-    Tab:CreateToggle("Sprint Toggle", false, function(s) _G.SprintEnabled = s end)
-    Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
+    Tab:CreateKeybind("Sprint HotKey", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
+    Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
+        if _G.FlyMasterSwitch then
+            _G.IsFlying = not _G.IsFlying 
+            UpdateFlyPhysics(_G.IsFlying) 
+        end
+    end)
     Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
