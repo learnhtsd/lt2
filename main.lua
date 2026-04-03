@@ -49,7 +49,7 @@ function Library:CreateWindow()
     HeaderTitle.Size = UDim2.new(1, -75, 0, 30)
     HeaderTitle.Position = UDim2.new(0, 65, 0, 10)
     HeaderTitle.BackgroundTransparency = 1
-    HeaderTitle.Text = "<b>Dynxe Hub2</b> <font color=\"#4a78ff\">LT2</font> <font color=\"#555555\" size=\"12\">" .. Version .. "</font>"
+    HeaderTitle.Text = "<b>Dynxe</b> <font color=\"#4a78ff\">LT2</font> <font color=\"#555555\" size=\"12\">" .. Version .. "</font>"
     HeaderTitle.RichText = true
     HeaderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     HeaderTitle.Font = Enum.Font.GothamMedium
