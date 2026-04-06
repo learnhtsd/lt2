@@ -173,13 +173,14 @@ function World.Init(Tab, Lib)
             if atm then atm.Density = 0 end
         end
 
-        -- 2. Handle DYNAMIC Rolling Boulders (The ones that spawn later)
+        -- Handle DYNAMIC Rolling Boulders (The ones that spawn and fall)
         if _G.VolcanoBouldersRemoved then
             for _, obj in pairs(Workspace:GetChildren()) do
+                -- This catches the boulders that spawn into Workspace after the game starts
                 if obj.Name == "Boulder" and (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
-                    obj.CanCollide = false
-                    obj.Transparency = 1
                     if obj:IsA("BasePart") then
+                        obj.CanCollide = false
+                        obj.Transparency = 1
                         obj.CFrame = obj.CFrame * CFrame.new(0, -500, 0) 
                     end
                 end
