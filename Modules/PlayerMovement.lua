@@ -149,6 +149,7 @@ function PlayerMovement.Init(Tab)
     Tab:CreateSection("Utility")
     Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
     Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
+    Tab:CreateToggle("G Fling", false, function(s) _G.Fling = s end):AddTooltip("Walk into players or objects to launch them.")
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
     Tab:CreateAction("Reset Character", "Kill", function()
@@ -165,6 +166,22 @@ function PlayerMovement.Init(Tab)
         local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart")
 
+        -- Fling Logic (Smooth Movement Version)
+        -- We apply a high AngularVelocity/Velocity to the HRP but don't let it ruin our CFrame
+        if _G.Fling and hrp then
+            for _, child in pairs(char:GetDescendants()) do
+                if child:IsA("BasePart") then
+                    child.CanCollide = false
+                end
+            end
+            -- Apply extreme velocity to the HRP specifically for collisions
+            hrp.Velocity = Vector3.new(0, 5000, 0) 
+            hrp.RotVelocity = Vector3.new(0, 5000, 0)
+            
+            -- If you want it even stronger, we target other players' parts nearby
+            -- Note: This is a passive fling. Active fling requires moving into the target.
+        end
+            
         -- Noclip
         if _G.Noclip then
             for _, v in pairs(char:GetDescendants()) do
