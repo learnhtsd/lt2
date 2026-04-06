@@ -125,12 +125,10 @@ function PlayerMovement.Init(Tab)
     -- CAMERA SECTION
     Tab:CreateSection("Camera Settings")
     Tab:CreateSlider("Field of View", 60, 120, 70, function(v) Camera.FieldOfView = v end)
-    Tab:CreateToggle("Infinite Zoom", false, function(s)
+    Tab:CreateToggle("Infinite Zoom (?)", false, function(s)
         LocalPlayer.CameraMaxZoomDistance = s and 10000 or 128
         LocalPlayer.CameraMinZoomDistance = 0.5
-    end)
-    -- ADD THIS LINE:
-Tab:CreateInfoBox("Tip", "Disable fog for best results. At extreme zoom distances, Roblox's atmospheric fog kicks in and blocks your view entirely — go to Lighting settings and set fog to Off to keep a clear line of sight.")
+    end, "Disable fog for best results. At extreme zoom distances, Roblox's atmospheric fog kicks in and blocks your view entirely — go to Lighting settings and set fog to Off to keep a clear line of sight.")
     
     -- UTILITY SECTION
     Tab:CreateSection("Utility")
