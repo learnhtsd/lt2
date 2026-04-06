@@ -125,10 +125,11 @@ function PlayerMovement.Init(Tab)
     -- CAMERA SECTION
     Tab:CreateSection("Camera Settings")
     Tab:CreateSlider("Field of View", 60, 120, 70, function(v) Camera.FieldOfView = v end)
-    Tab:CreateToggle("Infinite Zoom (?)", false, function(s)
+    Tab:CreateToggle("Infinite Zoom", false, function(s)
         LocalPlayer.CameraMaxZoomDistance = s and 10000 or 128
         LocalPlayer.CameraMinZoomDistance = 0.5
-    end, "Disable fog for best results. At extreme zoom distances, Roblox's atmospheric fog kicks in and blocks your view entirely.")
+    end):AddTooltip("Disable fog in Lighting settings for the best results. At extreme distances, fog can block your view.")
+    
     -- UTILITY SECTION
     Tab:CreateSection("Utility")
     Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
