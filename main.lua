@@ -28,7 +28,7 @@ function Library:CreateWindow()
     TooltipGui.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     TooltipGui.TextColor3 = Color3.fromRGB(200, 200, 200) -- Light Grey Text
     TooltipGui.Font = Enum.Font.Gotham
-    TooltipGui.TextSize = 12
+    TooltipGui.TextSize = 8
     TooltipGui.RichText = true
     TooltipGui.Visible = false
     TooltipGui.ZIndex = 100
