@@ -9,8 +9,6 @@ function AntiFlingModule.Init(Tab)
     local MaxRotationSpeed   = 10
     local MaxVerticalSpeed   = 250
 
-    -- UI first — always build the toggle before connecting anything
-    Tab:CreateSection("Anti-Fling")
     Tab:CreateToggle("Anti-Fling", false, function(state)
         _G.AntiFlingEnabled = state
     end)
