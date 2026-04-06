@@ -15,7 +15,7 @@ function HomeModule.Init(Tab, Library)
 
     -- Helper function to ensure script auto-runs after teleporting
     local function PrepareAutoLoad()
-        local scriptUrl = "https://raw.githubusercontent.com/learnhtsd/lt2/main/Main.lua" -- Use your actual loadstring URL
+       local LoadScript = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/main/main.lua?t=" .. tick()))()'
         if queue_on_teleport then
             queue_on_teleport('loadstring(game:HttpGet("' .. scriptUrl .. '"))()')
         end
