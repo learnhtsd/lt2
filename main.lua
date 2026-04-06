@@ -58,7 +58,9 @@ function Library:CreateWindow()
         end
     end)
 
+    -- ===========================
     -- TOOLTIP ATTACHMENT HELPER
+    -- ===========================
     local function AttachTooltip(TitleLabel, ElementTable)
         function ElementTable:AddTooltip(text)
             local InfoIcon = Instance.new("TextLabel")
@@ -66,8 +68,12 @@ function Library:CreateWindow()
             InfoIcon.AnchorPoint = Vector2.new(0, 0.5)
             InfoIcon.BackgroundTransparency = 1
             InfoIcon.Text = "(?)"
+            
+            -- THE FIX: Changed from Light Blue to Thin Grey
             InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130)
-            InfoIcon.Font = Enum.Font.GothamBold
+            
+            -- Made it Gotham (Thin) instead of GothamBold for a 'thinner' look
+            InfoIcon.Font = Enum.Font.Gotham
             InfoIcon.TextSize = 11
             InfoIcon.Parent = TitleLabel
             
@@ -78,12 +84,13 @@ function Library:CreateWindow()
             TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(updatePos)
             updatePos()
 
+            -- We keep the Blue Hover effect for good UX
             InfoIcon.MouseEnter:Connect(function()
-                InfoIcon.TextColor3 = Color3.fromRGB(74, 120, 255)
+                InfoIcon.TextColor3 = Color3.fromRGB(74, 120, 255) -- Active Blue
                 Library.ShowTooltip(text)
             end)
             InfoIcon.MouseLeave:Connect(function()
-                InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130)
+                InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130) -- Back to Grey
                 Library.HideTooltip()
             end)
             
