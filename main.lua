@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.105"
+local Version = "v0.0.104"
 
 -- UI ENGINE START
 local Library = {}
@@ -26,7 +26,7 @@ function Library:CreateWindow()
     TooltipGui.Size = UDim2.new(0, 0, 0, 0)
     TooltipGui.AutomaticSize = Enum.AutomaticSize.XY
     TooltipGui.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    TooltipGui.TextColor3 = Color3.fromRGB(220, 220, 220)
+    TooltipGui.TextColor3 = Color3.fromRGB(200, 200, 200) -- Light Grey Text
     TooltipGui.Font = Enum.Font.GothamMedium
     TooltipGui.TextSize = 11
     TooltipGui.Visible = false
@@ -40,7 +40,7 @@ function Library:CreateWindow()
     TooltipPadding.PaddingRight = UDim.new(0, 8)
     Instance.new("UICorner", TooltipGui).CornerRadius = UDim.new(0, 4)
     local TooltipStroke = Instance.new("UIStroke", TooltipGui)
-    TooltipStroke.Color = Color3.fromRGB(74, 120, 255)
+    TooltipStroke.Color = Color3.fromRGB(150, 150, 150)
     TooltipStroke.Thickness = 1
 
     function Library.ShowTooltip(text)
@@ -69,27 +69,28 @@ function Library:CreateWindow()
             InfoIcon.BackgroundTransparency = 1
             InfoIcon.Text = "(?)"
             
-            -- Idle Color: Thin Grey
+            -- THE FIX: Changed from Light Blue to Thin Grey
             InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130)
             
+            -- Made it Gotham (Thin) instead of GothamBold for a 'thinner' look
             InfoIcon.Font = Enum.Font.Gotham
             InfoIcon.TextSize = 11
             InfoIcon.Parent = TitleLabel
             
+            -- Updates dynamically so it sticks to the end of the text (even for sliders!)
             local function updatePos()
                 InfoIcon.Position = UDim2.new(0, TitleLabel.TextBounds.X + 6, 0.5, 0)
             end
             TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(updatePos)
             updatePos()
-    
-            -- Hover effect: Now Light Grey instead of Blue
+
+            -- We keep the Blue Hover effect for good UX
             InfoIcon.MouseEnter:Connect(function()
-                InfoIcon.TextColor3 = Color3.fromRGB(200, 200, 200) -- Light Grey
+                InfoIcon.TextColor3 = Color3.fromRGB(74, 120, 255) -- Active Blue
                 Library.ShowTooltip(text)
             end)
-            
             InfoIcon.MouseLeave:Connect(function()
-                InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130) -- Back to Thin Grey
+                InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130) -- Back to Grey
                 Library.HideTooltip()
             end)
             
