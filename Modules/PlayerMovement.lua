@@ -166,24 +166,30 @@ function PlayerMovement.Init(Tab)
         local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart")
 
-        -- Fling Logic (Stable Version)
+
+        -- STABLE FLING LOGIC
         if _G.Fling and hrp then
-            -- 1. Keep the character upright and stable
-            hrp.RotVelocity = Vector3.new(0, 5000, 0) -- High spin (flings objects on touch)
-            
-            -- 2. Apply high horizontal velocity instead of vertical
-            -- We use a "back and forth" velocity so you don't actually fly away
-            if tick() % 0.2 < 0.1 then
-                hrp.Velocity = Vector3.new(5000, 0, 5000)
-            else
-                hrp.Velocity = Vector3.new(-5000, 0, -5000)
-            end
+            -- 1. Keep character from tripping/falling
+            if hum then hum.PlatformStand = true end
         
-            -- 3. Disable internal collisions so you don't trip over yourself
+            -- 2. Rotational Velocity (The actual "Fling" power)
+            -- We use a massive Y-axis rotation so anything touching you gets launched
+            hrp.RotVelocity = Vector3.new(0, 10000, 0)
+            
+            -- 3. Stability: Force the velocity to stay low/zero so YOU don't move
+            -- We override the velocity to prevent the engine from launching you
+            hrp.Velocity = Vector3.new(0, 0, 0)
+        
+            -- 4. Disable internal collisions (No-clipping through yourself)
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then
                     v.CanCollide = false
                 end
+            end
+        else
+            -- Reset PlatformStand when Fling is turned off
+            if hum and not _G.IsFlying then 
+                hum.PlatformStand = false 
             end
         end
             
