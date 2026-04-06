@@ -1,65 +1,104 @@
 local WatchDog = {}
-WatchDog.__index = WatchDog
 
-local RunService = game:GetService("RunService")
+function WatchDog.Init(Tab, Library)
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
 
-function WatchDog.new(targetPlayer)
-    local self = setmetatable({}, WatchDog)
-    self.Player = targetPlayer
-    self.LastPos = nil
-    self.Flags = 0
-    self.Threshold = 28 -- Speed limit (Standard walk is 16)
-    self.Active = false
-    return self
-end
+    -- ===========================
+    -- CONFIG & STATE
+    -- ===========================
+    local Settings = {
+        Enabled = false,
+        TeleportThreshold = 50, -- Distance moved in 1 second to flag as TP
+        SpeedThreshold = 100,    -- WalkSpeed above this flags as Speeding
+        MaxLogs = 8             -- How many lines to show before clearing old ones
+    }
 
-function WatchDog:Start(callback)
-    if self.Active then return end
-    self.Active = true
-    
-    self.Connection = RunService.Heartbeat:Connect(function(dt)
-        local char = self.Player.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local PlayerData = {} -- Stores last positions/times
+    local Logs = {}       -- Stores the strings for the InfoBox
 
-        if root and hum and hum.Health > 0 then
-            local currentPos = root.Position
+    -- Create the Dynamic InfoBox
+    local MonitorBox = Tab:CreateInfoBox("WatchDog Monitor", "System standby... Enable monitoring to begin.")
+
+    -- ===========================
+    -- CORE LOGIC
+    -- ===========================
+    local function UpdateLogs(newText)
+        table.insert(Logs, 1, newText) -- Add new log to top
+        if #Logs > Settings.MaxLogs then table.remove(Logs) end
+        
+        local fullLog = table.concat(Logs, "\n")
+        MonitorBox:SetDescription(fullLog)
+    end
+
+    local function MonitorPlayers()
+        if not Settings.Enabled then return end
+
+        for _, player in pairs(Players:GetPlayers()) do
+            if player == LocalPlayer or not player.Character then continue end
             
-            if self.LastPos then
-                -- Calculate horizontal velocity (X and Z only)
-                -- Distance formula: d = sqrt((x2-x1)^2 + (z2-z1)^2)
-                local distance = (Vector2.new(currentPos.X, currentPos.Z) - Vector2.new(self.LastPos.X, self.LastPos.Z)).Magnitude
-                local speed = distance / dt
-                
-                -- Detect Speeding or Teleporting (ignores seated players)
-                local isSpeeding = speed > self.Threshold and not hum.Sit
-                local isTeleporting = speed > 350 
-                
-                if isSpeeding or isTeleporting then
-                    -- Increase suspicion severity
-                    self.Flags = math.min(self.Flags + 1.5, 100)
-                else
-                    -- Slowly clear suspicion over time
-                    self.Flags = math.max(self.Flags - 0.1, 0)
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            local hum = player.Character:FindFirstChildOfClass("Humanoid")
+            
+            if hrp and hum then
+                local currentPos = hrp.Position
+                local lastData = PlayerData[player.Name]
+
+                if lastData then
+                    local distance = (currentPos - lastData.Pos).Magnitude
+                    local deltaTime = tick() - lastData.Time
+
+                    -- 1. Check for Teleporting
+                    if distance > Settings.TeleportThreshold and deltaTime < 1.5 then
+                        UpdateLogs('<font color="rgb(255, 80, 80)">[TP]</font> ' .. player.Name .. ' moved ' .. math.floor(distance) .. ' studs')
+                    end
+
+                    -- 2. Check for Speeding
+                    if hum.WalkSpeed > Settings.SpeedThreshold then
+                        UpdateLogs('<font color="rgb(255, 200, 80)">[SPEED]</font> ' .. player.Name .. ' @ ' .. math.floor(hum.WalkSpeed))
+                    end
                 end
 
-                -- Send the data back to your UI
-                callback({
-                    Speed = math.floor(speed),
-                    IsHacking = (self.Flags > 20), -- Status flips at 20% risk
-                    Severity = self.Flags
-                })
+                -- Update record
+                PlayerData[player.Name] = {Pos = currentPos, Time = tick()}
             end
-            self.LastPos = currentPos
+        end
+    end
+
+    -- ===========================
+    -- UI CONTROLS
+    -- ===========================
+    Tab:CreateSection("WatchDog Configuration")
+
+    Tab:CreateToggle("Enable Monitoring", false, function(s)
+        Settings.Enabled = s
+        if s then
+            MonitorBox:SetTitle("🛡️ WatchDog: ACTIVE")
+            UpdateLogs("<i>Monitoring started...</i>")
+        else
+            MonitorBox:SetTitle("🛡️ WatchDog: STANDBY")
+            MonitorBox:SetDescription("System disabled.")
+            table.clear(Logs)
+            table.clear(PlayerData)
         end
     end)
-end
 
-function WatchDog:Stop()
-    if self.Connection then 
-        self.Connection:Disconnect() 
-        self.Active = false
-    end
+    Tab:CreateSlider("TP Sensitivity", 20, 200, 50, function(v) Settings.TeleportThreshold = v end)
+    
+    Tab:CreateAction("Clear Logs", "Purge", function()
+        table.clear(Logs)
+        MonitorBox:SetDescription("<i>Logs cleared.</i>")
+    end)
+
+    -- Master Connection
+    RunService.Heartbeat:Connect(function()
+        -- Only check every ~0.5 seconds to save performance
+        task.wait(0.5)
+        if Settings.Enabled then
+            MonitorPlayers()
+        end
+    end)
 end
 
 return WatchDog
