@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.104"
+local Version = "v0.0.103"
 
 -- UI ENGINE START
 local Library = {}
@@ -639,91 +639,63 @@ function Library:CreateWindow()
 
         function Tab:CreateInfoBox(Title, Description)
             local InfoFrame = Instance.new("Frame")
-            InfoFrame.Name = "InfoBox"
-            InfoFrame.Size = UDim2.new(1, -10, 0, 0) -- Slight padding from edges
-            InfoFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25) -- Deeper, cleaner dark
+            InfoFrame.Size = UDim2.new(1, 0, 0, 0) 
+            InfoFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
             InfoFrame.AutomaticSize = Enum.AutomaticSize.Y
             InfoFrame.Parent = self.Container
+            Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(InfoFrame)
             
-            -- Smooth Corners
-            local Corner = Instance.new("UICorner")
-            Corner.CornerRadius = UDim.new(0, 8)
-            Corner.Parent = InfoFrame
-        
-            -- Subtle Border (The "Glass" Look)
-            local Border = Instance.new("UIStroke")
-            Border.Thickness = 1
-            Border.Color = Color3.fromRGB(45, 45, 55)
-            Border.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            Border.Transparency = 0.5
-            Border.Parent = InfoFrame
-        
-            -- The Accent Bar (Now with a Gradient)
             local Accent = Instance.new("Frame")
-            Accent.Size = UDim2.new(0, 3, 1, -16) -- Slightly shorter for a modern look
-            Accent.Position = UDim2.new(0, 0, 0, 8)
-            Accent.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- White for the Gradient
+            Accent.Size = UDim2.new(0, 2, 1, 0)
+            Accent.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
             Accent.BorderSizePixel = 0
             Accent.Parent = InfoFrame
-            
-            local AccentGradient = Instance.new("UIGradient")
-            AccentGradient.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(74, 120, 255)), -- Bright Blue
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 70, 180))   -- Deep Blue
-            })
-            AccentGradient.Rotation = 90
-            AccentGradient.Parent = Accent
-            
-            Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 4)
-        
+            Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 2)
+
             local TextContainer = Instance.new("Frame")
             TextContainer.BackgroundTransparency = 1
-            TextContainer.Position = UDim2.new(0, 16, 0, 0)
-            TextContainer.Size = UDim2.new(1, -26, 0, 0)
+            TextContainer.Position = UDim2.new(0, 12, 0, 0)
+            TextContainer.Size = UDim2.new(1, -12, 0, 0)
             TextContainer.AutomaticSize = Enum.AutomaticSize.Y
             TextContainer.Parent = InfoFrame
-        
+
             local InfoLayout = Instance.new("UIListLayout")
             InfoLayout.Parent = TextContainer
-            InfoLayout.Padding = UDim.new(0, 2)
+            InfoLayout.Padding = UDim.new(0, 4)
             InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        
+
             local InfoPadding = Instance.new("UIPadding")
             InfoPadding.Parent = TextContainer
-            InfoPadding.PaddingTop = UDim.new(0, 10)
-            InfoPadding.PaddingBottom = UDim.new(0, 10)
+            InfoPadding.PaddingTop = UDim.new(0, 8)
+            InfoPadding.PaddingBottom = UDim.new(0, 8)
             InfoPadding.PaddingRight = UDim.new(0, 10)
-        
-            -- Improved Title Logic
+
             if Title and Title ~= "" then
                 local TitleLabel = Instance.new("TextLabel")
-                TitleLabel.Size = UDim2.new(1, 0, 0, 20)
+                TitleLabel.Size = UDim2.new(1, 0, 0, 18)
                 TitleLabel.BackgroundTransparency = 1
-                TitleLabel.Text = "ℹ️  " .. Title -- Simple emoji icon adds a lot of polish
-                TitleLabel.TextColor3 = Color3.fromRGB(235, 235, 245)
+                TitleLabel.Text = Title
+                TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
                 TitleLabel.Font = Enum.Font.GothamBold
                 TitleLabel.TextSize = 13
                 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
                 TitleLabel.LayoutOrder = 1
                 TitleLabel.Parent = TextContainer
             end
-        
-            -- Improved Description Logic
+
             local DescLabel = Instance.new("TextLabel")
             DescLabel.Size = UDim2.new(1, 0, 0, 0)
             DescLabel.BackgroundTransparency = 1
             DescLabel.Text = Description
-            DescLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
+            DescLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
             DescLabel.Font = Enum.Font.Gotham
             DescLabel.TextSize = 12
             DescLabel.TextWrapped = true
-            DescLabel.LineHeight = 1.2 -- Easier to read
             DescLabel.TextXAlignment = Enum.TextXAlignment.Left
             DescLabel.AutomaticSize = Enum.AutomaticSize.Y
             DescLabel.LayoutOrder = 2
             DescLabel.Parent = TextContainer
-            
-            return InfoFrame -- Return it in case you want to animate it later
         end
         
         function Tab:CreateDropdown(Title, Options, Default, Callback)
