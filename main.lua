@@ -642,13 +642,17 @@ function Library:CreateWindow()
         end
 
         function Tab:CreateInfoBox(Title, Description)
+            local InfoBox = {} -- This will be the "handle" we return
+            
             local InfoFrame = Instance.new("Frame")
             InfoFrame.Size = UDim2.new(1, 0, 0, 0) 
             InfoFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
             InfoFrame.AutomaticSize = Enum.AutomaticSize.Y
             InfoFrame.Parent = self.Container
             Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 6)
-            AddDepthStroke(InfoFrame)
+            
+            -- Using your library's internal function for consistent styling
+            if AddDepthStroke then AddDepthStroke(InfoFrame) end
             
             local Accent = Instance.new("Frame")
             Accent.Size = UDim2.new(0, 2, 1, 0)
@@ -656,38 +660,38 @@ function Library:CreateWindow()
             Accent.BorderSizePixel = 0
             Accent.Parent = InfoFrame
             Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 2)
-
+        
             local TextContainer = Instance.new("Frame")
             TextContainer.BackgroundTransparency = 1
             TextContainer.Position = UDim2.new(0, 12, 0, 0)
             TextContainer.Size = UDim2.new(1, -12, 0, 0)
             TextContainer.AutomaticSize = Enum.AutomaticSize.Y
             TextContainer.Parent = InfoFrame
-
+        
             local InfoLayout = Instance.new("UIListLayout")
             InfoLayout.Parent = TextContainer
             InfoLayout.Padding = UDim.new(0, 4)
             InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
+        
             local InfoPadding = Instance.new("UIPadding")
             InfoPadding.Parent = TextContainer
             InfoPadding.PaddingTop = UDim.new(0, 8)
             InfoPadding.PaddingBottom = UDim.new(0, 8)
             InfoPadding.PaddingRight = UDim.new(0, 10)
-
-            if Title and Title ~= "" then
-                local TitleLabel = Instance.new("TextLabel")
-                TitleLabel.Size = UDim2.new(1, 0, 0, 18)
-                TitleLabel.BackgroundTransparency = 1
-                TitleLabel.Text = Title
-                TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                TitleLabel.Font = Enum.Font.GothamBold
-                TitleLabel.TextSize = 13
-                TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-                TitleLabel.LayoutOrder = 1
-                TitleLabel.Parent = TextContainer
-            end
-
+        
+            -- Create TitleLabel (Defining it here so the Update function can see it)
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(1, 0, 0, 18)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title or ""
+            TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            TitleLabel.Font = Enum.Font.GothamBold
+            TitleLabel.TextSize = 13
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.LayoutOrder = 1
+            TitleLabel.Visible = (Title ~= "" and Title ~= nil)
+            TitleLabel.Parent = TextContainer
+        
             local DescLabel = Instance.new("TextLabel")
             DescLabel.Size = UDim2.new(1, 0, 0, 0)
             DescLabel.BackgroundTransparency = 1
@@ -696,10 +700,26 @@ function Library:CreateWindow()
             DescLabel.Font = Enum.Font.Gotham
             DescLabel.TextSize = 12
             DescLabel.TextWrapped = true
+            DescLabel.RichText = true -- CRITICAL: Allows the watchdog to use colors
             DescLabel.TextXAlignment = Enum.TextXAlignment.Left
             DescLabel.AutomaticSize = Enum.AutomaticSize.Y
             DescLabel.LayoutOrder = 2
             DescLabel.Parent = TextContainer
+        
+            -- ===========================
+            -- THE UPDATE METHODS
+            -- ===========================
+            
+            function InfoBox:SetTitle(newTitle)
+                TitleLabel.Text = newTitle
+                TitleLabel.Visible = (newTitle ~= "")
+            end
+        
+            function InfoBox:SetDescription(newDesc)
+                DescLabel.Text = newDesc
+            end
+        
+            return InfoBox -- Returns the table with our update functions
         end
         
         function Tab:CreateDropdown(Title, Options, Default, Callback)
@@ -849,6 +869,8 @@ end
 local DraggerModule = LoadModule("HardDragger")
 if DraggerModule and DraggerModule.Init then DraggerModule.Init(ToolTab) end
 
+local WatchDogModule = LoadModule("WatchDog")
+if WatchDogModule and WatchDogModule.Init then WatchDogModule.Init(ProtectionTab) end
 local AntiFlingModule = LoadModule("AntiFling")
 if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(ProtectionTab) end
 local AntiVoidModule = LoadModule("AntiVoid")
