@@ -166,20 +166,25 @@ function PlayerMovement.Init(Tab)
         local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart")
 
-        -- Fling Logic (Smooth Movement Version)
-        -- We apply a high AngularVelocity/Velocity to the HRP but don't let it ruin our CFrame
+        -- Fling Logic (Stable Version)
         if _G.Fling and hrp then
-            for _, child in pairs(char:GetDescendants()) do
-                if child:IsA("BasePart") then
-                    child.CanCollide = false
+            -- 1. Keep the character upright and stable
+            hrp.RotVelocity = Vector3.new(0, 5000, 0) -- High spin (flings objects on touch)
+            
+            -- 2. Apply high horizontal velocity instead of vertical
+            -- We use a "back and forth" velocity so you don't actually fly away
+            if tick() % 0.2 < 0.1 then
+                hrp.Velocity = Vector3.new(5000, 0, 5000)
+            else
+                hrp.Velocity = Vector3.new(-5000, 0, -5000)
+            end
+        
+            -- 3. Disable internal collisions so you don't trip over yourself
+            for _, v in pairs(char:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.CanCollide = false
                 end
             end
-            -- Apply extreme velocity to the HRP specifically for collisions
-            hrp.Velocity = Vector3.new(0, 5000, 0) 
-            hrp.RotVelocity = Vector3.new(0, 5000, 0)
-            
-            -- If you want it even stronger, we target other players' parts nearby
-            -- Note: This is a passive fling. Active fling requires moving into the target.
         end
             
         -- Noclip
