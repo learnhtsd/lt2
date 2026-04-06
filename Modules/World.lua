@@ -19,6 +19,7 @@ function World.Init(Tab, Lib)
 
     local waterParts = {}
     local boulderParts = {} -- NEW
+    local volcanoCraterParts = {}
     local effectCache = {}
 
     -- Pre-scan for Water, Boulders, and Post-Processing effects
@@ -128,28 +129,15 @@ function World.Init(Tab, Lib)
             Lib:Notify("Environment", s and "Boulders cleared!" or "Boulders restored.", 3)
         end
     end)
+    -- Toggle for the Static Boulders in the Crater
     Tab:CreateToggle("Toggle Volcano Boulders", false, function(s)
-            _G.VolcanoBouldersRemoved = s
-            -- 1. Handle Static Crater Boulders (The ones in your photo)
-            for _, data in pairs(volcanoCraterParts) do
-                if data.Instance and data.Instance.Parent then
-                    data.Instance.Transparency = s and 1 or data.OriginalTransparency
-                    data.Instance.CanCollide = not s
-                    -- Sink them so they don't burn your truck
-                    if s then
-                        data.Instance.CFrame = data.Instance.CFrame * CFrame.new(0, -500, 0)
-                    else
-                        -- To restore perfectly, we'd need to cache CFrames, 
-                        -- but usually, a simple vertical move back works:
-                        data.Instance.CFrame = data.Instance.CFrame * CFrame.new(0, 500, 0)
-                    end
-                end
-            end
-            
-            if Lib and Lib.Notify then
-                Lib:Notify("Environment", s and "Volcano cleared!" or "Volcano restored.", 3)
-            end
-        end)
+        _G.VolcanoBouldersRemoved = s
+        ToggleVolcanoBoulders(s)
+        
+        if Lib and Lib.Notify then
+            Lib:Notify("Environment", s and "Volcano cleared!" or "Volcano restored.", 3)
+        end
+    end)
 
     -- ===========================
     -- MASTER LOOP
