@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.096"
+local Version = "v0.0.097"
 
 
 -- UI ENGINE START
@@ -698,6 +698,7 @@ local PlayerTab     = HubWindow:CreateTab("Player")
 local WorldTab      = HubWindow:CreateTab("World")
 local TeleportTab   = HubWindow:CreateTab("Teleport")
 local WoodTab       = HubWindow:CreateTab("Wood")
+local PlotTab       = HubWindow:CreateTab("Plot")
 local BuildTab      = HubWindow:CreateTab("Build")
 local ToolTab       = HubWindow:CreateTab("Tool")
 local ProtectionTab = HubWindow:CreateTab("Protection")
@@ -761,3 +762,6 @@ if PlayPositionNotifyModule and PlayPositionNotifyModule.Init then PlayPositionN
 
 local TreeCamModule = LoadModule("TreeCam")
 if TreeCamModule and TreeCamModule.Init then TreeCamModule.Init(WoodTab) end
+
+local SaveGameModule = LoadModule("SaveGame")
+if SaveGameModule and SaveGameModule.Init then SaveGameModule.Init(PlotTab, Libary) end
