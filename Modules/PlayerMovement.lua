@@ -107,18 +107,33 @@ function PlayerMovement.Init(Tab)
     -- UI SECTIONS
     -- ===========================
 
-    -- SPEED SECTION
+    -- MOVEMENT SECTION
     Tab:CreateSection("Movement")
     Tab:CreateSlider("Walk Speed", 16, 400, 16, function(v) _G.WalkSpeed = v end)
-    Tab:CreateSlider("Jump Hight", 50, 800, 50, function(v) _G.JumpHeight = v end)
+    Tab:CreateSlider("Jump Height", 50, 800, 50, function(v) _G.JumpHeight = v end)
     Tab:CreateSlider("Sprint Speed", 32, 800, 64, function(v) _G.SprintSpeed = v end)
     Tab:CreateSlider("Fly Speed", 32, 1600, 250, function(v) _G.FlySpeed = v end)
-    Tab:CreateToggle("Sprint", false, function(s) _G.SprintEnabled = s end)
-    Tab:CreateToggle("Fly", true, function(s) 
+
+    -- SPRINT ROW (Toggle + Keybind)
+    local SprintRow = Tab:CreateRow()
+    SprintRow:CreateToggle("Sprint", false, function(s) _G.SprintEnabled = s end)
+    SprintRow:CreateKeybind("Bind", Enum.KeyCode.LeftShift, function() 
+        _G.IsSprinting = not _G.IsSprinting 
+    end)
+
+    -- FLY ROW (Toggle + Keybind)
+    local FlyRow = Tab:CreateRow()
+    FlyRow:CreateToggle("Fly Master", true, function(s) 
         _G.FlyMasterSwitch = s 
         if not s and _G.IsFlying then
             _G.IsFlying = false
             UpdateFlyPhysics(false)
+        end
+    end)
+    FlyRow:CreateKeybind("Bind", Enum.KeyCode.Q, function() 
+        if _G.FlyMasterSwitch then
+            _G.IsFlying = not _G.IsFlying 
+            UpdateFlyPhysics(_G.IsFlying) 
         end
     end)
 
@@ -132,13 +147,6 @@ function PlayerMovement.Init(Tab)
     
     -- UTILITY SECTION
     Tab:CreateSection("Utility")
-    Tab:CreateKeybind("Sprint Key", Enum.KeyCode.LeftShift, function() _G.IsSprinting = not _G.IsSprinting end)
-    Tab:CreateKeybind("Fly Hotkey", Enum.KeyCode.Q, function() 
-        if _G.FlyMasterSwitch then
-            _G.IsFlying = not _G.IsFlying 
-            UpdateFlyPhysics(_G.IsFlying) 
-        end
-    end)
     Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump = s end)
     Tab:CreateToggle("Noclip", false, function(s) _G.Noclip = s end)
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
