@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.104"
+local Version = "v0.0.105"
 
 -- UI ENGINE START
 local Library = {}
@@ -69,28 +69,27 @@ function Library:CreateWindow()
             InfoIcon.BackgroundTransparency = 1
             InfoIcon.Text = "(?)"
             
-            -- THE FIX: Changed from Light Blue to Thin Grey
+            -- Idle Color: Thin Grey
             InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130)
             
-            -- Made it Gotham (Thin) instead of GothamBold for a 'thinner' look
             InfoIcon.Font = Enum.Font.Gotham
             InfoIcon.TextSize = 11
             InfoIcon.Parent = TitleLabel
             
-            -- Updates dynamically so it sticks to the end of the text (even for sliders!)
             local function updatePos()
                 InfoIcon.Position = UDim2.new(0, TitleLabel.TextBounds.X + 6, 0.5, 0)
             end
             TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(updatePos)
             updatePos()
-
-            -- We keep the Blue Hover effect for good UX
+    
+            -- Hover effect: Now Light Grey instead of Blue
             InfoIcon.MouseEnter:Connect(function()
-                InfoIcon.TextColor3 = Color3.fromRGB(74, 120, 255) -- Active Blue
+                InfoIcon.TextColor3 = Color3.fromRGB(200, 200, 200) -- Light Grey
                 Library.ShowTooltip(text)
             end)
+            
             InfoIcon.MouseLeave:Connect(function()
-                InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130) -- Back to Grey
+                InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130) -- Back to Thin Grey
                 Library.HideTooltip()
             end)
             
