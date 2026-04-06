@@ -55,7 +55,10 @@ function Library:CreateWindow()
 
     UserInputService.InputChanged:Connect(function(input)
         if TooltipGui.Visible and input.UserInputType == Enum.UserInputType.MouseMovement then
-            TooltipGui.Position = UDim2.new(0, input.Position.X + 12, 0, input.Position.Y + 12)
+            -- math.round ensures the tooltip stays on exact pixels, removing the blur
+            local posX = math.round(input.Position.X + 12)
+            local posY = math.round(input.Position.Y + 12)
+            TooltipGui.Position = UDim2.new(0, posX, 0, posY)
         end
     end)
 
