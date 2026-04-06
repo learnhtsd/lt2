@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.104"
+local Version = "v0.0.105"
 
 -- UI ENGINE START
 local Library = {}
@@ -27,8 +27,9 @@ function Library:CreateWindow()
     TooltipGui.AutomaticSize = Enum.AutomaticSize.XY
     TooltipGui.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     TooltipGui.TextColor3 = Color3.fromRGB(200, 200, 200) -- Light Grey Text
-    TooltipGui.Font = Enum.Font.GothamMedium
-    TooltipGui.TextSize = 11
+    TooltipGui.Font = Enum.Font.Gotham
+    TooltipGui.TextSize = 12
+    TooltipGui.RichText = True
     TooltipGui.Visible = false
     TooltipGui.ZIndex = 100
     TooltipGui.Parent = ScreenGui
