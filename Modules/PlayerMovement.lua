@@ -117,7 +117,7 @@ function PlayerMovement.Init(Tab)
     -- SPRINT ROW (Toggle + Keybind)
     local SprintRow = Tab:CreateRow()
     SprintRow:CreateToggle("Sprint", false, function(s) _G.SprintEnabled = s end)
-    SprintRow:CreateKeybind("Bind", Enum.KeyCode.LeftShift, function() 
+    SprintRow:CreateKeybind("KeyBind", Enum.KeyCode.LeftShift, function() 
         _G.IsSprinting = not _G.IsSprinting 
     end)
 
@@ -130,7 +130,7 @@ function PlayerMovement.Init(Tab)
             UpdateFlyPhysics(false)
         end
     end)
-    FlyRow:CreateKeybind("Bind", Enum.KeyCode.Q, function() 
+    FlyRow:CreateKeybind("KeyBind", Enum.KeyCode.Q, function() 
         if _G.FlyMasterSwitch then
             _G.IsFlying = not _G.IsFlying 
             UpdateFlyPhysics(_G.IsFlying) 
