@@ -10,6 +10,7 @@ function GhostSuite.Init(Tab)
     -- STATE & CONFIG
     -- ===========================
     _G.GhostSuiteEnabled = false
+    _G.GhostFullModel = false -- New Toggle State
     local ExtractedObjects = {}
     
     local BlacklistNames = {
@@ -21,6 +22,7 @@ function GhostSuite.Init(Tab)
     -- CORE LOGIC
     -- ===========================
     local function IsProtected(target)
+        if not target then return true end
         if BlacklistNames[target.Name] then return true end
         if target:FindFirstAncestor("Properties") or target:FindFirstAncestor("Owner") then
             return true
@@ -39,6 +41,27 @@ function GhostSuite.Init(Tab)
         box.SurfaceTransparency = 0.8
         box.Parent = game:GetService("CoreGui") 
         return box
+    end
+
+    -- Helper to ghost a single part
+    local function GhostPart(part)
+        if not part:IsA("BasePart") or IsProtected(part) then return end
+        if not ExtractedObjects[part] then
+            local originalParent = part.Parent
+            local outline = CreateOutline(part)
+            ExtractedObjects[part] = { Parent = originalParent, Box = outline }
+            part.Parent = nil
+        end
+    end
+
+    -- Helper to restore a single part
+    local function RestorePart(part)
+        local data = ExtractedObjects[part]
+        if data then
+            part.Parent = data.Parent
+            if data.Box then data.Box:Destroy() end
+            ExtractedObjects[part] = nil
+        end
     end
 
     local function RestoreAll()
@@ -64,6 +87,10 @@ function GhostSuite.Init(Tab)
         if not s then RestoreAll() end
     end)
 
+    Tab:CreateToggle("Ghost Full Model", false, function(s) 
+        _G.GhostFullModel = s 
+    end)
+
     Tab:CreateAction("Restore All Objects", "Reset", function()
         local count = RestoreAll()
         print("Restored " .. count .. " objects.")
@@ -73,19 +100,30 @@ function GhostSuite.Init(Tab)
         if not _G.GhostSuiteEnabled then return end
         
         local target = Mouse.Target
-        if target and target:IsA("BasePart") then
-            if IsProtected(target) then return end
+        if not target or not target:IsA("BasePart") then return end
+        if IsProtected(target) then return end
 
-            if ExtractedObjects[target] then
-                local data = ExtractedObjects[target]
-                target.Parent = data.Parent
-                if data.Box then data.Box:Destroy() end
-                ExtractedObjects[target] = nil
-            else
-                local originalParent = target.Parent
-                local outline = CreateOutline(target)
-                ExtractedObjects[target] = { Parent = originalParent, Box = outline }
-                target.Parent = nil -- This "ghosts" the object
+        -- If full model mode is on, find the parent model
+        local root = target
+        if _G.GhostFullModel then
+            local model = target:FindFirstAncestorOfClass("Model") or target:FindFirstAncestorOfClass("Folder")
+            if model and model ~= workspace then
+                root = model
+            end
+        end
+
+        -- Toggle Logic
+        if root:IsA("BasePart") then
+            if ExtractedObjects[root] then RestorePart(root) else GhostPart(root) end
+        else
+            -- If it's a Model/Folder, check if the first part we find is ghosted to decide on toggle direction
+            local firstPart = root:FindFirstChildWhichIsA("BasePart", true)
+            local shouldRestore = firstPart and ExtractedObjects[firstPart]
+
+            for _, descendant in pairs(root:GetDescendants()) do
+                if descendant:IsA("BasePart") then
+                    if shouldRestore then RestorePart(descendant) else GhostPart(descendant) end
+                end
             end
         end
     end)
