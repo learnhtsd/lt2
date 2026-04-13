@@ -18,10 +18,7 @@ function PlayPositionNotify.Init(Tab, Library)
             -- Copies the string to your Windows/Mac clipboard
             if setclipboard then
                 setclipboard(CoordString)
-                Library:Notify("Current Position", "Coordinates Coppied: %.1f, %.1f, %.1f", 3)
-            else
-                Library:Notify("Current Position", CoordString, 3)
-            end
+                Library:Notify("Coppied Position", CoordString, 3)
         else
             Library:Notify("Error", "Character or RootPart not found!", 3)
         end
