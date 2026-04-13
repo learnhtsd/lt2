@@ -48,8 +48,8 @@ function HomeModule.Init(Tab, Library)
 
     -- New buttons for specific sorting
     local HopRow = Tab:CreateRow()
-    HopRow:CreateAction("Smallest Servers", "Hop", function() ServerHop("Asc") end)
-    HopRow:CreateAction("Fullest Servers", "Hop", function() ServerHop("Desc") end)
+    HopRow:CreateAction("Decending Server", "Join", function() ServerHop("Asc") end)
+    HopRow:CreateAction("Ascending Server", "Join", function() ServerHop("Desc") end)
 
     -- 3. Socials / Links Section
     Tab:CreateSection("Community & Support")
