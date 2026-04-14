@@ -301,92 +301,93 @@ function LooseObjectTeleport.Init(Tab, Library)
         Library:Notify("Queue", "Cleared all items.", 2)
     end)
 
-Tab:CreateAction("Execute TP", "Start Process", function()
+    Tab:CreateAction("Execute TP", "Start Process", function()
         local char = Player.Character
         local hrp  = char and char:FindFirstChild("HumanoidRootPart")
 
         if not hrp then return Library:Notify("Error", "No Character!", 3) end
         if #queuedObjects == 0 then return Library:Notify("Error", "Queue is empty!", 3) end
 
+        -- 1. Capture the EXACT spot where items should land (where you are standing now)
+        local destinationCF = hrp.CFrame 
+        local destinationPos = hrp.Position
+
         Library:Notify("Processing", "Moving " .. #queuedObjects .. " items...", 3)
 
         task.spawn(function()
             local SNAP_THRESHOLD = 6
-            local MAX_RETRIES    = 4
-            
-            -- We still need to know where the items are going
-            local homePos = hrp.Position 
+            local MAX_RETRIES    = 3
 
+            -- Loop through queue backwards to safely remove items
             for i = #queuedObjects, 1, -1 do
                 local obj = queuedObjects[i]
 
-                if not (obj and obj.Parent and obj:IsA("BasePart")) then
-                    removeFromQueue(obj)
+                if not (obj and obj.Parent) then
+                    table.remove(queuedObjects, i)
                     continue
                 end
 
-                local spawnPos = obj.Position
-                local grabbed  = false
+                local itemSpawnPos = obj.Position
+                local grabbed = false
 
                 for attempt = 1, MAX_RETRIES do
-                    -- Warp to object to grab it
+                    -- 2. Warp TO the item to grab it
                     local viewCF = findViewCFrame(obj)
-                    hrp.CFrame   = viewCF
-                    syncWait(0.35)
-
-                    local screenPos = getPreciseScreenPos(obj)
-                    local hidden    = {}
-
-                    if not screenPos then
-                        hidden    = hideBlockers(obj)
-                        syncWait(0.05)
-                        screenPos  = getPreciseScreenPos(obj)
-                    end
-
-                    if not screenPos then
-                        restoreBlockers(hidden)
-                        syncWait(0.2)
-                        continue
-                    end
-
-                    -- THE GRAB
-                    VIM:SendMouseMoveEvent(screenPos.X, screenPos.Y, game)
-                    syncWait(0.05)
-                    VIM:SendMouseButtonEvent(screenPos.X, screenPos.Y, 0, true, game, 0)
-                    syncWait(0.15)
-
-                    -- THE DRAG
-                    linearDrag(obj, homePos)
-                    
-                    -- THE RELEASE
-                    -- Crucial: Release the mouse first, THEN kill velocity
-                    VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
-                    task.wait(0.05) 
-                    stopAllMotion(obj) -- Stops it from "flying" away
-                    
-                    restoreBlockers(hidden)
-
-                    -- REMOVED: hrp.CFrame = CFrame.new(homePos) 
-                    -- (We stay at the object's origin area for the next grab)
-
+                    hrp.CFrame = viewCF
                     syncWait(0.3)
 
-                    if not obj or not obj.Parent then
-                        grabbed = true
-                        break
+                    local screenPos = getPreciseScreenPos(obj)
+                    if not screenPos then
+                        local hidden = hideBlockers(obj)
+                        syncWait(0.05)
+                        screenPos = getPreciseScreenPos(obj)
+                        restoreBlockers(hidden)
                     end
 
-                    local distFromSpawn = (obj.Position - spawnPos).Magnitude
-                    if distFromSpawn >= SNAP_THRESHOLD then
-                        grabbed = true
-                        break
+                    if screenPos then
+                        -- 3. GRAB the item
+                        VIM:SendMouseMoveEvent(screenPos.X, screenPos.Y, game)
+                        syncWait(0.05)
+                        VIM:SendMouseButtonEvent(screenPos.X, screenPos.Y, 0, true, game, 0)
+                        syncWait(0.1)
+
+                        -- 4. Warp BACK to destination so the "Drop" registers
+                        hrp.CFrame = destinationCF
+                        syncWait(0.2) -- Small wait to let physics catch up
+
+                        -- 5. PERFORM DRAG & RELEASE
+                        linearDrag(obj, destinationPos)
+                        VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
+                        
+                        -- 6. STOP VELOCITY IMMEDIATELY
+                        if obj and obj.Parent then
+                            obj.AssemblyLinearVelocity = Vector3.zero
+                            obj.AssemblyAngularVelocity = Vector3.zero
+                            -- Brief anchor to kill all momentum
+                            obj.Anchored = true
+                            task.delay(0.1, function() 
+                                if obj and obj.Parent then obj.Anchored = false end 
+                            end)
+                        end
+
+                        -- Check if it actually moved
+                        if (obj.Position - itemSpawnPos).Magnitude > SNAP_THRESHOLD then
+                            grabbed = true
+                            break
+                        end
                     end
                 end
 
-                removeFromQueue(obj)
+                -- Remove highlight and pop from queue
+                local h = obj:FindFirstChild("TP_Highlight")
+                if h then h:Destroy() end
+                table.remove(queuedObjects, i)
+                
+                -- Short pause before the next item to prevent "Physics Lag"
+                task.wait(0.1)
             end
 
-            Library:Notify("Complete", "Queue finished. You are still at the last location.", 3)
+            Library:Notify("Complete", "All items moved.", 3)
         end)
     end)
 
