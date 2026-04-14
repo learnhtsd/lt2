@@ -232,6 +232,12 @@ function LooseObjectTeleport.Init(Tab, Library)
             local SNAP_THRESHOLD = 6   -- studs: closer than this = slingshot-back
             local MAX_RETRIES    = 4   -- attempts per object before giving up
 
+            -- FIX 1: capture the player's real home position ONCE before any
+            -- warping happens. Every item in the queue gets dragged to THIS spot.
+            -- Re-reading hrp.Position inside the loop was the source of items
+            -- landing on each other because the player was already warped away.
+            local homePos = hrp.Position
+
             for i = #queuedObjects, 1, -1 do
                 local obj = queuedObjects[i]
 
@@ -242,43 +248,44 @@ function LooseObjectTeleport.Init(Tab, Library)
                     continue
                 end
 
-                -- Record where the object started so desync checks have a reference
-                local spawnPos = obj.Position
+                local spawnPos = obj.Position   -- item's original position
                 local grabbed  = false
 
                 for attempt = 1, MAX_RETRIES do
-                    local destination = hrp.Position
 
-                    -- 1. Warp player next to item; ping-scaled wait lets the server
-                    --    acknowledge our new position before we try to interact.
+                    -- 1. Warp player next to item
                     hrp.CFrame = CFrame.new(spawnPos + Vector3.new(0, 0, -5), spawnPos)
                     syncWait(0.35)
 
-                    -- 2. Find the best confirmed-by-raycast pixel on the object
+                    -- 2. Precise raycast-validated click point
                     local screenPos = getPreciseScreenPos(obj)
                     if not screenPos then
-                        syncWait(0.2)   -- not renderable yet, wait and retry
+                        syncWait(0.2)
                         continue
                     end
 
-                    -- 3. Virtual grab at the precise screen point
+                    -- 3. Virtual grab
                     VIM:SendMouseMoveEvent(screenPos.X, screenPos.Y, game)
                     syncWait(0.05)
                     VIM:SendMouseButtonEvent(screenPos.X, screenPos.Y, 0, true, game, 0)
-                    syncWait(0.15)   -- hold time — increase if game needs longer press
+                    syncWait(0.15)   -- hold time
 
-                    -- 4. Drag to player then release
-                    linearDrag(obj, destination)
+                    -- 4. Drag to homePos (fixed destination) then release
+                    linearDrag(obj, homePos)
                     VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
                     stopAllMotion(obj)
+
+                    -- 5. FIX 2: warp player HOME first so they are no longer
+                    --    near spawnPos. The subsequent warp to spawnPos is now a
+                    --    real, meaningful teleport the game server can observe,
+                    --    and we arrive there after the server has had enough time
+                    --    (ping-scaled) to push any correction back.
+                    hrp.CFrame = CFrame.new(homePos)
                     syncWait(0.15)
 
-                    -- 5. Desync check: warp back to the item's spawn point and wait
-                    --    long enough for a server correction (slingshot) to arrive.
-                    --    syncWait scales this with ping so high-latency servers get
-                    --    enough time to push their authoritative position back.
+                    -- 6. Now warp to item's original position to see if it snapped back
                     hrp.CFrame = CFrame.new(spawnPos + Vector3.new(0, 0, -5), spawnPos)
-                    syncWait(0.5)
+                    syncWait(0.5)   -- ping-scaled: gives server time to slingshot
 
                     if not obj or not obj.Parent then
                         grabbed = true
@@ -287,11 +294,10 @@ function LooseObjectTeleport.Init(Tab, Library)
 
                     local distFromSpawn = (obj.Position - spawnPos).Magnitude
                     if distFromSpawn >= SNAP_THRESHOLD then
-                        grabbed = true   -- object is away from origin, grab held
+                        grabbed = true   -- object is far from origin, grab held
                         break
                     end
 
-                    -- Object snapped back to origin, server rejected the move
                     Library:Notify(
                         "Desync",
                         "Item " .. i .. " snapped back (" .. attempt .. "/" .. MAX_RETRIES .. ")",
@@ -302,6 +308,9 @@ function LooseObjectTeleport.Init(Tab, Library)
                 if not grabbed then
                     Library:Notify("Warning", "Item " .. i .. " failed after " .. MAX_RETRIES .. " attempts.", 3)
                 end
+
+                -- Return home before processing the next item
+                hrp.CFrame = CFrame.new(homePos)
 
                 local h = obj and obj:FindFirstChild("TP_Highlight")
                 if h then h:Destroy() end
