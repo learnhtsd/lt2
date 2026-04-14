@@ -49,6 +49,22 @@ function LooseObjectTeleport.Init(Tab, Library)
     ---------------------------------------------------------
     -- HELPER UTILITIES
     ---------------------------------------------------------
+
+    -- Returns current one-way latency in seconds (clamped to sane range).
+    local function getPing()
+        local ok, ping = pcall(function()
+            return Players.LocalPlayer:GetNetworkPing()
+        end)
+        return math.clamp(ok and ping or 0.1, 0.02, 1.0)
+    end
+
+    -- Ping-aware task.wait: adds 1.5× the excess ping above 80 ms as a buffer
+    -- so every timed operation stays ahead of server corrections.
+    local function syncWait(base)
+        local extra = math.max(0, getPing() - 0.08) * 1.5
+        task.wait(base + extra)
+    end
+
     local function stopAllMotion(obj)
         if obj and obj:IsA("BasePart") then
             obj.AssemblyLinearVelocity  = Vector3.zero
@@ -73,6 +89,56 @@ function LooseObjectTeleport.Init(Tab, Library)
             obj.CFrame     = finalCFrame
             obj.CanCollide = oldCollide
         end
+    end
+
+    -- Finds the best screen-space pixel to click for a given BasePart.
+    --
+    -- Strategy: sample the object center + all 6 face-centers (inset 40 % from
+    -- the surface to avoid edge clipping).  For each candidate, fire a raycast
+    -- from the camera through that pixel and confirm the ray actually lands on
+    -- the target object.  The first confirmed hit is returned; if none pass the
+    -- raycast check we fall back to the raw center so the caller can still try.
+    --
+    -- Returns: Vector2 screen position, or nil if the object is fully off-screen.
+    local function getPreciseScreenPos(obj)
+        if not obj or not obj.Parent then return nil end
+
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType                  = Enum.RaycastFilterType.Exclude
+        rayParams.FilterDescendantsInstances  = { Player.Character }
+
+        -- 7 sample points in object-local space (center + face centres at 40 % size)
+        local s = obj.Size * 0.4
+        local offsets = {
+            Vector3.zero,
+            Vector3.new( s.X, 0,    0   ),
+            Vector3.new(-s.X, 0,    0   ),
+            Vector3.new(0,    s.Y,  0   ),
+            Vector3.new(0,   -s.Y,  0   ),
+            Vector3.new(0,    0,    s.Z ),
+            Vector3.new(0,    0,   -s.Z ),
+        }
+
+        local fallbackScreen = nil
+
+        for _, offset in ipairs(offsets) do
+            local worldPt  = obj.CFrame:PointToWorldSpace(offset)
+            local sp, onScreen = Camera:WorldToViewportPoint(worldPt)
+            if onScreen then
+                local screen2 = Vector2.new(sp.X, sp.Y)
+                if not fallbackScreen then
+                    fallbackScreen = screen2   -- store first visible point as fallback
+                end
+                -- Confirm via raycast that this pixel actually hits our object
+                local ray    = Camera:ScreenPointToRay(sp.X, sp.Y)
+                local result = workspace:Raycast(ray.Origin, ray.Direction * 500, rayParams)
+                if result and result.Instance == obj then
+                    return screen2   -- confirmed hit — use this point
+                end
+            end
+        end
+
+        return fallbackScreen   -- best-effort fallback (unconfirmed but on-screen)
     end
 
     local function addToQueue(obj)
@@ -157,44 +223,91 @@ function LooseObjectTeleport.Init(Tab, Library)
         local char = Player.Character
         local hrp  = char and char:FindFirstChild("HumanoidRootPart")
 
-        if not hrp then
-            return Library:Notify("Error", "No Character!", 3)
-        end
-        if #queuedObjects == 0 then
-            return Library:Notify("Error", "Queue is empty!", 3)
-        end
+        if not hrp then return Library:Notify("Error", "No Character!", 3) end
+        if #queuedObjects == 0 then return Library:Notify("Error", "Queue is empty!", 3) end
 
-        Library:Notify("Processing", "Moving " .. #queuedObjects .. " items…", 3)
+        Library:Notify("Processing", "Moving " .. #queuedObjects .. " items...", 3)
 
         task.spawn(function()
+            local SNAP_THRESHOLD = 6   -- studs: closer than this = slingshot-back
+            local MAX_RETRIES    = 4   -- attempts per object before giving up
+
             for i = #queuedObjects, 1, -1 do
                 local obj = queuedObjects[i]
-                if obj and obj.Parent and obj:IsA("BasePart") then
-                    local destination         = hrp.Position
-                    local originalPlayerCFrame = hrp.CFrame
 
-                    hrp.CFrame = CFrame.new(obj.Position + Vector3.new(0, 0, -5), obj.Position)
-                    task.wait(0.3)
+                if not (obj and obj.Parent and obj:IsA("BasePart")) then
+                    local h = obj and obj:FindFirstChild("TP_Highlight")
+                    if h then h:Destroy() end
+                    table.remove(queuedObjects, i)
+                    continue
+                end
 
-                    local vector, onScreen = Camera:WorldToViewportPoint(obj.Position)
-                    if onScreen then
-                        VIM:SendMouseMoveEvent(vector.X, vector.Y, game)
-                        task.wait(0.05)
-                        VIM:SendMouseButtonEvent(vector.X, vector.Y, 0, true, game, 0)
-                        task.wait(0.2)
-                        linearDrag(obj, destination)
-                        VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
-                        stopAllMotion(obj)
-                        task.wait(0.2)
+                -- Record where the object started so desync checks have a reference
+                local spawnPos = obj.Position
+                local grabbed  = false
+
+                for attempt = 1, MAX_RETRIES do
+                    local destination = hrp.Position
+
+                    -- 1. Warp player next to item; ping-scaled wait lets the server
+                    --    acknowledge our new position before we try to interact.
+                    hrp.CFrame = CFrame.new(spawnPos + Vector3.new(0, 0, -5), spawnPos)
+                    syncWait(0.35)
+
+                    -- 2. Find the best confirmed-by-raycast pixel on the object
+                    local screenPos = getPreciseScreenPos(obj)
+                    if not screenPos then
+                        syncWait(0.2)   -- not renderable yet, wait and retry
+                        continue
                     end
 
-                    hrp.CFrame = originalPlayerCFrame
+                    -- 3. Virtual grab at the precise screen point
+                    VIM:SendMouseMoveEvent(screenPos.X, screenPos.Y, game)
+                    syncWait(0.05)
+                    VIM:SendMouseButtonEvent(screenPos.X, screenPos.Y, 0, true, game, 0)
+                    syncWait(0.15)   -- hold time — increase if game needs longer press
+
+                    -- 4. Drag to player then release
+                    linearDrag(obj, destination)
+                    VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
+                    stopAllMotion(obj)
+                    syncWait(0.15)
+
+                    -- 5. Desync check: warp back to the item's spawn point and wait
+                    --    long enough for a server correction (slingshot) to arrive.
+                    --    syncWait scales this with ping so high-latency servers get
+                    --    enough time to push their authoritative position back.
+                    hrp.CFrame = CFrame.new(spawnPos + Vector3.new(0, 0, -5), spawnPos)
+                    syncWait(0.5)
+
+                    if not obj or not obj.Parent then
+                        grabbed = true
+                        break
+                    end
+
+                    local distFromSpawn = (obj.Position - spawnPos).Magnitude
+                    if distFromSpawn >= SNAP_THRESHOLD then
+                        grabbed = true   -- object is away from origin, grab held
+                        break
+                    end
+
+                    -- Object snapped back to origin, server rejected the move
+                    Library:Notify(
+                        "Desync",
+                        "Item " .. i .. " snapped back (" .. attempt .. "/" .. MAX_RETRIES .. ")",
+                        2
+                    )
+                end
+
+                if not grabbed then
+                    Library:Notify("Warning", "Item " .. i .. " failed after " .. MAX_RETRIES .. " attempts.", 3)
                 end
 
                 local h = obj and obj:FindFirstChild("TP_Highlight")
                 if h then h:Destroy() end
                 table.remove(queuedObjects, i)
             end
+
             Library:Notify("Complete", "Queue finished.", 3)
         end)
     end)
