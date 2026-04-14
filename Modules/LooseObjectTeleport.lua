@@ -69,6 +69,11 @@ function LooseObjectTeleport.Init(Tab, Library)
         if obj and obj:IsA("BasePart") then
             obj.AssemblyLinearVelocity  = Vector3.zero
             obj.AssemblyAngularVelocity = Vector3.zero
+            -- Optional: brief anchor to "reset" the physics state
+            obj.Anchored = true
+            task.delay(0.1, function()
+                if obj and obj.Parent then obj.Anchored = false end
+            end)
         end
     end
 
@@ -81,12 +86,14 @@ function LooseObjectTeleport.Init(Tab, Library)
         for i = 1, Config.DragSteps do
             if not obj or not obj.Parent then break end
             obj.CFrame = startCFrame:Lerp(finalCFrame, i / Config.DragSteps)
-            stopAllMotion(obj)
+            -- Constant velocity kill during the drag
+            obj.AssemblyLinearVelocity  = Vector3.zero
+            obj.AssemblyAngularVelocity = Vector3.zero
             task.wait(0.01)
         end
 
         if obj and obj.Parent then
-            obj.CFrame     = finalCFrame
+            obj.CFrame = finalCFrame
             obj.CanCollide = oldCollide
         end
     end
@@ -294,7 +301,7 @@ function LooseObjectTeleport.Init(Tab, Library)
         Library:Notify("Queue", "Cleared all items.", 2)
     end)
 
-    Tab:CreateAction("Execute TP", "Start Process", function()
+Tab:CreateAction("Execute TP", "Start Process", function()
         local char = Player.Character
         local hrp  = char and char:FindFirstChild("HumanoidRootPart")
 
@@ -304,79 +311,65 @@ function LooseObjectTeleport.Init(Tab, Library)
         Library:Notify("Processing", "Moving " .. #queuedObjects .. " items...", 3)
 
         task.spawn(function()
-            local SNAP_THRESHOLD = 6   -- studs: closer than this = slingshot-back
-            local MAX_RETRIES    = 4   -- attempts per object before giving up
-
-            -- FIX 1: capture the player's real home position ONCE before any
-            -- warping happens. Every item in the queue gets dragged to THIS spot.
-            -- Re-reading hrp.Position inside the loop was the source of items
-            -- landing on each other because the player was already warped away.
-            local homePos = hrp.Position
+            local SNAP_THRESHOLD = 6
+            local MAX_RETRIES    = 4
+            
+            -- We still need to know where the items are going
+            local homePos = hrp.Position 
 
             for i = #queuedObjects, 1, -1 do
                 local obj = queuedObjects[i]
 
                 if not (obj and obj.Parent and obj:IsA("BasePart")) then
-                    local h = obj and obj:FindFirstChild("TP_Highlight")
-                    if h then h:Destroy() end
-                    table.remove(queuedObjects, i)
+                    removeFromQueue(obj)
                     continue
                 end
 
-                local spawnPos = obj.Position   -- item's original position
+                local spawnPos = obj.Position
                 local grabbed  = false
 
                 for attempt = 1, MAX_RETRIES do
-
-                    -- 1. Find the best unobstructed viewpoint around the object
-                    --    (8-angle orbit) instead of always warping due north.
-                    --    Store the CFrame so we can reuse it for the desync check.
+                    -- Warp to object to grab it
                     local viewCF = findViewCFrame(obj)
                     hrp.CFrame   = viewCF
                     syncWait(0.35)
 
-                    -- 2. Attempt a raycast-confirmed click position.
-                    --    If the object is still occluded from this angle, hide each
-                    --    blocking part client-side (LocalTransparencyModifier = 1)
-                    --    so the virtual click ray passes straight through to the target.
                     local screenPos = getPreciseScreenPos(obj)
                     local hidden    = {}
 
                     if not screenPos then
-                        -- Still no confirmed hit — punch through any blockers
-                        hidden     = hideBlockers(obj)
+                        hidden    = hideBlockers(obj)
                         syncWait(0.05)
                         screenPos  = getPreciseScreenPos(obj)
                     end
 
                     if not screenPos then
-                        -- Completely invisible even after hiding blockers — skip attempt
                         restoreBlockers(hidden)
                         syncWait(0.2)
                         continue
                     end
 
-                    -- 3. Virtual grab at the confirmed pixel
+                    -- THE GRAB
                     VIM:SendMouseMoveEvent(screenPos.X, screenPos.Y, game)
                     syncWait(0.05)
                     VIM:SendMouseButtonEvent(screenPos.X, screenPos.Y, 0, true, game, 0)
-                    syncWait(0.15)   -- hold time — raise if the game needs a longer press
-
-                    -- 4. Drag to homePos then release; restore any hidden blockers
-                    linearDrag(obj, homePos)
-                    VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
-                    stopAllMotion(obj)
-                    restoreBlockers(hidden)
-
-                    -- 5. Return player home so the next desync warp is a real move
-                    hrp.CFrame = CFrame.new(homePos)
                     syncWait(0.15)
 
-                    -- 6. Desync check: warp player back to the exact viewpoint we
-                    --    grabbed from (near spawnPos with clear LOS) and wait for
-                    --    any server slingshot correction to arrive.
-                    hrp.CFrame = viewCF
-                    syncWait(0.5)
+                    -- THE DRAG
+                    linearDrag(obj, homePos)
+                    
+                    -- THE RELEASE
+                    -- Crucial: Release the mouse first, THEN kill velocity
+                    VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
+                    task.wait(0.05) 
+                    stopAllMotion(obj) -- Stops it from "flying" away
+                    
+                    restoreBlockers(hidden)
+
+                    -- REMOVED: hrp.CFrame = CFrame.new(homePos) 
+                    -- (We stay at the object's origin area for the next grab)
+
+                    syncWait(0.3)
 
                     if not obj or not obj.Parent then
                         grabbed = true
@@ -385,30 +378,15 @@ function LooseObjectTeleport.Init(Tab, Library)
 
                     local distFromSpawn = (obj.Position - spawnPos).Magnitude
                     if distFromSpawn >= SNAP_THRESHOLD then
-                        grabbed = true   -- object is away from its origin, grab held
+                        grabbed = true
                         break
                     end
-
-                    Library:Notify(
-                        "Desync",
-                        "Item " .. i .. " snapped back (" .. attempt .. "/" .. MAX_RETRIES .. ")",
-                        2
-                    )
                 end
 
-                if not grabbed then
-                    Library:Notify("Warning", "Item " .. i .. " failed after " .. MAX_RETRIES .. " attempts.", 3)
-                end
-
-                -- Return home before processing the next item
-                hrp.CFrame = CFrame.new(homePos)
-
-                local h = obj and obj:FindFirstChild("TP_Highlight")
-                if h then h:Destroy() end
-                table.remove(queuedObjects, i)
+                removeFromQueue(obj)
             end
 
-            Library:Notify("Complete", "Queue finished.", 3)
+            Library:Notify("Complete", "Queue finished. You are still at the last location.", 3)
         end)
     end)
 
