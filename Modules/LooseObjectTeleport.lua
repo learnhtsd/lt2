@@ -141,8 +141,83 @@ function LooseObjectTeleport.Init(Tab, Library)
         return fallbackScreen   -- best-effort fallback (unconfirmed but on-screen)
     end
 
+    -- Orbit the object at `dist` studs in 8 horizontal directions + slight elevation
+    -- and return the first CFrame that has an unobstructed raycast to the object.
+    -- Falls back to the raw -Z offset if nothing clear is found.
+    local function findViewCFrame(obj)
+        if not obj or not obj.Parent then return CFrame.new(obj.Position) end
+
+        local dist = math.max(obj.Size.Magnitude + 3, 7)
+        local elev = 2   -- studs above object centre
+
+        local params = RaycastParams.new()
+        params.FilterType                 = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = { Player.Character }
+
+        for deg = 0, 315, 45 do
+            local rad       = math.rad(deg)
+            local offset    = Vector3.new(math.sin(rad) * dist, elev, math.cos(rad) * dist)
+            local candidate = obj.Position + offset
+            local toObj     = (obj.Position - candidate).Unit
+            local result    = workspace:Raycast(candidate, toObj * (dist + 4), params)
+            if result and result.Instance == obj then
+                return CFrame.new(candidate, obj.Position)
+            end
+        end
+
+        -- Nothing clear found — use raw fallback
+        return CFrame.new(obj.Position + Vector3.new(0, elev, -dist), obj.Position)
+    end
+
+    -- Walk the ray from the camera to `obj`, collecting every BasePart that sits
+    -- in the way, and make them client-invisible with LocalTransparencyModifier.
+    -- Returns a restore table so the caller can undo this after the click.
+    local function hideBlockers(obj)
+        local hidden = {}
+        if not obj or not obj.Parent then return hidden end
+
+        local sp       = Camera:WorldToViewportPoint(obj.Position)
+        local ray      = Camera:ScreenPointToRay(sp.X, sp.Y)
+        local params   = RaycastParams.new()
+        params.FilterType                 = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = { Player.Character, obj }
+
+        for _ = 1, 10 do   -- cap at 10 layers of obstruction
+            local result  = workspace:Raycast(ray.Origin, ray.Direction * 500, params)
+            if not result then break end
+            if result.Instance == obj then break end   -- clear path reached
+
+            local blocker = result.Instance
+            if not blocker:IsA("BasePart") then break end
+
+            -- Hide client-side only; server never sees this change
+            table.insert(hidden, { part = blocker, ltm = blocker.LocalTransparencyModifier })
+            blocker.LocalTransparencyModifier = 1
+
+            -- Extend the exclusion list so the next cast passes through it too
+            local f = params.FilterDescendantsInstances
+            f[#f + 1] = blocker
+            params.FilterDescendantsInstances = f
+        end
+
+        return hidden
+    end
+
+    local function restoreBlockers(hidden)
+        for _, entry in ipairs(hidden) do
+            if entry.part and entry.part.Parent then
+                entry.part.LocalTransparencyModifier = entry.ltm
+            end
+        end
+    end
+
+    local function isPlayerPart(obj)
+        local char = Player.Character
+        return char ~= nil and (obj == char or obj:IsDescendantOf(char))
+    end
+
     local function addToQueue(obj)
-        if obj and obj:IsA("BasePart") and not obj.Anchored then
+        if obj and obj:IsA("BasePart") and not obj.Anchored and not isPlayerPart(obj) then
             if not table.find(queuedObjects, obj) then
                 table.insert(queuedObjects, obj)
                 local h         = Instance.new("SelectionBox")
@@ -253,39 +328,55 @@ function LooseObjectTeleport.Init(Tab, Library)
 
                 for attempt = 1, MAX_RETRIES do
 
-                    -- 1. Warp player next to item
-                    hrp.CFrame = CFrame.new(spawnPos + Vector3.new(0, 0, -5), spawnPos)
+                    -- 1. Find the best unobstructed viewpoint around the object
+                    --    (8-angle orbit) instead of always warping due north.
+                    --    Store the CFrame so we can reuse it for the desync check.
+                    local viewCF = findViewCFrame(obj)
+                    hrp.CFrame   = viewCF
                     syncWait(0.35)
 
-                    -- 2. Precise raycast-validated click point
+                    -- 2. Attempt a raycast-confirmed click position.
+                    --    If the object is still occluded from this angle, hide each
+                    --    blocking part client-side (LocalTransparencyModifier = 1)
+                    --    so the virtual click ray passes straight through to the target.
                     local screenPos = getPreciseScreenPos(obj)
+                    local hidden    = {}
+
                     if not screenPos then
+                        -- Still no confirmed hit — punch through any blockers
+                        hidden     = hideBlockers(obj)
+                        syncWait(0.05)
+                        screenPos  = getPreciseScreenPos(obj)
+                    end
+
+                    if not screenPos then
+                        -- Completely invisible even after hiding blockers — skip attempt
+                        restoreBlockers(hidden)
                         syncWait(0.2)
                         continue
                     end
 
-                    -- 3. Virtual grab
+                    -- 3. Virtual grab at the confirmed pixel
                     VIM:SendMouseMoveEvent(screenPos.X, screenPos.Y, game)
                     syncWait(0.05)
                     VIM:SendMouseButtonEvent(screenPos.X, screenPos.Y, 0, true, game, 0)
-                    syncWait(0.15)   -- hold time
+                    syncWait(0.15)   -- hold time — raise if the game needs a longer press
 
-                    -- 4. Drag to homePos (fixed destination) then release
+                    -- 4. Drag to homePos then release; restore any hidden blockers
                     linearDrag(obj, homePos)
                     VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
                     stopAllMotion(obj)
+                    restoreBlockers(hidden)
 
-                    -- 5. FIX 2: warp player HOME first so they are no longer
-                    --    near spawnPos. The subsequent warp to spawnPos is now a
-                    --    real, meaningful teleport the game server can observe,
-                    --    and we arrive there after the server has had enough time
-                    --    (ping-scaled) to push any correction back.
+                    -- 5. Return player home so the next desync warp is a real move
                     hrp.CFrame = CFrame.new(homePos)
                     syncWait(0.15)
 
-                    -- 6. Now warp to item's original position to see if it snapped back
-                    hrp.CFrame = CFrame.new(spawnPos + Vector3.new(0, 0, -5), spawnPos)
-                    syncWait(0.5)   -- ping-scaled: gives server time to slingshot
+                    -- 6. Desync check: warp player back to the exact viewpoint we
+                    --    grabbed from (near spawnPos with clear LOS) and wait for
+                    --    any server slingshot correction to arrive.
+                    hrp.CFrame = viewCF
+                    syncWait(0.5)
 
                     if not obj or not obj.Parent then
                         grabbed = true
@@ -294,7 +385,7 @@ function LooseObjectTeleport.Init(Tab, Library)
 
                     local distFromSpawn = (obj.Position - spawnPos).Magnitude
                     if distFromSpawn >= SNAP_THRESHOLD then
-                        grabbed = true   -- object is far from origin, grab held
+                        grabbed = true   -- object is away from its origin, grab held
                         break
                     end
 
@@ -344,6 +435,7 @@ function LooseObjectTeleport.Init(Tab, Library)
         if Config.SelectionEnabled then
             local target = Mouse.Target
             if not target or not target:IsA("BasePart") or target.Anchored then return end
+            if isPlayerPart(target) then return end   -- never select own character
 
             if Config.GroupSelectionEnabled then
                 -- FIX 3b: walk up to the nearest Model; if none (or it IS workspace),
@@ -417,7 +509,7 @@ function LooseObjectTeleport.Init(Tab, Library)
         --        into the drag rect even when partially off-screen.
         local toAdd = {}
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and not obj.Anchored then
+            if obj:IsA("BasePart") and not obj.Anchored and not isPlayerPart(obj) then
                 local sp = Camera:WorldToViewportPoint(obj.Position)
                 if sp.X >= minX and sp.X <= maxX and sp.Y >= minY and sp.Y <= maxY then
                     toAdd[#toAdd + 1] = obj
