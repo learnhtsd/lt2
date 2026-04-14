@@ -6,34 +6,40 @@ function LooseObjectTeleport.Init(Tab, Library)
     local UIS = game:GetService("UserInputService")
     local VIM = game:GetService("VirtualInputManager")
     local RunService = game:GetService("RunService")
-    local Camera = workspace.CurrentCamera
     local CoreGui = game:GetService("CoreGui")
+    local Camera = workspace.CurrentCamera
 
     -- Variables
     local Player = Players.LocalPlayer
     local Mouse = Player:GetMouse()
     local queuedObjects = {}
     local connections = {}
+
+    -- Lasso UI Variables
+    local dragStart = nil
+    local isDragging = false
     
-    -- Lasso UI Setup
-    local lassoGui = Instance.new("ScreenGui")
-    lassoGui.Name = "LassoSelectionGui"
-    lassoGui.Parent = CoreGui
+    -- Safely mount UI (CoreGui for exploits, fallback to PlayerGui)
+    local guiParent = pcall(function() return CoreGui.Name end) and CoreGui or Player:WaitForChild("PlayerGui")
     
-    local selectionFrame = Instance.new("Frame")
-    selectionFrame.Name = "SelectionFrame"
-    selectionFrame.Parent = lassoGui
-    selectionFrame.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    selectionFrame.BackgroundTransparency = 0.7
-    selectionFrame.BorderSizePixel = 1
-    selectionFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-    selectionFrame.Visible = false
+    local selectionGui = Instance.new("ScreenGui")
+    selectionGui.Name = "LassoSelectionGui"
+    selectionGui.Parent = guiParent
+
+    local selectionBox2D = Instance.new("Frame")
+    selectionBox2D.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    selectionBox2D.BackgroundTransparency = 0.5
+    selectionBox2D.BorderSizePixel = 1
+    selectionBox2D.BorderColor3 = Color3.fromRGB(0, 170, 255)
+    selectionBox2D.Visible = false
+    selectionBox2D.Parent = selectionGui
 
     -- Configuration
     local Config = {
         SelectionEnabled = false,
+        GroupSelectionEnabled = false,
         LassoEnabled = false,
-        GroupSelectEnabled = false,
+        UseGrabLogic = true,
         DragSteps = 12
     }
 
@@ -50,52 +56,71 @@ function LooseObjectTeleport.Init(Tab, Library)
     local function linearDrag(obj, endPos)
         local startCFrame = obj.CFrame
         local finalCFrame = CFrame.new(endPos)
+        
         local oldCollide = obj.CanCollide
         obj.CanCollide = false 
         
         for i = 1, Config.DragSteps do
+            if not obj or not obj.Parent then break end
             obj.CFrame = startCFrame:Lerp(finalCFrame, i/Config.DragSteps)
             stopAllMotion(obj)
             task.wait(0.01)
         end
         
-        obj.CFrame = finalCFrame
-        obj.CanCollide = oldCollide
+        if obj and obj.Parent then
+            obj.CFrame = finalCFrame
+            obj.CanCollide = oldCollide
+        end
     end
 
-    local function addToQueue(part)
-        if part and part:IsA("BasePart") and not part.Anchored and not table.find(queuedObjects, part) then
-            table.insert(queuedObjects, part)
-            local h = Instance.new("SelectionBox")
-            h.Name = "TP_Highlight"
-            h.Color3 = Color3.fromRGB(0, 255, 0)
-            h.LineThickness = 0.05
-            h.Adornee = part
-            h.Parent = part
+    local function addToQueue(obj)
+        if obj and obj:IsA("BasePart") and not obj.Anchored then
+            if not table.find(queuedObjects, obj) then
+                table.insert(queuedObjects, obj)
+                local h = Instance.new("SelectionBox")
+                h.Name = "TP_Highlight"
+                h.Color3 = Color3.fromRGB(150, 255, 150)
+                h.Adornee = obj
+                h.Parent = obj
+            end
+        end
+    end
+
+    local function removeFromQueue(obj)
+        local index = table.find(queuedObjects, obj)
+        if index then
+            table.remove(queuedObjects, index)
+            if obj:FindFirstChild("TP_Highlight") then 
+                obj.TP_Highlight:Destroy() 
+            end
         end
     end
 
     ---------------------------------------------------------
     -- UI INTEGRATION
     ---------------------------------------------------------
-    Tab:CreateSection("Selection Tools")
+    Tab:CreateSection("Multi-Object Grabber")
 
-    Tab:CreateToggle("Individual Click Select", false, function(state)
+    Tab:CreateToggle("Selection Mode (Click Part)", false, function(state)
         Config.SelectionEnabled = state
+        Library:Notify("Selection", state and "Click objects to queue" or "Click selection disabled", 2)
     end)
 
-    Tab:CreateToggle("Lasso Drag Select", false, function(state)
+    Tab:CreateToggle("Group Selection", false, function(state)
+        Config.GroupSelectionEnabled = state
+        Library:Notify("Group Selection", state and "Clicking selects entire model" or "Group selection disabled", 2)
+    end)
+
+    Tab:CreateToggle("Lasso Tool (Drag Box)", false, function(state)
         Config.LassoEnabled = state
-        selectionFrame.Visible = false
+        Library:Notify("Lasso Tool", state and "Click and drag to select objects" or "Lasso disabled", 2)
+        if not state and isDragging then
+            isDragging = false
+            selectionBox2D.Visible = false
+        end
     end)
 
-    Tab:CreateToggle("Group Selection (Same Name)", false, function(state)
-        Config.GroupSelectEnabled = state
-    end)
-
-    Tab:CreateSection("Execution")
-
-    Tab:CreateAction("Clear Queue", "Reset Selection", function()
+    Tab:CreateAction("Clear Queue", "Reset List", function()
         for _, obj in ipairs(queuedObjects) do
             if obj and obj:FindFirstChild("TP_Highlight") then 
                 obj.TP_Highlight:Destroy() 
@@ -105,28 +130,29 @@ function LooseObjectTeleport.Init(Tab, Library)
         Library:Notify("Queue", "Cleared all items.", 2)
     end)
 
-    Tab:CreateAction("Execute TP", "Bring to Current Spot", function()
+    Tab:CreateAction("Execute TP", "Start Process", function()
         local char = Player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         
         if not hrp then return Library:Notify("Error", "No Character!", 3) end
         if #queuedObjects == 0 then return Library:Notify("Error", "Queue is empty!", 3) end
 
-        -- Capture position at the moment of button press
-        local dropOffPoint = hrp.Position + (hrp.CFrame.LookVector * 4)
-
-        Library:Notify("Processing", "Fetching " .. #queuedObjects .. " items...", 3)
+        Library:Notify("Processing", "Moving " .. #queuedObjects .. " items to your position...", 3)
         
         task.spawn(function()
             for i = #queuedObjects, 1, -1 do
                 local obj = queuedObjects[i]
                 if obj and obj.Parent and obj:IsA("BasePart") then
                     
-                    -- TP Player to item
-                    hrp.CFrame = CFrame.new(obj.Position + Vector3.new(0, 5, 0), obj.Position)
-                    task.wait(0.35)
+                    -- 1. Determine Destination (Player's current position)
+                    local destination = hrp.Position
 
-                    -- Virtual Grab
+                    -- 2. Teleport Player to item to ensure it's in range/rendered
+                    local originalPlayerCFrame = hrp.CFrame
+                    hrp.CFrame = CFrame.new(obj.Position + Vector3.new(0, 0, -5), obj.Position)
+                    task.wait(0.3)
+
+                    -- 3. Virtual Click Grab (Script 1 Logic)
                     local vector, onScreen = Camera:WorldToViewportPoint(obj.Position)
                     if onScreen then
                         VIM:SendMouseMoveEvent(vector.X, vector.Y, game)
@@ -134,95 +160,114 @@ function LooseObjectTeleport.Init(Tab, Library)
                         VIM:SendMouseButtonEvent(vector.X, vector.Y, 0, true, game, 0)
                         task.wait(0.1)
                         
-                        linearDrag(obj, dropOffPoint)
+                        -- 4. Move the object back to the player's destination
+                        linearDrag(obj, destination)
                         
+                        -- 5. Release
                         VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
                         stopAllMotion(obj)
                         task.wait(0.1)
                     end
+                    
+                    -- Return player to original spot to grab the next item smoothly
+                    hrp.CFrame = originalPlayerCFrame
                 end
 
+                -- Cleanup highlight and table
                 if obj and obj:FindFirstChild("TP_Highlight") then
                     obj.TP_Highlight:Destroy()
                 end
                 table.remove(queuedObjects, i)
             end
-            Library:Notify("Complete", "All items delivered.", 3)
+            Library:Notify("Complete", "Queue finished.", 3)
         end)
     end)
 
     ---------------------------------------------------------
-    -- INPUT LOGIC
+    -- INPUT LISTENERS
     ---------------------------------------------------------
-    local dragging = false
-    local startPos = Vector2.new()
-
     connections.InputBegan = UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
         
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            
+            -- Lasso Drag Start
             if Config.LassoEnabled then
-                dragging = true
-                startPos = UIS:GetMouseLocation()
-                selectionFrame.Position = UDim2.fromOffset(startPos.X, startPos.Y)
-                selectionFrame.Size = UDim2.fromOffset(0, 0)
-                selectionFrame.Visible = true
-            elseif Config.SelectionEnabled or Config.GroupSelectEnabled then
+                isDragging = true
+                dragStart = Vector2.new(Mouse.X, Mouse.Y)
+                selectionBox2D.Position = UDim2.new(0, dragStart.X, 0, dragStart.Y)
+                selectionBox2D.Size = UDim2.new(0, 0, 0, 0)
+                selectionBox2D.Visible = true
+                return
+            end
+
+            -- Normal / Group Selection
+            if Config.SelectionEnabled then
                 local target = Mouse.Target
-                if target and target:IsA("BasePart") then
-                    if Config.GroupSelectEnabled then
-                        local targetName = target.Name
-                        local count = 0
-                        for _, v in ipairs(workspace:GetDescendants()) do
-                            if v:IsA("BasePart") and v.Name == targetName and not v.Anchored then
-                                addToQueue(v)
-                                count = count + 1
+                if target and target:IsA("BasePart") and not target.Anchored then
+                    
+                    local isCurrentlySelected = table.find(queuedObjects, target) ~= nil
+
+                    if Config.GroupSelectionEnabled then
+                        local root = target:FindFirstAncestorWhichIsA("Model") or target.Parent
+                        if root and root ~= workspace then
+                            for _, child in ipairs(root:GetDescendants()) do
+                                if child:IsA("BasePart") and not child.Anchored then
+                                    if isCurrentlySelected then
+                                        removeFromQueue(child)
+                                    else
+                                        addToQueue(child)
+                                    end
+                                end
                             end
                         end
-                        Library:Notify("Group Select", "Added " .. count .. " items named: " .. targetName, 2)
                     else
-                        addToQueue(target)
-                    end
-                end
-            end
-        end
-    end)
-
-    connections.InputChanged = UIS.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local currentPos = UIS:GetMouseLocation()
-            local diff = currentPos - startPos
-            
-            selectionFrame.Size = UDim2.fromOffset(math.abs(diff.X), math.abs(diff.Y))
-            selectionFrame.Position = UDim2.fromOffset(
-                math.min(startPos.X, currentPos.X),
-                math.min(startPos.Y, currentPos.Y)
-            )
-        end
-    end)
-
-    connections.InputEnded = UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
-            dragging = false
-            selectionFrame.Visible = false
-            
-            local endPos = UIS:GetMouseLocation()
-            local minX, maxX = math.min(startPos.X, endPos.X), math.max(startPos.X, endPos.X)
-            local minY, maxY = math.min(startPos.Y, endPos.Y), math.max(startPos.Y, endPos.Y)
-            
-            local lassoCount = 0
-            for _, v in ipairs(workspace:GetDescendants()) do
-                if v:IsA("BasePart") and not v.Anchored then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(v.Position)
-                    if onScreen then
-                        if screenPos.X >= minX and screenPos.X <= maxX and screenPos.Y >= minY and screenPos.Y <= maxY then
-                            addToQueue(v)
-                            lassoCount = lassoCount + 1
+                        if isCurrentlySelected then
+                            removeFromQueue(target)
+                        else
+                            addToQueue(target)
                         end
                     end
                 end
             end
-            Library:Notify("Lasso", "Added " .. lassoCount .. " items.", 2)
+        end
+    end)
+
+    connections.InputChanged = UIS.InputChanged:Connect(function(input, processed)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
+            local currentPos = Vector2.new(Mouse.X, Mouse.Y)
+            local minX = math.min(dragStart.X, currentPos.X)
+            local minY = math.min(dragStart.Y, currentPos.Y)
+            local maxX = math.max(dragStart.X, currentPos.X)
+            local maxY = math.max(dragStart.Y, currentPos.Y)
+
+            selectionBox2D.Position = UDim2.new(0, minX, 0, minY)
+            selectionBox2D.Size = UDim2.new(0, maxX - minX, 0, maxY - minY)
+        end
+    end)
+
+    connections.InputEnded = UIS.InputEnded:Connect(function(input, processed)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and isDragging then
+            isDragging = false
+            selectionBox2D.Visible = false
+
+            local endPos = Vector2.new(Mouse.X, Mouse.Y)
+            local minX = math.min(dragStart.X, endPos.X)
+            local minY = math.min(dragStart.Y, endPos.Y)
+            local maxX = math.max(dragStart.X, endPos.X)
+            local maxY = math.max(dragStart.Y, endPos.Y)
+
+            -- Find all unanchored parts within the 2D bounding box
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and not obj.Anchored then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(obj.Position)
+                    if onScreen then
+                        if screenPos.X >= minX and screenPos.X <= maxX and screenPos.Y >= minY and screenPos.Y <= maxY then
+                            addToQueue(obj)
+                        end
+                    end
+                end
+            end
         end
     end)
 end
