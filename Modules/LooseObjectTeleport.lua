@@ -181,11 +181,11 @@ function LooseObjectTeleport.Init(Tab, Library)
                         VIM:SendMouseMoveEvent(vector.X, vector.Y, game)
                         task.wait(0.05)
                         VIM:SendMouseButtonEvent(vector.X, vector.Y, 0, true, game, 0)
-                        task.wait(0.1)
+                        task.wait(0.2)
                         linearDrag(obj, destination)
                         VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
                         stopAllMotion(obj)
-                        task.wait(0.1)
+                        task.wait(0.2)
                     end
 
                     hrp.CFrame = originalPlayerCFrame
