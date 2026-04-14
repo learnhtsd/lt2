@@ -2,133 +2,131 @@ local LooseObjectTeleport = {}
 
 function LooseObjectTeleport.Init(Tab, Library)
     -- Services
-    local RunService = game:GetService("RunService")
     local Players = game:GetService("Players")
     local UIS = game:GetService("UserInputService")
+    local VIM = game:GetService("VirtualInputManager")
+    local RunService = game:GetService("RunService")
+    local Camera = workspace.CurrentCamera
 
     -- Variables
     local Player = Players.LocalPlayer
     local Mouse = Player:GetMouse()
     local queuedObjects = {}
+    local targetCFrame = nil -- For the "Global Destination" logic
     local connections = {}
 
     -- Configuration
     local Config = {
         SelectionEnabled = false,
-        Speed = 100, -- Studs per second
-        HoldDistance = 7, -- Studs in front of player
-        UseTeleport = false -- If true, instantly teleports instead of dragging
+        UseGrabLogic = true, -- Uses VirtualInputManager (Script 1 logic)
+        GlobalMode = false,  -- If true, TPs to targetCFrame. If false, TPs to Player.
+        DragSteps = 12       -- Smoothness of the drag
     }
 
-    -- Direct movement method
-    local function moveObjectToPlayer(obj)
-        if not obj or not obj.Parent or not obj:IsA("BasePart") then return end
-        
-        local char = Player.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-        
-        local startTime = tick()
-        local maxDuration = 5 -- Max 5 seconds to reach player
-        
-        local moveLoop
-        moveLoop = RunService.Heartbeat:Connect(function()
-            if not obj or not obj.Parent or not root or not root.Parent then
-                moveLoop:Disconnect()
-                return
-            end
-            
-            -- Target position: in front of player
-            local targetCF = root.CFrame * CFrame.new(0, 0, -Config.HoldDistance)
-            local currentPos = obj.Position
-            local distance = (targetCF.Position - currentPos).Magnitude
-            
-            -- Timeout safety
-            if tick() - startTime > maxDuration or distance < 1 then
-                moveLoop:Disconnect()
-                return
-            end
-            
-            if Config.UseTeleport then
-                -- Instant teleport
-                obj.CFrame = targetCF
-                moveLoop:Disconnect()
-            else
-                -- Smooth movement towards player
-                local direction = (targetCF.Position - currentPos).Unit
-                local newPos = currentPos + direction * Config.Speed * (1/60)
-                obj.CFrame = CFrame.new(newPos) * obj.CFrame.Rotation
-            end
-        end)
+    ---------------------------------------------------------
+    -- HELPER UTILITIES
+    ---------------------------------------------------------
+    local function stopAllMotion(obj)
+        if obj and obj:IsA("BasePart") then
+            obj.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            obj.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        end
     end
 
-    -- UI INTEGRATION
-    Tab:CreateSection("Loose Object Teleporter")
+    local function linearDrag(obj, endPos)
+        local startCFrame = obj.CFrame
+        local finalCFrame = CFrame.new(endPos)
+        
+        local oldCollide = obj.CanCollide
+        obj.CanCollide = false 
+        
+        for i = 1, Config.DragSteps do
+            obj.CFrame = startCFrame:Lerp(finalCFrame, i/Config.DragSteps)
+            stopAllMotion(obj)
+            task.wait(0.01)
+        end
+        
+        obj.CFrame = finalCFrame
+        obj.CanCollide = oldCollide
+    end
 
-    Tab:CreateToggle("Selection Mode", false, function(state)
+    ---------------------------------------------------------
+    -- UI INTEGRATION
+    ---------------------------------------------------------
+    Tab:CreateSection("Multi-Object Grabber")
+
+    Tab:CreateToggle("Selection Mode (Click Part)", false, function(state)
         Config.SelectionEnabled = state
         Library:Notify("Selection", state and "Click objects to queue" or "Selection disabled", 2)
     end)
 
-    Tab:CreateToggle("Instant Teleport", false, function(state)
-        Config.UseTeleport = state
-        Library:Notify("Mode", state and "Instant teleport ON" or "Smooth drag ON", 2)
+    Tab:CreateToggle("Global Destination Mode", false, function(state)
+        Config.GlobalMode = state
+        Library:Notify("Mode", state and "Will TP to marked location" or "Will TP to Player", 2)
     end)
 
-    Tab:CreateSlider("Drag Speed", 10, 500, 100, function(value)
-        Config.Speed = value
-        Library:Notify("Speed", "Set to " .. value .. " studs/sec", 1)
+    Tab:CreateAction("Set Destination (Mouse)", "Mark Spot", function()
+        targetCFrame = Mouse.Hit
+        Library:Notify("Success", "Global Destination Set!", 2)
     end)
 
-    Tab:CreateAction("Clear List", "Deselect All", function()
-        local count = #queuedObjects
+    Tab:CreateAction("Clear Queue", "Reset List", function()
         for _, obj in ipairs(queuedObjects) do
             if obj and obj:FindFirstChild("TP_Highlight") then 
                 obj.TP_Highlight:Destroy() 
             end
         end
         queuedObjects = {}
-        Library:Notify("Queue Cleared", "Removed " .. count .. " items from list.", 2)
+        Library:Notify("Queue", "Cleared all items.", 2)
     end)
 
-    Tab:CreateAction("Execute", "Start Teleporting", function()
+    Tab:CreateAction("Execute TP", "Start Process", function()
         local char = Player.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
         
-        if not root then 
-            return Library:Notify("Error", "Character not found!", 3) 
-        end
-        
-        if #queuedObjects == 0 then 
-            return Library:Notify("Error", "No objects selected!", 3) 
-        end
+        if not hrp then return Library:Notify("Error", "No Character!", 3) end
+        if #queuedObjects == 0 then return Library:Notify("Error", "Queue is empty!", 3) end
+        if Config.GlobalMode and not targetCFrame then return Library:Notify("Error", "Set Destination first!", 3) end
 
-        Library:Notify("Teleport", "Fetching " .. #queuedObjects .. " items...", 3)
+        Library:Notify("Processing", "Moving " .. #queuedObjects .. " items...", 3)
         
         task.spawn(function()
             for i = #queuedObjects, 1, -1 do
                 local obj = queuedObjects[i]
-                
                 if obj and obj.Parent and obj:IsA("BasePart") then
-                    moveObjectToPlayer(obj)
                     
-                    -- Wait for object to arrive
-                    if Config.UseTeleport then
-                        task.wait(0.2)
-                    else
-                        task.wait(5.5) -- Max movement time + buffer
+                    -- 1. Determine Destination
+                    local destination = Config.GlobalMode and targetCFrame.Position or (hrp.Position + hrp.CFrame.LookVector * 5)
+
+                    -- 2. Teleport Player to item to ensure it's in range/rendered
+                    hrp.CFrame = CFrame.new(obj.Position + Vector3.new(0, 0, -5), obj.Position)
+                    task.wait(0.3)
+
+                    -- 3. Virtual Click Grab (Script 1 Logic)
+                    local vector, onScreen = Camera:WorldToViewportPoint(obj.Position)
+                    if onScreen then
+                        VIM:SendMouseMoveEvent(vector.X, vector.Y, game)
+                        task.wait(0.05)
+                        VIM:SendMouseButtonEvent(vector.X, vector.Y, 0, true, game, 0)
+                        task.wait(0.1)
+                        
+                        -- 4. Move the object
+                        linearDrag(obj, destination)
+                        
+                        -- 5. Release
+                        VIM:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
+                        stopAllMotion(obj)
+                        task.wait(0.1)
                     end
                 end
-                
-                -- Remove highlight
+
+                -- Cleanup highlight and table
                 if obj and obj:FindFirstChild("TP_Highlight") then
                     obj.TP_Highlight:Destroy()
                 end
-                
                 table.remove(queuedObjects, i)
             end
-            
-            Library:Notify("Complete", "All items collected!", 3)
+            Library:Notify("Complete", "Queue finished.", 3)
         end)
     end)
 
@@ -147,21 +145,13 @@ function LooseObjectTeleport.Init(Tab, Library)
                     if target:FindFirstChild("TP_Highlight") then 
                         target.TP_Highlight:Destroy() 
                     end
-                    Library:Notify("Queue", "Removed. Total: " .. #queuedObjects, 1)
                 else
                     table.insert(queuedObjects, target)
                     local h = Instance.new("SelectionBox")
                     h.Name = "TP_Highlight"
-                    h.Color3 = Color3.fromRGB(74, 120, 255)
+                    h.Color3 = Color3.fromRGB(150, 255, 150)
                     h.Adornee = target
                     h.Parent = target
-                    Library:Notify("Queue", "Added. Total: " .. #queuedObjects, 1)
-                end
-            else
-                if not target then
-                    Library:Notify("Error", "Click on a part!", 2)
-                elseif target.Anchored then
-                    Library:Notify("Error", "Part is anchored!", 2)
                 end
             end
         end
