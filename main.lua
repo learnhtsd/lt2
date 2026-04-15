@@ -891,3 +891,6 @@ if TreeCamModule and TreeCamModule.Init then TreeCamModule.Init(WoodTab) end
 
 local SaveGameModule = LoadModule("SaveGame")
 if SaveGameModule and SaveGameModule.Init then SaveGameModule.Init(PlotTab, Libary) end
+
+local PlotModule = LoadModule("Plot")
+if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Libary) end
