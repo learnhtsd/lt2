@@ -14,28 +14,43 @@ function World.Init(Tab, Lib)
     _G.ShadowsEnabled = true
     _G.FogEnabled = true
     _G.WaterEnabled = true
-    _G.BouldersRemoved = false -- NEW
+    _G.BouldersRemoved = false 
+    _G.VolcanoBouldersRemoved = false
     _G.PostProcessing = true
 
     local waterParts = {}
-    local boulderParts = {} -- NEW
-    local volcanoCraterParts = {}
+    local boulderParts = {} 
     local effectCache = {}
 
-    -- Pre-scan for Water, Boulders, and Post-Processing effects
+    -- IMPROVED: Incremental Scan to prevent freezing
     local function ScanWorld()
         waterParts = {}
-        boulderParts = {} -- Reset
+        boulderParts = {}
         
-        for _, obj in pairs(Workspace:GetDescendants()) do
-            -- Cache Water
-            if obj:IsA("BasePart") and obj.Name == "Water" then
-                table.insert(waterParts, {Instance = obj, OriginalTransparency = obj.Transparency})
-            end
+        local descendants = Workspace:GetDescendants()
+        local count = 0
+        
+        for _, obj in pairs(descendants) do
+            count = count + 1
             
-            -- Cache Boulders (LT2 Specific)
-            if obj:IsA("BasePart") and (obj.Name == "Boulder" or obj.Name == "SmallBoulder") then
-                table.insert(boulderParts, {Instance = obj, OriginalTransparency = obj.Transparency})
+            -- Yield every 500 objects so the game doesn't hang
+            if count % 500 == 0 then 
+                task.wait() 
+            end
+
+            if obj:IsA("BasePart") then
+                -- Cache Water
+                if obj.Name == "Water" then
+                    table.insert(waterParts, {Instance = obj, OriginalTransparency = obj.Transparency})
+                end
+                
+                -- Cache Boulders
+                if obj.Name == "Boulder" or obj.Name == "SmallBoulder" then
+                    -- Filter out the "Dynamic" boulders (the ones with fire) to keep them separate
+                    if not (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
+                        table.insert(boulderParts, {Instance = obj, OriginalTransparency = obj.Transparency})
+                    end
+                end
             end
         end
 
@@ -44,10 +59,14 @@ function World.Init(Tab, Lib)
                 effectCache[effect] = effect.Enabled
             end
         end
+        
+        if Lib and Lib.Notify then
+            Lib:Notify("System", "World Scan Complete!", 2)
+        end
     end
 
-    -- Run initial scan
-    ScanWorld()
+    -- Run initial scan in a separate thread so it doesn't block the UI loading
+    task.spawn(ScanWorld)
 
     -- ===========================
     -- TOGGLE LOGIC
@@ -58,24 +77,17 @@ function World.Init(Tab, Lib)
             if part and part.Parent then
                 part.Transparency = state and data.OriginalTransparency or 1
                 part.CanCollide = false
-                part.CanTouch = state -- Disables drowning/lava logic when water is "off"
+                part.CanTouch = state 
             end
         end
     end
 
-    local function ToggleBoulders(state) -- NEW logic
+    local function ToggleBoulders(state)
         for _, data in pairs(boulderParts) do
             local part = data.Instance
             if part and part.Parent then
-                if state then
-                    -- "Remove" Boulders
-                    part.Transparency = 1
-                    part.CanCollide = false
-                else
-                    -- Restore Boulders
-                    part.Transparency = data.OriginalTransparency
-                    part.CanCollide = true
-                end
+                part.Transparency = state and 1 or data.OriginalTransparency
+                part.CanCollide = not state
             end
         end
     end
@@ -120,27 +132,19 @@ function World.Init(Tab, Lib)
         ToggleWater(s)
     end)
 
-    -- NEW TOGGLE FOR BOULDERS
     Tab:CreateToggle("Toggle Tundra Boulders", false, function(s)
         _G.BouldersRemoved = s
         ToggleBoulders(s)
-        
-        if Lib and Lib.Notify then
-            Lib:Notify("Environment", s and "Boulders cleared!" or "Boulders restored.", 3)
-        end
+        if Lib and Lib.Notify then Lib:Notify("Environment", s and "Boulders cleared!" or "Boulders restored.", 3) end
     end)
-    -- Toggle for the Static Boulders in the Crater
+
     Tab:CreateToggle("Toggle Volcano Boulders", false, function(s)
         _G.VolcanoBouldersRemoved = s
-        ToggleVolcanoBoulders(s)
-        
-        if Lib and Lib.Notify then
-            Lib:Notify("Environment", s and "Volcano cleared!" or "Volcano restored.", 3)
-        end
+        if Lib and Lib.Notify then Lib:Notify("Environment", s and "Volcano bypass active!" or "Volcano restored.", 3) end
     end)
 
     -- ===========================
-    -- MASTER LOOP
+    -- MASTER LOOP (Optimized)
     -- ===========================
     RunService.RenderStepped:Connect(function()
         if _G.TimeLock then Lighting.ClockTime = _G.TimeOfDay end
@@ -161,15 +165,15 @@ function World.Init(Tab, Lib)
             if atm then atm.Density = 0 end
         end
 
-        -- Handle DYNAMIC Rolling Boulders (The ones that spawn and fall)
+        -- DYNAMIC Boulders logic
         if _G.VolcanoBouldersRemoved then
             for _, obj in pairs(Workspace:GetChildren()) do
-                -- This catches the boulders that spawn into Workspace after the game starts
                 if obj.Name == "Boulder" and (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
-                    if obj:IsA("BasePart") then
+                    if obj:IsA("BasePart") and obj.CanCollide == true then
                         obj.CanCollide = false
                         obj.Transparency = 1
-                        obj.CFrame = obj.CFrame * CFrame.new(0, -500, 0) 
+                        -- Move them far away so they don't hit the player
+                        obj.CFrame = obj.CFrame * CFrame.new(0, -1000, 0) 
                     end
                 end
             end
