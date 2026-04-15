@@ -5,90 +5,91 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 function Plot.Init(Tab, Library)
+    -- Safety check: ensure the tab exists
     if not Tab then return warn("Plot Module: Tab was nil!") end
     
     local LocalPlayer = Players.LocalPlayer
     local loadSaveRequests = ReplicatedStorage:FindFirstChild("LoadSaveRequests")
-    local propertyPurchasing = ReplicatedStorage:FindFirstChild("PropertyPurchasing")
     
-    ---------------------------------------------------------------------------
-    -- SAVE / LOAD SECTION
-    ---------------------------------------------------------------------------
-    Tab:CreateSection("Save & Load")
+    Tab:CreateSection("Save Management")
 
-    Tab:CreateAction("Force Save Current Slot", "Save", function()
+    Tab:CreateAction("Save Slot", "Save", function()
         local currentSlot = LocalPlayer:FindFirstChild("CurrentSaveSlot")
+
         if loadSaveRequests and currentSlot and currentSlot.Value ~= -1 then
-            local RequestSave = loadSaveRequests:FindFirstChild("RequestSave")
-            if RequestSave then
-                Library:Notify("SAVING", "Forcing save on slot " .. tostring(currentSlot.Value), 3)
-                RequestSave:InvokeServer(currentSlot.Value)
+            local RequestSaveRemote = loadSaveRequests:FindFirstChild("RequestSave")
+            
+            if RequestSaveRemote then
+                if Library and Library.Notify then
+                    Library:Notify("SAVING", "Attempting to force save slot " .. tostring(currentSlot.Value), 3)
+                end
+                
+                local success = RequestSaveRemote:InvokeServer(currentSlot.Value)
+                
+                if success then
+                    if Library and Library.Notify then Library:Notify("SUCCESS", "Slot saved!", 5) end
+                else
+                    if Library and Library.Notify then Library:Notify("FAILED", "Save on cooldown", 5) end
+                end
             end
         else
-            Library:Notify("ERROR", "No slot currently loaded", 5)
+            if Library and Library.Notify then Library:Notify("ERROR", "No slot loaded", 5) end
         end
     end)
 
-    local selectedSlot = 1
-    Tab:CreateDropdown("Select Slot", {"1", "2", "3", "4", "5", "6"}, "1", function(v)
-        selectedSlot = tonumber(v)
-    end)
+    Tab:CreateSection("Load Management")
+    
+    -- Variable to hold the currently selected slot (1-6)
+    local selectedSlotToLoad = 1
+
+    -- NOTE: Depending on your specific UI Library, the method to create a dropdown or slider 
+    -- might differ (e.g., CreateDropdown, AddDropdown, CreateSlider). Adjust the name as needed.
+    if Tab.CreateDropdown then
+        Tab:CreateDropdown("Select Slot to Load", {"1", "2", "3", "4", "5", "6"}, "1", function(value)
+            selectedSlotToLoad = tonumber(value)
+        end)
+    else
+        -- If your UI library doesn't support dropdowns easily, you can uncomment this loop 
+        -- to just spawn 6 separate buttons instead.
+        --[[
+        for i = 1, 6 do
+            Tab:CreateAction("Set Slot to " .. i, "Select", function() selectedSlotToLoad = i end)
+        end
+        ]]
+    end
 
     Tab:CreateAction("Load Selected Slot", "Load", function()
-        if loadSaveRequests and loadSaveRequests:FindFirstChild("RequestLoad") then
-            Library:Notify("LOADING", "Loading slot " .. selectedSlot, 3)
-            loadSaveRequests.RequestLoad:InvokeServer(selectedSlot)
-        end
-    end)
+        if loadSaveRequests then
+            local RequestLoadRemote = loadSaveRequests:FindFirstChild("RequestLoad")
+            local SelectLoadPlotRemote = loadSaveRequests:FindFirstChild("SelectLoadPlot")
 
-    ---------------------------------------------------------------------------
-    -- PROPERTY EXPLOITS
-    ---------------------------------------------------------------------------
-    Tab:CreateSection("Property Management")
-
-    Tab:CreateAction("Set Price to 0", "Execute", function()
-        if propertyPurchasing and propertyPurchasing:FindFirstChild("SetPropertyPurchasingValue") then
-            -- This attempts to tell the server the property price is 0
-            propertyPurchasing.SetPropertyPurchasingValue:FireServer(0)
-            Library:Notify("EXPLOIT", "Attempted to set land price to 0", 5)
-        else
-            Library:Notify("ERROR", "Remote not found", 5)
-        end
-    end)
-
-    Tab:CreateAction("Purchase Property", "Claim", function()
-        -- In LT2, you usually need to be near the plot or have a plot selected.
-        -- This fires the remote found in your scanner.
-        if propertyPurchasing and propertyPurchasing:FindFirstChild("ClientPurchasedProperty") then
-            propertyPurchasing.ClientPurchasedProperty:FireServer(LocalPlayer)
-            Library:Notify("PROPERTY", "Sent purchase request", 5)
-        end
-    end)
-
-    Tab:CreateAction("Max Land Expansion", "Expand", function()
-        -- This usually requires looping the purchase remote or 
-        -- firing the ClientPurchasedProperty multiple times.
-        if propertyPurchasing and propertyPurchasing:FindFirstChild("ClientPurchasedProperty") then
-            Library:Notify("EXPANDING", "Attempting to max out land...", 3)
-            for i = 1, 15 do -- Typical max expansions
-                propertyPurchasing.ClientPurchasedProperty:FireServer(LocalPlayer)
-                task.wait(0.1)
+            if Library and Library.Notify then
+                Library:Notify("LOADING", "Attempting to load slot " .. tostring(selectedSlotToLoad), 3)
             end
-        end
-    end)
-    
-    Tab:CreateSection("Misc Utilities")
-    
-    Tab:CreateToggle("Auto-Enter Purchase Mode", false, function(state)
-        _G.AutoPurchaseMode = state
-        task.spawn(function()
-            while _G.AutoPurchaseMode do
-                if propertyPurchasing and propertyPurchasing:FindFirstChild("ClientEnterPropertyPurchaseMode") then
-                    propertyPurchasing.ClientEnterPropertyPurchaseMode:FireServer(LocalPlayer)
+
+            if RequestLoadRemote then
+                -- 1. Fire the load request for the specific slot
+                RequestLoadRemote:InvokeServer(selectedSlotToLoad)
+                
+                -- 2. Handle the Plot Selection
+                -- In LT2, SelectLoadPlot is typically fired when clicking a physical plot sign.
+                -- If you need this script to auto-claim a plot, you will likely need to pass the 
+                -- Plot model (from workspace.Properties) as an argument.
+                if SelectLoadPlotRemote then
+                    -- SelectLoadPlotRemote:InvokeServer(TargetPlotObject) 
                 end
-                task.wait(2)
+
+                if Library and Library.Notify then 
+                    Library:Notify("SUCCESS", "Sent load request for slot " .. tostring(selectedSlotToLoad), 5) 
+                end
+            else
+                if Library and Library.Notify then 
+                    Library:Notify("ERROR", "RequestLoad remote not found", 5) 
+                end
             end
-        end)
+        else
+            if Library and Library.Notify then Library:Notify("ERROR", "LoadSaveRequests folder missing", 5) end
+        end
     end)
 end
 
