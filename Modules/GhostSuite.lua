@@ -11,6 +11,7 @@ function GhostSuite.Init(Tab)
     -- ===========================
     _G.GhostSuiteEnabled = false
     _G.GhostFullModel = false -- New Toggle State
+    _G.GhostUseBlacklist = true -- Blacklist on by default
     local ExtractedObjects = {}
     
     local BlacklistNames = {
@@ -77,6 +78,18 @@ function GhostSuite.Init(Tab)
         return count
     end
 
+    local function IsProtected(target)
+        if not target then return true end
+        if _G.GhostUseBlacklist then
+            if BlacklistNames[target.Name] then return true end
+            if target:FindFirstAncestor("Properties") or target:FindFirstAncestor("Owner") then
+                return true
+            end
+            if target.Name:lower():find("baseplate") then return true end
+        end
+        return false
+    end
+
     -- ===========================
     -- UI ELEMENTS
     -- ===========================
@@ -89,6 +102,10 @@ function GhostSuite.Init(Tab)
 
     Tab:CreateToggle("Ghost Full Model", false, function(s) 
         _G.GhostFullModel = s 
+    end)
+    
+    Tab:CreateToggle("Protect Baseplate & Map", true, function(s)
+        _G.GhostUseBlacklist = s
     end)
 
     Tab:CreateAction("Restore All Objects", "Reset", function()
