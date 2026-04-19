@@ -117,13 +117,6 @@ function Library:CreateWindow()
     ShadowFrame.Parent = ScreenGui
     Instance.new("UICorner", ShadowFrame).CornerRadius = UDim.new(0, 9)
 
-    -- Helper to sync all shadow layers when MainFrame moves.
-    -- Offsets are (layerW - 550)/2 wide, and shifted ~8px down for directionality.
-    local function SyncShadows()
-        -- We read MainFrame.Position after it's created (see below).
-        -- Called from the drag handler.
-    end
-
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
     MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
@@ -133,18 +126,6 @@ function Library:CreateWindow()
     MainFrame.ZIndex = 2
     MainFrame.Parent = ScreenGui
     Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
-
-    -- Now define SyncShadows properly with access to MainFrame
-    -- Shadow offsets: centered on MainFrame center + 8px downward shift for depth
-    function SyncShadows()
-        local mx = MainFrame.Position.X.Offset  -- offset from 0.5 scale
-        local my = MainFrame.Position.Y.Offset
-        -- Outer: 590x390, so 20px wider/taller than 550x350. Center diff = 10px each side, +8 down
-        ShadowOuter.Position  = UDim2.new(0.5, mx - 20, 0.5, my - 12)
-        ShadowMid.Position    = UDim2.new(0.5, mx - 11, 0.5, my - 5)
-        ShadowInner.Position  = UDim2.new(0.5, mx -  4, 0.5, my  + 1)
-    end
-    SyncShadows() -- initial position
 
     local Sidebar = Instance.new("Frame")
     Sidebar.Size = UDim2.new(0, 50, 1, 0)
