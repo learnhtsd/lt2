@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.122"
+local Version = "v0.0.123"
 
 -- UI ENGINE START
 local Library = {}
@@ -108,14 +108,14 @@ function Library:CreateWindow()
     -- Single clean drop shadow — ZIndex 1 here will always be behind
     -- MainFrame (ZIndex 2) because of Sibling mode scoping.
     local ShadowFrame = Instance.new("Frame")
-    ShadowFrame.Size = UDim2.new(0, 564, 0, 364)
-    ShadowFrame.Position = UDim2.new(0.5, -278, 0.5, -174) -- centered + 4px offset down
+    ShadowFrame.Size = UDim2.new(0, 570, 0, 370)
+    ShadowFrame.Position = UDim2.new(0.5, -281, 0.5, -178)
     ShadowFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    ShadowFrame.BackgroundTransparency = 0.45
+    ShadowFrame.BackgroundTransparency = 0.82
     ShadowFrame.BorderSizePixel = 0
     ShadowFrame.ZIndex = 1
     ShadowFrame.Parent = ScreenGui
-    Instance.new("UICorner", ShadowFrame).CornerRadius = UDim.new(0, 9)
+    Instance.new("UICorner", ShadowFrame).CornerRadius = UDim.new(0, 12)
 
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
