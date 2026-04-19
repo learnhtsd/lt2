@@ -26,7 +26,7 @@ function Library:CreateWindow()
     TooltipGui.Size = UDim2.new(0, 0, 0, 0)
     TooltipGui.AutomaticSize = Enum.AutomaticSize.XY
     TooltipGui.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    TooltipGui.TextColor3 = Color3.fromRGB(200, 200, 200) -- Light Grey Text
+    TooltipGui.TextColor3 = Color3.fromRGB(200, 200, 200)
     TooltipGui.Font = Enum.Font.GothamMedium
     TooltipGui.TextSize = 11
     TooltipGui.RichText = true
@@ -55,7 +55,6 @@ function Library:CreateWindow()
 
     UserInputService.InputChanged:Connect(function(input)
         if TooltipGui.Visible and input.UserInputType == Enum.UserInputType.MouseMovement then
-            -- math.round ensures the tooltip stays on exact pixels, removing the blur
             local posX = math.round(input.Position.X + 12)
             local posY = math.round(input.Position.Y + 12)
             TooltipGui.Position = UDim2.new(0, posX, 0, posY)
@@ -72,29 +71,23 @@ function Library:CreateWindow()
             InfoIcon.AnchorPoint = Vector2.new(0, 0.5)
             InfoIcon.BackgroundTransparency = 1
             InfoIcon.Text = "(?)"
-            
-            -- THE FIX: Changed from Light Blue to Thin Grey
             InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130)
-            
-            -- Made it Gotham (Thin) instead of GothamBold for a 'thinner' look
             InfoIcon.Font = Enum.Font.Gotham
             InfoIcon.TextSize = 11
             InfoIcon.Parent = TitleLabel
             
-            -- Updates dynamically so it sticks to the end of the text (even for sliders!)
             local function updatePos()
                 InfoIcon.Position = UDim2.new(0, TitleLabel.TextBounds.X + 6, 0.5, 0)
             end
             TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(updatePos)
             updatePos()
 
-            -- We keep the Blue Hover effect for good UX
             InfoIcon.MouseEnter:Connect(function()
-                InfoIcon.TextColor3 = Color3.fromRGB(74, 120, 255) -- Active Blue
+                InfoIcon.TextColor3 = Color3.fromRGB(74, 120, 255)
                 Library.ShowTooltip(text)
             end)
             InfoIcon.MouseLeave:Connect(function()
-                InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130) -- Back to Grey
+                InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130)
                 Library.HideTooltip()
             end)
             
@@ -103,14 +96,72 @@ function Library:CreateWindow()
         return ElementTable
     end
 
+    -- ===========================
+    -- IMPROVEMENT 2: BACKDROP SHADOW
+    -- A layered soft shadow behind the main frame, synced during drag.
+    -- ===========================
+
+    -- Outer glow layer (largest, most transparent)
+    local ShadowOuter = Instance.new("Frame")
+    ShadowOuter.Size = UDim2.new(0, 590, 0, 390)
+    ShadowOuter.Position = UDim2.new(0.5, -295, 0.5, -185)
+    ShadowOuter.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    ShadowOuter.BackgroundTransparency = 0.78
+    ShadowOuter.BorderSizePixel = 0
+    ShadowOuter.ZIndex = 1
+    ShadowOuter.Parent = ScreenGui
+    Instance.new("UICorner", ShadowOuter).CornerRadius = UDim.new(0, 14)
+
+    -- Mid shadow layer
+    local ShadowMid = Instance.new("Frame")
+    ShadowMid.Size = UDim2.new(0, 572, 0, 372)
+    ShadowMid.Position = UDim2.new(0.5, -281, 0.5, -178)
+    ShadowMid.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    ShadowMid.BackgroundTransparency = 0.65
+    ShadowMid.BorderSizePixel = 0
+    ShadowMid.ZIndex = 1
+    ShadowMid.Parent = ScreenGui
+    Instance.new("UICorner", ShadowMid).CornerRadius = UDim.new(0, 10)
+
+    -- Inner shadow layer (smallest, most opaque)
+    local ShadowInner = Instance.new("Frame")
+    ShadowInner.Size = UDim2.new(0, 558, 0, 360)
+    ShadowInner.Position = UDim2.new(0.5, -274, 0.5, -173)
+    ShadowInner.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    ShadowInner.BackgroundTransparency = 0.50
+    ShadowInner.BorderSizePixel = 0
+    ShadowInner.ZIndex = 1
+    ShadowInner.Parent = ScreenGui
+    Instance.new("UICorner", ShadowInner).CornerRadius = UDim.new(0, 8)
+
+    -- Helper to sync all shadow layers when MainFrame moves.
+    -- Offsets are (layerW - 550)/2 wide, and shifted ~8px down for directionality.
+    local function SyncShadows()
+        -- We read MainFrame.Position after it's created (see below).
+        -- Called from the drag handler.
+    end
+
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
     MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
     MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
     MainFrame.BackgroundTransparency = 0.15
     MainFrame.BorderSizePixel = 0
+    MainFrame.ZIndex = 2
     MainFrame.Parent = ScreenGui
     Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
+
+    -- Now define SyncShadows properly with access to MainFrame
+    -- Shadow offsets: centered on MainFrame center + 8px downward shift for depth
+    function SyncShadows()
+        local mx = MainFrame.Position.X.Offset  -- offset from 0.5 scale
+        local my = MainFrame.Position.Y.Offset
+        -- Outer: 590x390, so 20px wider/taller than 550x350. Center diff = 10px each side, +8 down
+        ShadowOuter.Position  = UDim2.new(0.5, mx - 20, 0.5, my - 12)
+        ShadowMid.Position    = UDim2.new(0.5, mx - 11, 0.5, my - 5)
+        ShadowInner.Position  = UDim2.new(0.5, mx -  4, 0.5, my  + 1)
+    end
+    SyncShadows() -- initial position
 
     local Sidebar = Instance.new("Frame")
     Sidebar.Size = UDim2.new(0, 50, 1, 0)
@@ -245,7 +296,10 @@ function Library:CreateWindow()
         end)
     end
 
-    local dragging, dragInput, dragStart, startPos
+    -- ===========================
+    -- DRAG + SHADOW SYNC
+    -- ===========================
+    local dragging, dragStart, startPos
     MainFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
@@ -259,7 +313,11 @@ function Library:CreateWindow()
     UserInputService.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             local delta = input.Position - dragStart
-            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            MainFrame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+            SyncShadows() -- keep shadows locked to frame while dragging
         end
     end)
 
@@ -284,13 +342,12 @@ function Library:CreateWindow()
         FallbackText.Name = "TabIconText"
 
         local folderName = "DynxeLT2"
-        local fileName = TabName .. "_" .. Version:gsub("%.", "") .. ".png" 
+        local fileName = TabName .. "_" .. Version:gsub("%.", "") .. ".png"
         local filePath = folderName .. "/" .. fileName
         local finalAssetUrl = ""
-        
+
         if isfolder and makefolder and writefile and isfile and getcustomasset then
             if not isfolder(folderName) then makefolder(folderName) end
-        
             if not isfile(filePath) then
                 local iconUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/Icons/%s.png?t=%s", User, Repo, Branch, TabName, tick())
                 local success, imgData = pcall(function() return game:HttpGet(iconUrl) end)
@@ -298,7 +355,6 @@ function Library:CreateWindow()
                     writefile(filePath, imgData)
                 end
             end
-        
             if isfile(filePath) then finalAssetUrl = getcustomasset(filePath) end
         end
 
@@ -326,7 +382,7 @@ function Library:CreateWindow()
         TabPage.Visible = false
         TabPage.Parent = ContentContainer
         TabPage.ClipsDescendants = true
-        Tab.Container = TabPage -- <-- Added reference for nested layouts
+        Tab.Container = TabPage
 
         local PageLayout = Instance.new("UIListLayout")
         PageLayout.Parent = TabPage
@@ -371,10 +427,9 @@ function Library:CreateWindow()
             Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         end
 
-        -- FEATURE: Create Container Row (Merging Elements side by side)
         function Tab:CreateRow()
             local Row = setmetatable({}, { __index = self })
-            
+
             local RowFrame = Instance.new("Frame")
             RowFrame.Size = UDim2.new(1, 0, 0, 28)
             RowFrame.BackgroundTransparency = 1
@@ -386,12 +441,10 @@ function Library:CreateWindow()
             RowLayout.SortOrder = Enum.SortOrder.LayoutOrder
             RowLayout.Padding = UDim.new(0, 6)
 
-            -- Automatically adjust row height to the tallest element inside
             RowLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                 RowFrame.Size = UDim2.new(1, 0, 0, RowLayout.AbsoluteContentSize.Y)
             end)
 
-            -- Dynamically share width among all children
             RowFrame.ChildAdded:Connect(function()
                 task.defer(function()
                     local elements = {}
@@ -409,7 +462,7 @@ function Library:CreateWindow()
                     end
                 end)
             end)
-            
+
             Row.Container = RowFrame
             return Row
         end
@@ -426,7 +479,18 @@ function Library:CreateWindow()
             SectionLabel.Parent = self.Container
         end
 
-        function Tab:CreateAction(Title, ButtonText, Callback)
+        -- ===========================
+        -- IMPROVEMENT 3: CREATE ACTION (with optional Secure double-confirm)
+        --
+        -- Usage:
+        --   Tab:CreateAction("Title", "Run", callback)           -- normal
+        --   Tab:CreateAction("Title", "Wipe Data", callback, true) -- requires double-click confirm
+        --
+        -- Secure flow:
+        --   1st click  → button turns amber + shows "Confirm?" (auto-resets after 3s if not confirmed)
+        --   2nd click  → executes callback, button flashes green briefly, resets
+        -- ===========================
+        function Tab:CreateAction(Title, ButtonText, Callback, Secure)
             local Element = {}
             local ActionFrame = Instance.new("Frame")
             ActionFrame.Size = UDim2.new(1, 0, 0, 28)
@@ -446,6 +510,27 @@ function Library:CreateWindow()
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = ActionFrame
 
+            -- Secure mode: small lock badge next to the title
+            if Secure then
+                local LockBadge = Instance.new("TextLabel")
+                LockBadge.Size = UDim2.new(0, 22, 0, 14)
+                LockBadge.AnchorPoint = Vector2.new(0, 0.5)
+                LockBadge.BackgroundColor3 = Color3.fromRGB(180, 120, 20)
+                LockBadge.BackgroundTransparency = 0.3
+                LockBadge.Text = "🔒"
+                LockBadge.TextSize = 9
+                LockBadge.Font = Enum.Font.Gotham
+                LockBadge.TextColor3 = Color3.fromRGB(255, 220, 100)
+                LockBadge.Parent = TitleLabel
+                Instance.new("UICorner", LockBadge).CornerRadius = UDim.new(0, 3)
+
+                local function updateBadgePos()
+                    LockBadge.Position = UDim2.new(0, TitleLabel.TextBounds.X + 8, 0.5, 0)
+                end
+                TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(updateBadgePos)
+                updateBadgePos()
+            end
+
             local ActionBtn = Instance.new("TextButton")
             ActionBtn.Size = UDim2.new(0, 70, 0, 20)
             ActionBtn.AnchorPoint = Vector2.new(1, 0.5)
@@ -458,8 +543,54 @@ function Library:CreateWindow()
             ActionBtn.Parent = ActionFrame
             Instance.new("UICorner", ActionBtn).CornerRadius = UDim.new(0, 4)
             AddDepthStroke(ActionBtn)
-            ActionBtn.MouseButton1Click:Connect(Callback)
-            
+
+            if Secure then
+                -- Colours used across the confirm flow
+                local COL_IDLE    = Color3.fromRGB(35,  35,  42)   -- default grey
+                local COL_WARN    = Color3.fromRGB(190, 120, 15)   -- amber → "Confirm?"
+                local COL_SUCCESS = Color3.fromRGB(45,  160, 75)   -- green → executed
+
+                local awaitingConfirm = false
+                local resetThread = nil
+
+                local function resetBtn()
+                    awaitingConfirm = false
+                    TweenService:Create(ActionBtn, TweenInfo.new(0.25), {BackgroundColor3 = COL_IDLE}):Play()
+                    ActionBtn.Text = ButtonText
+                    ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+
+                ActionBtn.MouseButton1Click:Connect(function()
+                    if not awaitingConfirm then
+                        -- ── FIRST CLICK: enter confirm state ──
+                        awaitingConfirm = true
+                        TweenService:Create(ActionBtn, TweenInfo.new(0.2), {BackgroundColor3 = COL_WARN}):Play()
+                        ActionBtn.Text = "Confirm?"
+                        ActionBtn.TextColor3 = Color3.fromRGB(255, 240, 180)
+
+                        -- Auto-cancel if the user doesn't confirm within 3 seconds
+                        if resetThread then task.cancel(resetThread) end
+                        resetThread = task.delay(3, resetBtn)
+                    else
+                        -- ── SECOND CLICK: execute ──
+                        if resetThread then task.cancel(resetThread) end
+                        awaitingConfirm = false
+
+                        -- Brief green flash to confirm execution
+                        TweenService:Create(ActionBtn, TweenInfo.new(0.15), {BackgroundColor3 = COL_SUCCESS}):Play()
+                        ActionBtn.Text = "✓ Done"
+                        ActionBtn.TextColor3 = Color3.fromRGB(200, 255, 210)
+
+                        Callback()
+
+                        task.delay(1.2, resetBtn)
+                    end
+                end)
+            else
+                -- Normal (non-secure) action
+                ActionBtn.MouseButton1Click:Connect(Callback)
+            end
+
             return AttachTooltip(TitleLabel, Element)
         end
 
@@ -509,12 +640,22 @@ function Library:CreateWindow()
                 TweenService:Create(ToggleBG, TweenInfo.new(0.2), {BackgroundColor3 = targetCol}):Play()
                 Callback(Toggled)
             end)
-            
+
             return AttachTooltip(TitleLabel, Element)
         end
 
+        -- ===========================
+        -- IMPROVEMENT 1: SLIDER
+        --
+        -- Changes:
+        --  • The entire SliderFrame acts as the grab target, not just the thin bar.
+        --    This means the user can click anywhere on the element and drag.
+        --  • The current value is displayed as a blue label on the right side of the
+        --    title row, separate from the title text. The title stays clean.
+        -- ===========================
         function Tab:CreateSlider(Title, Min, Max, Default, Callback)
             local Element = {}
+
             local SliderFrame = Instance.new("Frame")
             SliderFrame.Size = UDim2.new(1, 0, 0, 38)
             SliderFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
@@ -522,24 +663,40 @@ function Library:CreateWindow()
             Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
             AddDepthStroke(SliderFrame)
 
+            -- Title text (left side, does NOT include the value)
             local TitleLabel = Instance.new("TextLabel")
-            TitleLabel.Size = UDim2.new(1, -30, 0, 20)
+            TitleLabel.Size = UDim2.new(1, -70, 0, 20)
             TitleLabel.Position = UDim2.new(0, 10, 0, 4)
             TitleLabel.BackgroundTransparency = 1
-            TitleLabel.Text = Title .. ": " .. Default
+            TitleLabel.Text = Title
             TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
             TitleLabel.Font = Enum.Font.GothamMedium
             TitleLabel.TextSize = 12
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = SliderFrame
 
+            -- Blue value readout (right side of the title row)
+            local ValueLabel = Instance.new("TextLabel")
+            ValueLabel.Size = UDim2.new(0, 55, 0, 20)
+            ValueLabel.AnchorPoint = Vector2.new(1, 0)
+            ValueLabel.Position = UDim2.new(1, -8, 0, 4)
+            ValueLabel.BackgroundTransparency = 1
+            ValueLabel.Text = tostring(Default)
+            ValueLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+            ValueLabel.Font = Enum.Font.GothamBold
+            ValueLabel.TextSize = 12
+            ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+            ValueLabel.Parent = SliderFrame
+
+            -- Track background
             local SliderBG = Instance.new("Frame")
             SliderBG.Size = UDim2.new(1, -20, 0, 4)
-            SliderBG.Position = UDim2.new(0, 10, 0, 26)
+            SliderBG.Position = UDim2.new(0, 10, 0, 28)
             SliderBG.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
             SliderBG.Parent = SliderFrame
             Instance.new("UICorner", SliderBG)
 
+            -- Filled portion of track
             local SliderFill = Instance.new("Frame")
             SliderFill.Size = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
             SliderFill.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
@@ -547,34 +704,45 @@ function Library:CreateWindow()
             SliderFill.Parent = SliderBG
             Instance.new("UICorner", SliderFill)
 
+            -- Invisible grab button covers the ENTIRE SliderFrame so the user
+            -- can click anywhere on the element (not just the thin 4px bar).
             local SliderBtn = Instance.new("TextButton")
             SliderBtn.Size = UDim2.new(1, 0, 1, 0)
             SliderBtn.BackgroundTransparency = 1
             SliderBtn.Text = ""
-            SliderBtn.Parent = SliderBG
+            SliderBtn.ZIndex = SliderFrame.ZIndex + 5  -- sits above all children
+            SliderBtn.Parent = SliderFrame
 
             local function UpdateSlider()
-                local mousePos = UserInputService:GetMouseLocation().X
-                local barPos = SliderBG.AbsolutePosition.X
-                local barWidth = SliderBG.AbsoluteSize.X
-                local percentage = math.clamp((mousePos - barPos) / barWidth, 0, 1)
-                local value = math.floor(Min + (Max - Min) * percentage)
-                SliderFill.Size = UDim2.new(percentage, 0, 1, 0)
-                TitleLabel.Text = Title .. ": " .. value
+                local mousePos  = UserInputService:GetMouseLocation().X
+                local barPos    = SliderBG.AbsolutePosition.X
+                local barWidth  = SliderBG.AbsoluteSize.X
+                local pct       = math.clamp((mousePos - barPos) / barWidth, 0, 1)
+                local value     = math.floor(Min + (Max - Min) * pct)
+                SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+                ValueLabel.Text = tostring(value)
                 Callback(value)
             end
 
             local sliding = false
+
             SliderBtn.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true end
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    sliding = true
+                    UpdateSlider()  -- snap immediately on click
+                end
             end)
             UserInputService.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    sliding = false
+                end
             end)
             UserInputService.InputChanged:Connect(function(input)
-                if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then UpdateSlider() end
+                if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    UpdateSlider()
+                end
             end)
-            
+
             return AttachTooltip(TitleLabel, Element)
         end
 
@@ -637,49 +805,46 @@ function Library:CreateWindow()
                     end
                 end
             end)
-            
+
             return AttachTooltip(TitleLabel, Element)
         end
 
         function Tab:CreateInfoBox(Title, Description)
-            local InfoBox = {} -- This will be the "handle" we return
-            
+            local InfoBox = {}
+
             local InfoFrame = Instance.new("Frame")
-            InfoFrame.Size = UDim2.new(1, 0, 0, 0) 
+            InfoFrame.Size = UDim2.new(1, 0, 0, 0)
             InfoFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
             InfoFrame.AutomaticSize = Enum.AutomaticSize.Y
             InfoFrame.Parent = self.Container
             Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 6)
-            
-            -- Using your library's internal function for consistent styling
             if AddDepthStroke then AddDepthStroke(InfoFrame) end
-            
+
             local Accent = Instance.new("Frame")
             Accent.Size = UDim2.new(0, 2, 1, 0)
             Accent.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
             Accent.BorderSizePixel = 0
             Accent.Parent = InfoFrame
             Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 2)
-        
+
             local TextContainer = Instance.new("Frame")
             TextContainer.BackgroundTransparency = 1
             TextContainer.Position = UDim2.new(0, 12, 0, 0)
             TextContainer.Size = UDim2.new(1, -12, 0, 0)
             TextContainer.AutomaticSize = Enum.AutomaticSize.Y
             TextContainer.Parent = InfoFrame
-        
+
             local InfoLayout = Instance.new("UIListLayout")
             InfoLayout.Parent = TextContainer
             InfoLayout.Padding = UDim.new(0, 4)
             InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        
+
             local InfoPadding = Instance.new("UIPadding")
             InfoPadding.Parent = TextContainer
             InfoPadding.PaddingTop = UDim.new(0, 8)
             InfoPadding.PaddingBottom = UDim.new(0, 8)
             InfoPadding.PaddingRight = UDim.new(0, 10)
-        
-            -- Create TitleLabel (Defining it here so the Update function can see it)
+
             local TitleLabel = Instance.new("TextLabel")
             TitleLabel.Size = UDim2.new(1, 0, 0, 18)
             TitleLabel.BackgroundTransparency = 1
@@ -691,7 +856,7 @@ function Library:CreateWindow()
             TitleLabel.LayoutOrder = 1
             TitleLabel.Visible = (Title ~= "" and Title ~= nil)
             TitleLabel.Parent = TextContainer
-        
+
             local DescLabel = Instance.new("TextLabel")
             DescLabel.Size = UDim2.new(1, 0, 0, 0)
             DescLabel.BackgroundTransparency = 1
@@ -700,28 +865,24 @@ function Library:CreateWindow()
             DescLabel.Font = Enum.Font.Gotham
             DescLabel.TextSize = 12
             DescLabel.TextWrapped = true
-            DescLabel.RichText = true -- CRITICAL: Allows the watchdog to use colors
+            DescLabel.RichText = true
             DescLabel.TextXAlignment = Enum.TextXAlignment.Left
             DescLabel.AutomaticSize = Enum.AutomaticSize.Y
             DescLabel.LayoutOrder = 2
             DescLabel.Parent = TextContainer
-        
-            -- ===========================
-            -- THE UPDATE METHODS
-            -- ===========================
-            
+
             function InfoBox:SetTitle(newTitle)
                 TitleLabel.Text = newTitle
                 TitleLabel.Visible = (newTitle ~= "")
             end
-        
+
             function InfoBox:SetDescription(newDesc)
                 DescLabel.Text = newDesc
             end
-        
-            return InfoBox -- Returns the table with our update functions
+
+            return InfoBox
         end
-        
+
         function Tab:CreateDropdown(Title, Options, Default, Callback)
             local Element = {}
             local Dropdown = { Open = false, Selected = Default or "Select..." }
@@ -838,10 +999,10 @@ local function LoadModule(ModuleName)
     end
     warn("Failed to load module: " .. ModuleName)
 end
- 
+
 local HomeModule = LoadModule("Home")
-if HomeModule and HomeModule.Init then 
-    HomeModule.Init(HomeTab, Library) 
+if HomeModule and HomeModule.Init then
+    HomeModule.Init(HomeTab, Library)
 end
 
 local MovementModule = LoadModule("PlayerMovement")
@@ -890,7 +1051,7 @@ local TreeCamModule = LoadModule("TreeCam")
 if TreeCamModule and TreeCamModule.Init then TreeCamModule.Init(WoodTab) end
 
 local SaveGameModule = LoadModule("SaveGame")
-if SaveGameModule and SaveGameModule.Init then SaveGameModule.Init(PlotTab, Libary) end
+if SaveGameModule and SaveGameModule.Init then SaveGameModule.Init(PlotTab, Library) end
 
 local PlotModule = LoadModule("Plot")
-if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Libary) end
+if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
