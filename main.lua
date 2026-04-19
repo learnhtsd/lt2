@@ -109,13 +109,13 @@ function Library:CreateWindow()
     -- MainFrame (ZIndex 2) because of Sibling mode scoping.
     local ShadowFrame = Instance.new("Frame")
     ShadowFrame.Size = UDim2.new(0, 570, 0, 370)
-    ShadowFrame.Position = UDim2.new(0.5, -281, 0.5, -178)
+    ShadowFrame.Position = UDim2.new(0.5, -285, 0.5, -181)
     ShadowFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     ShadowFrame.BackgroundTransparency = 0.82
     ShadowFrame.BorderSizePixel = 0
     ShadowFrame.ZIndex = 1
     ShadowFrame.Parent = ScreenGui
-    Instance.new("UICorner", ShadowFrame).CornerRadius = UDim.new(0, 12)
+    Instance.new("UICorner", ShadowFrame).CornerRadius = UDim.new(0, 0)
 
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
