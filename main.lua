@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.121"
+local Version = "v0.0.122"
 
 -- UI ENGINE START
 local Library = {}
@@ -101,38 +101,21 @@ function Library:CreateWindow()
     -- A layered soft shadow behind the main frame, synced during drag.
     -- ===========================
 
-    -- Outer glow layer (largest, most transparent)
-    local ShadowOuter = Instance.new("Frame")
-    ShadowOuter.Size = UDim2.new(0, 590, 0, 390)
-    ShadowOuter.Position = UDim2.new(0.5, -295, 0.5, -185)
-    ShadowOuter.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    ShadowOuter.BackgroundTransparency = 0.78
-    ShadowOuter.BorderSizePixel = 0
-    ShadowOuter.ZIndex = 1
-    ShadowOuter.Parent = ScreenGui
-    Instance.new("UICorner", ShadowOuter).CornerRadius = UDim.new(0, 14)
-
-    -- Mid shadow layer
-    local ShadowMid = Instance.new("Frame")
-    ShadowMid.Size = UDim2.new(0, 572, 0, 372)
-    ShadowMid.Position = UDim2.new(0.5, -281, 0.5, -178)
-    ShadowMid.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    ShadowMid.BackgroundTransparency = 0.65
-    ShadowMid.BorderSizePixel = 0
-    ShadowMid.ZIndex = 1
-    ShadowMid.Parent = ScreenGui
-    Instance.new("UICorner", ShadowMid).CornerRadius = UDim.new(0, 10)
-
-    -- Inner shadow layer (smallest, most opaque)
-    local ShadowInner = Instance.new("Frame")
-    ShadowInner.Size = UDim2.new(0, 558, 0, 360)
-    ShadowInner.Position = UDim2.new(0.5, -274, 0.5, -173)
-    ShadowInner.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    ShadowInner.BackgroundTransparency = 0.50
-    ShadowInner.BorderSizePixel = 0
-    ShadowInner.ZIndex = 1
-    ShadowInner.Parent = ScreenGui
-    Instance.new("UICorner", ShadowInner).CornerRadius = UDim.new(0, 8)
+    -- Set ZIndexBehavior so child ZIndex is relative to parent, not global.
+    -- This means MainFrame's children always render above ScreenGui-level siblings.
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    -- Single clean drop shadow — ZIndex 1 here will always be behind
+    -- MainFrame (ZIndex 2) because of Sibling mode scoping.
+    local ShadowFrame = Instance.new("Frame")
+    ShadowFrame.Size = UDim2.new(0, 564, 0, 364)
+    ShadowFrame.Position = UDim2.new(0.5, -278, 0.5, -174) -- centered + 4px offset down
+    ShadowFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    ShadowFrame.BackgroundTransparency = 0.45
+    ShadowFrame.BorderSizePixel = 0
+    ShadowFrame.ZIndex = 1
+    ShadowFrame.Parent = ScreenGui
+    Instance.new("UICorner", ShadowFrame).CornerRadius = UDim.new(0, 9)
 
     -- Helper to sync all shadow layers when MainFrame moves.
     -- Offsets are (layerW - 550)/2 wide, and shifted ~8px down for directionality.
@@ -313,11 +296,11 @@ function Library:CreateWindow()
     UserInputService.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             local delta = input.Position - dragStart
-            MainFrame.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
-            SyncShadows() -- keep shadows locked to frame while dragging
+            local nx = startPos.X.Offset + delta.X
+            local ny = startPos.Y.Offset + delta.Y
+            MainFrame.Position = UDim2.new(startPos.X.Scale, nx, startPos.Y.Scale, ny)
+            -- Shadow follows: same offset as its initial position relative to MainFrame
+            ShadowFrame.Position = UDim2.new(0.5, nx - 3, 0.5, ny + 1)
         end
     end)
 
