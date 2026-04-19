@@ -115,7 +115,7 @@ function Library:CreateWindow()
     ShadowFrame.BorderSizePixel = 0
     ShadowFrame.ZIndex = 1
     ShadowFrame.Parent = ScreenGui
-    Instance.new("UICorner", ShadowFrame).CornerRadius = UDim.new(0, 0)
+    Instance.new("UICorner", ShadowFrame).CornerRadius = UDim.new(0, 6)
 
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
@@ -281,7 +281,7 @@ function Library:CreateWindow()
             local ny = startPos.Y.Offset + delta.Y
             MainFrame.Position = UDim2.new(startPos.X.Scale, nx, startPos.Y.Scale, ny)
             -- Shadow follows: same offset as its initial position relative to MainFrame
-            ShadowFrame.Position = UDim2.new(0.5, nx - 3, 0.5, ny + 1)
+            ShadowFrame.Position = UDim2.new(0.5, nx - 10, 0.5, ny - 6)
         end
     end)
 
