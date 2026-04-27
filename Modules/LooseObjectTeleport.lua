@@ -334,24 +334,26 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
 
     task.wait(Settings.PreClickDelay)
 
-    local attempts = 0
-    local detected = false
-    while not detected and attempts < Settings.MaxRetries do
+    -- On a successful grab we leave the mouse HELD so the client keeps network
+    -- ownership through the entire CFrame-setting phase. Only failed attempts
+    -- release and retry immediately.
+    local attempts     = 0
+    local gotOwnership = false
+    while not gotOwnership and attempts < Settings.MaxRetries do
         attempts = attempts + 1
         mouse1press()
-        detected = WaitForOwnership(currentTarget)
-        mouse1release()
-
-        -- Kill the throw velocity Roblox applies on drag-release immediately,
-        -- before any yield, so the object doesn't fly back to its origin.
-        if currentTarget and currentTarget.Parent then
-            currentTarget.AssemblyLinearVelocity  = Vector3.zero
-            currentTarget.AssemblyAngularVelocity = Vector3.zero
+        gotOwnership = WaitForOwnership(currentTarget)
+        if not gotOwnership then
+            mouse1release()
+            if currentTarget and currentTarget.Parent then
+                currentTarget.AssemblyLinearVelocity  = Vector3.zero
+                currentTarget.AssemblyAngularVelocity = Vector3.zero
+            end
+            if attempts < Settings.MaxRetries then
+                task.wait(Settings.BetweenRetryDelay)
+            end
         end
-
-        if not detected and attempts < Settings.MaxRetries then
-            task.wait(Settings.BetweenRetryDelay)
-        end
+        -- gotOwnership == true: mouse is still HELD, loop exits
     end
 
     playerLock:Disconnect()
@@ -362,46 +364,67 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
     end
     State.TempDeleted = {}
 
-    -- Brief pause between releasing the drag and locking the goal CFrame.
-    -- Gives the physics engine a moment to settle before we overwrite position.
-    task.wait(0.1)
-
     if currentTarget and currentTarget.Parent then
-        local tpLock = RunService.Heartbeat:Connect(function()
+        -- 0.1s pause WHILE THE MOUSE IS STILL HELD — client retains network
+        -- ownership so the server cannot begin a rollback during this window.
+        task.wait(0.1)
+
+        -- Lock CFrame to goal while still holding. Server accepts these writes
+        -- because we have legitimate ownership.
+        local preLock = RunService.Heartbeat:Connect(function()
             if currentTarget and currentTarget.Parent then
                 currentTarget.CFrame                  = goalCFrame
                 currentTarget.AssemblyLinearVelocity  = Vector3.zero
                 currentTarget.AssemblyAngularVelocity = Vector3.zero
             end
         end)
-
         task.wait(Settings.PostSyncDelay)
-        tpLock:Disconnect()
+        preLock:Disconnect()
 
+        -- Release NOW — the object is already at the goal with valid ownership.
+        -- The server's last recorded client-authoritative position IS the goal.
+        if gotOwnership then mouse1release() end
+
+        -- Kill throw velocity the instant the mouse lifts.
+        if currentTarget and currentTarget.Parent then
+            currentTarget.AssemblyLinearVelocity  = Vector3.zero
+            currentTarget.AssemblyAngularVelocity = Vector3.zero
+        end
+
+        -- Short post-release lock to beat any server correction that was already
+        -- in-flight when ownership was returned.
+        local postLock = RunService.Heartbeat:Connect(function()
+            if currentTarget and currentTarget.Parent then
+                currentTarget.CFrame                  = goalCFrame
+                currentTarget.AssemblyLinearVelocity  = Vector3.zero
+                currentTarget.AssemblyAngularVelocity = Vector3.zero
+            end
+        end)
+        task.wait(Settings.CFrameNudgeDelay)
+        postLock:Disconnect()
+
+        -- Final micro-nudge to coax a clean physics settle
         if currentTarget and currentTarget.Parent then
             currentTarget.CFrame = goalCFrame * CFrame.new(0, 0.05, 0)
             task.wait(Settings.CFrameNudgeDelay)
             currentTarget.CFrame = goalCFrame
         end
+
+    elseif not gotOwnership then
+        -- All retries failed — ensure the mouse is never left stuck pressed
+        mouse1release()
     end
 
-    -- Restore collision immediately after placing. The ghostLock running on the
-    -- character means placed items (CanCollide=true) cannot hit the character
-    -- during subsequent grabs, but gravity won't pull the item through the floor.
-    -- Anchor the item so physics cannot shift it during the rest of the batch.
-    -- All items are unanchored together at batch end.
+    -- Restore collision, anchor for 1 s so physics fully settles,
+    -- then release back to normal simulation.
     if currentTarget and currentTarget.Parent then
         currentTarget.AssemblyLinearVelocity  = Vector3.zero
         currentTarget.AssemblyAngularVelocity = Vector3.zero
         currentTarget.CanCollide              = wasCollidable
         currentTarget.Anchored                = true
-        -- Hold the item anchored for 1 second so physics fully settles,
-        -- then release it back to normal simulation.
         local ref = currentTarget
         task.delay(1, function()
-            if ref and ref.Parent then
-                ref.Anchored = false
-            end
+            if ref and ref.Parent then ref.Anchored = false end
         end)
     end
 
