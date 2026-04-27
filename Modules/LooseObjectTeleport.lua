@@ -19,8 +19,7 @@ local Mouse        = Player:GetMouse()
 local Settings = {
     PreClickDelay          = 0.08,
     BetweenRetryDelay      = 0.05,
-    PostSyncDelay          = 0.3,  -- how long to hold CFrame lock WHILE mouse is held (was 0.01)
-    PostReleaseLockDuration= 0.25, -- how long to fight server corrections AFTER release
+    PostSyncDelay          = 0.01,
     CFrameNudgeDelay       = 0.05,
     PostGrabDelay          = 0.05,
     PostBatchDelay         = 0.01,
@@ -401,7 +400,7 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
                 currentTarget.AssemblyAngularVelocity = Vector3.zero
             end
         end)
-        task.wait(Settings.PostReleaseLockDuration)
+        task.wait(Settings.CFrameNudgeDelay)
         postLock:Disconnect()
 
         -- Final micro-nudge to coax a clean physics settle
