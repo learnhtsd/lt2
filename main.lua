@@ -896,41 +896,52 @@ function Library:CreateWindow()
 
             return InfoBox
         end
-        
-        function Tab:CreateImageSelector(Title, MultiSelect, Callback)
+                
+        function Tab:CreateImageSelector(Title, Config, Callback)
             local Element = {Selected = {}}
-            local Multi = MultiSelect or false
+            
+            -- Config defaults
+            Config = Config or {}
+            local Multi = Config.MultiSelect or false
+            local Rows = Config.Rows or 1
+            local SlotSize = Config.SlotSize or UDim2.new(0, 70, 0, 70)
+            
+            -- Calculate height dynamically based on row count and slot size
+            local TopPadding = 35
+            local BottomPadding = 10
+            local CellPaddingY = 8
+            local ScrollHeight = (SlotSize.Y.Offset * Rows) + (CellPaddingY * (Rows - 1)) + 6
+            local TotalHeight = TopPadding + ScrollHeight + BottomPadding
         
             -- Container
             local SelectorFrame = Instance.new("Frame")
             SelectorFrame.Name = Title .. "_ImageSelector"
-            SelectorFrame.Size = UDim2.new(1, 0, 0, 120) -- Slightly taller to prevent cramping
-            SelectorFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40) -- Matches standard elements
-            SelectorFrame.BackgroundTransparency = 0 -- Removed transparency to match elements
+            SelectorFrame.Size = UDim2.new(1, 0, 0, TotalHeight) 
+            SelectorFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35) -- Adjusted to match element backgrounds
+            SelectorFrame.BackgroundTransparency = 0 
             SelectorFrame.Parent = self.Container
             Instance.new("UICorner", SelectorFrame).CornerRadius = UDim.new(0, 6)
         
-            -- Added UIStroke to match other elements
             local FrameStroke = Instance.new("UIStroke")
             FrameStroke.Color = Color3.fromRGB(50, 50, 55)
-            FrameStroke.Thickness = 1.5
+            FrameStroke.Thickness = 1
             FrameStroke.Parent = SelectorFrame
         
             local TitleLabel = Instance.new("TextLabel")
-            TitleLabel.Size = UDim2.new(1, -10, 0, 25)
-            TitleLabel.Position = UDim2.new(0, 10, 0, 5)
+            TitleLabel.Size = UDim2.new(1, -20, 0, 20)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 8)
             TitleLabel.BackgroundTransparency = 1
             TitleLabel.Text = Title
-            TitleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-            TitleLabel.Font = Enum.Font.GothamBold
-            TitleLabel.TextSize = 12
+            TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+            TitleLabel.Font = Enum.Font.GothamMedium -- Less aggressive than Bold to match standards
+            TitleLabel.TextSize = 13
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = SelectorFrame
         
             -- Horizontal Scrolling Frame
             local Scroll = Instance.new("ScrollingFrame")
-            Scroll.Size = UDim2.new(1, -10, 0, 86) -- Taller to fix top clipping
-            Scroll.Position = UDim2.new(0, 5, 0, 30)
+            Scroll.Size = UDim2.new(1, -20, 0, ScrollHeight)
+            Scroll.Position = UDim2.new(0, 10, 0, TopPadding)
             Scroll.BackgroundTransparency = 1
             Scroll.BorderSizePixel = 0
             Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -939,34 +950,35 @@ function Library:CreateWindow()
             Scroll.ScrollingDirection = Enum.ScrollingDirection.X
             Scroll.Parent = SelectorFrame
         
-            local Layout = Instance.new("UIListLayout", Scroll)
-            Layout.FillDirection = Enum.FillDirection.Horizontal
-            Layout.Padding = UDim.new(0, 8)
+            -- Switched to UIGridLayout to support Row wrapping
+            local Layout = Instance.new("UIGridLayout", Scroll)
+            Layout.CellSize = SlotSize
+            Layout.CellPadding = UDim2.new(0, 8, 0, CellPaddingY)
             Layout.SortOrder = Enum.SortOrder.LayoutOrder
-        
+            Layout.FillDirection = Enum.FillDirection.Vertical -- Fills top-to-bottom, then overflows horizontally
+            
             local Padding = Instance.new("UIPadding", Scroll)
-            Padding.PaddingLeft = UDim.new(0, 5)
-            Padding.PaddingTop = UDim.new(0, 3) -- FIX: Stops UIStroke from clipping on top
+            Padding.PaddingLeft = UDim.new(0, 2)
+            Padding.PaddingTop = UDim.new(0, 3) 
             Padding.PaddingBottom = UDim.new(0, 3)
         
             -- Function to Add Slots
             function Element:AddSlot(ID, SlotTitle, SlotSubText)
                 local Slot = Instance.new("TextButton")
-                Slot.Size = UDim2.new(0, 70, 0, 70)
-                Slot.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+                Slot.BackgroundColor3 = Color3.fromRGB(20, 20, 24) -- Darker to look like an inset element
                 Slot.Text = ""
                 Slot.Parent = Scroll
                 Instance.new("UICorner", Slot).CornerRadius = UDim.new(0, 6)
         
                 local Stroke = Instance.new("UIStroke")
                 Stroke.Color = Color3.fromRGB(50, 50, 55)
-                Stroke.Thickness = 1.5
+                Stroke.Thickness = 1.2
                 Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                 Stroke.Parent = Slot
         
                 local Image = Instance.new("ImageLabel")
-                Image.Size = UDim2.new(0.45, 0, 0.45, 0) -- Scaled down slightly to fit the price
-                Image.Position = UDim2.new(0.5, 0, 0.35, 0) -- Shifted upwards
+                Image.Size = UDim2.new(0.4, 0, 0.4, 0) 
+                Image.Position = UDim2.new(0.5, 0, 0.35, 0) 
                 Image.AnchorPoint = Vector2.new(0.5, 0.5)
                 Image.BackgroundTransparency = 1
                 Image.Image = ID
@@ -976,12 +988,12 @@ function Library:CreateWindow()
                 if SlotTitle then
                     local Txt = Instance.new("TextLabel")
                     Txt.Size = UDim2.new(1, 0, 0, 12)
-                    Txt.Position = UDim2.new(0, 0, 0.62, 0) -- Shifted upwards
+                    Txt.Position = UDim2.new(0, 0, 0.62, 0)
                     Txt.BackgroundTransparency = 1
                     Txt.Text = SlotTitle
-                    Txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    Txt.TextColor3 = Color3.fromRGB(220, 220, 220)
                     Txt.Font = Enum.Font.GothamMedium
-                    Txt.TextSize = 9
+                    Txt.TextSize = 10
                     Txt.Parent = Slot
                 end
         
@@ -989,12 +1001,12 @@ function Library:CreateWindow()
                 if SlotSubText then
                     local SubTxt = Instance.new("TextLabel")
                     SubTxt.Size = UDim2.new(1, 0, 0, 12)
-                    SubTxt.Position = UDim2.new(0, 0, 0.78, 0) -- Positioned directly under Title
+                    SubTxt.Position = UDim2.new(0, 0, 0.78, 0) 
                     SubTxt.BackgroundTransparency = 1
                     SubTxt.Text = SlotSubText
-                    SubTxt.TextColor3 = Color3.fromRGB(150, 255, 150) -- Light green to indicate price
+                    SubTxt.TextColor3 = Color3.fromRGB(120, 230, 120) 
                     SubTxt.Font = Enum.Font.GothamBold
-                    SubTxt.TextSize = 9
+                    SubTxt.TextSize = 10
                     SubTxt.Parent = Slot
                 end
         
@@ -1006,13 +1018,12 @@ function Library:CreateWindow()
                         -- Reset all other slots if single-select
                         for _, child in pairs(Scroll:GetChildren()) do
                             if child:IsA("TextButton") then
-                                TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 40)}):Play()
+                                TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 20, 24)}):Play()
                                 child:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(50, 50, 55)
                             end
                         end
                         Element.Selected = {SlotTitle or ID}
                     else
-                        -- Multi-select toggle logic
                         if isSelected then
                             for i, v in ipairs(Element.Selected) do
                                 if v == (SlotTitle or ID) then table.remove(Element.Selected, i) break end
@@ -1023,7 +1034,7 @@ function Library:CreateWindow()
                     end
         
                     -- Update Visuals
-                    local targetColor = isSelected and Color3.fromRGB(35, 35, 40) or Color3.fromRGB(74, 120, 255)
+                    local targetColor = isSelected and Color3.fromRGB(20, 20, 24) or Color3.fromRGB(74, 120, 255)
                     local strokeColor = isSelected and Color3.fromRGB(50, 50, 55) or Color3.white
                     
                     TweenService:Create(Slot, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
@@ -1032,14 +1043,17 @@ function Library:CreateWindow()
                     Callback(Multi and Element.Selected or Element.Selected[1])
                 end)
         
-                -- Update scroll canvas size
-                Scroll.CanvasSize = UDim2.new(0, Layout.AbsoluteContentSize.X + 10, 0, 0)
+                -- Update scroll canvas size based on Grid Layout bounds
+                Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                    Scroll.CanvasSize = UDim2.new(0, Layout.AbsoluteContentSize.X + 10, 0, 0)
+                end)
+                
                 return Slot
             end
         
             return Element
         end
-        
+                
         function Tab:CreateDropdown(Title, Options, Default, Callback)
             local Element = {}
             local Dropdown = { Open = false, Selected = Default or "Select..." }
