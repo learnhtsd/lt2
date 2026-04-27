@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.139"
+local Version = "v0.0.140"
 
 -- UI ENGINE START
 local Library = {}
@@ -146,26 +146,10 @@ function Library:CreateWindow()
         return ElementTable
     end
 
-    -- ===========================
-    -- IMPROVEMENT 2: BACKDROP SHADOW
-    -- A layered soft shadow behind the main frame, synced during drag.
-    -- ===========================
 
     -- Set ZIndexBehavior so child ZIndex is relative to parent, not global.
     -- This means MainFrame's children always render above ScreenGui-level siblings.
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    -- Single clean drop shadow — ZIndex 1 here will always be behind
-    -- MainFrame (ZIndex 2) because of Sibling mode scoping.
-    local ShadowFrame = Instance.new("Frame")
-    ShadowFrame.Size = UDim2.new(0, 570, 0, 370)
-    ShadowFrame.Position = UDim2.new(0.5, -285, 0.5, -181)
-    ShadowFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    ShadowFrame.BackgroundTransparency = 0.82
-    ShadowFrame.BorderSizePixel = 0
-    ShadowFrame.ZIndex = 1
-    ShadowFrame.Parent = ScreenGui
-    Instance.new("UICorner", ShadowFrame).CornerRadius = UDim.new(0, 6)
 
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 550, 0, 350)
@@ -310,9 +294,6 @@ function Library:CreateWindow()
         end)
     end
 
-    -- ===========================
-    -- DRAG + SHADOW SYNC
-    -- ===========================
     local dragging, dragStart, startPos
     MainFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -322,16 +303,6 @@ function Library:CreateWindow()
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            local nx = startPos.X.Offset + delta.X
-            local ny = startPos.Y.Offset + delta.Y
-            MainFrame.Position = UDim2.new(startPos.X.Scale, nx, startPos.Y.Scale, ny)
-            -- Shadow follows: same offset as its initial position relative to MainFrame
-            ShadowFrame.Position = UDim2.new(0.5, nx - 10, 0.5, ny - 6)
         end
     end)
 
@@ -669,14 +640,15 @@ function Library:CreateWindow()
         -- ===========================
         function Tab:CreateSlider(Title, Min, Max, Default, Callback)
             local Element = {}
-        
+
             local SliderFrame = Instance.new("Frame")
             SliderFrame.Size = UDim2.new(1, 0, 0, 38)
             SliderFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             SliderFrame.Parent = self.Container
             Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
             AddDepthStroke(SliderFrame)
-        
+
+            -- Title text (left side, does NOT include the value)
             local TitleLabel = Instance.new("TextLabel")
             TitleLabel.Size = UDim2.new(1, -70, 0, 20)
             TitleLabel.Position = UDim2.new(0, 10, 0, 4)
@@ -687,78 +659,65 @@ function Library:CreateWindow()
             TitleLabel.TextSize = 12
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = SliderFrame
-        
-            -- CHANGED: Now a TextBox for user input
-            local ValueBox = Instance.new("TextBox")
-            ValueBox.Size = UDim2.new(0, 55, 0, 20)
-            ValueBox.AnchorPoint = Vector2.new(1, 0)
-            ValueBox.Position = UDim2.new(1, -8, 0, 4)
-            ValueBox.BackgroundTransparency = 1
-            ValueBox.Text = tostring(Default)
-            ValueBox.TextColor3 = Color3.fromRGB(74, 120, 255)
-            ValueBox.Font = Enum.Font.GothamBold
-            ValueBox.TextSize = 12
-            ValueBox.TextXAlignment = Enum.TextXAlignment.Right
-            ValueBox.ClearTextOnFocus = false
-            ValueBox.Parent = SliderFrame
-        
+
+            -- Blue value readout (right side of the title row)
+            local ValueLabel = Instance.new("TextLabel")
+            ValueLabel.Size = UDim2.new(0, 55, 0, 20)
+            ValueLabel.AnchorPoint = Vector2.new(1, 0)
+            ValueLabel.Position = UDim2.new(1, -8, 0, 4)
+            ValueLabel.BackgroundTransparency = 1
+            ValueLabel.Text = tostring(Default)
+            ValueLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+            ValueLabel.Font = Enum.Font.GothamBold
+            ValueLabel.TextSize = 12
+            ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+            ValueLabel.Parent = SliderFrame
+
+            -- Track background
             local SliderBG = Instance.new("Frame")
             SliderBG.Size = UDim2.new(1, -20, 0, 4)
             SliderBG.Position = UDim2.new(0, 10, 0, 28)
             SliderBG.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
             SliderBG.Parent = SliderFrame
             Instance.new("UICorner", SliderBG)
-        
+
+            -- Filled portion of track
             local SliderFill = Instance.new("Frame")
             SliderFill.Size = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
             SliderFill.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
             SliderFill.BorderSizePixel = 0
             SliderFill.Parent = SliderBG
             Instance.new("UICorner", SliderFill)
-        
+
+            -- Invisible grab button covers the ENTIRE SliderFrame so the user
+            -- can click anywhere on the element (not just the thin 4px bar).
             local SliderBtn = Instance.new("TextButton")
             SliderBtn.Size = UDim2.new(1, 0, 1, 0)
             SliderBtn.BackgroundTransparency = 1
             SliderBtn.Text = ""
-            SliderBtn.ZIndex = SliderFrame.ZIndex + 5
+            SliderBtn.ZIndex = SliderFrame.ZIndex + 5  -- sits above all children
             SliderBtn.Parent = SliderFrame
-        
-            -- Helper to update visuals
-            local function SetValue(val)
-                local clamped = math.clamp(math.floor(val), Min, Max)
-                local pct = (clamped - Min) / (Max - Min)
-                SliderFill.Size = UDim2.new(pct, 0, 1, 0)
-                ValueBox.Text = tostring(clamped)
-                Callback(clamped)
-            end
-        
-            -- Update via dragging
+
             local function UpdateSlider()
-                local mousePos = UserInputService:GetMouseLocation().X
-                local barPos = SliderBG.AbsolutePosition.X
-                local barWidth = SliderBG.AbsoluteSize.X
-                local pct = math.clamp((mousePos - barPos) / barWidth, 0, 1)
-                local value = Min + (Max - Min) * pct
-                SetValue(value)
+                local mousePos  = UserInputService:GetMouseLocation().X
+                local barPos    = SliderBG.AbsolutePosition.X
+                local barWidth  = SliderBG.AbsoluteSize.X
+                local pct       = math.clamp((mousePos - barPos) / barWidth, 0, 1)
+                local value     = math.floor(Min + (Max - Min) * pct)
+                SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+                ValueLabel.Text = tostring(value)
+                Callback(value)
             end
-        
-            -- Update via TextBox FocusLost (Enter pressed or clicked away)
-            ValueBox.FocusLost:Connect(function(enterPressed)
-                local val = tonumber(ValueBox.Text)
-                if val then
-                    SetValue(val)
-                else
-                    ValueBox.Text = tostring(math.floor(Min + (Max - Min) * (SliderFill.Size.X.Scale)))
-                end
-            end)
-        
+
             local sliding = false
+
             SliderBtn.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     sliding = true
-                    UpdateSlider()
+                    UpdateSlider()  -- snap immediately on click
                 end
             end)
+
             UserInputService.InputEnded:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     sliding = false
@@ -769,7 +728,7 @@ function Library:CreateWindow()
                     UpdateSlider()
                 end
             end)
-        
+
             return AttachTooltip(TitleLabel, Element)
         end
 
