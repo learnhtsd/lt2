@@ -48,7 +48,6 @@ local State = {
     LassoGui         = nil,
     LassoFrame       = nil,
     
-    StatusBox        = nil, -- Will be set by UI Engine
     Library          = nil, -- Reference to the UI Engine for notifications
 }
 
@@ -130,11 +129,6 @@ local function UpdateVisuals()
             box.Parent        = game:GetService("CoreGui")
             table.insert(State.SelectionBoxes, box)
         end
-    end
-    
-    -- Sync with Dynxe InfoBox
-    if State.StatusBox then
-        State.StatusBox:SetDescription("Items Queued: " .. #State.SelectedObjects)
     end
 end
 
@@ -460,25 +454,15 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     -- Setup Lasso GUI
     InitLassoGui()
     
-    -- UI: Status Overview
-    Tab:CreateSection("Selection Overview")
-    State.StatusBox = Tab:CreateInfoBox("Queue Status", "Items Queued: 0")
-    
-    -- UI: Core Actions
-    Tab:CreateSection("Actions")
-    local MainRow = Tab:CreateRow()
-    MainRow:CreateAction("Clear Selection", "Clear", PerformClear):AddTooltip("Empties your selection queue.")
-    MainRow:CreateAction("TP Selection", "Execute", PerformExecute, true):AddTooltip("Teleports all queued items to you securely.")
-    
     -- UI: Selection Modes
-    Tab:CreateSection("Selection Modes (Left Click)")
+    Tab:CreateSection("Item Teleportation")
     Tab:CreateToggle("Click Selection", false, function(val)
         State.ClickSelectMode = val
-    end):AddTooltip("Click objects in the world to add/remove them from the queue.")
+    end)
     
     Tab:CreateToggle("Group Selection", false, function(val)
         State.GroupSelectMode = val
-    end):AddTooltip("Click an object to add/remove all identical objects owned by that player.")
+    end)
     
     Tab:CreateToggle("Lasso Tool", false, function(val)
         State.LassoMode = val
@@ -488,11 +472,13 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
         end
     end):AddTooltip("Drag a box over objects to select them.")
     
-    -- UI: Configuration
-    Tab:CreateSection("Configuration")
     Tab:CreateSlider("Max Retries", 1, 10, 5, function(val)
         Settings.MaxRetries = val
-    end):AddTooltip("How many times to attempt grabbing network ownership per object.")
+    end):AddTooltip("How many times to attempt grabbing network ownership per failed object.")
+    
+    local MainRow = Tab:CreateRow()
+    MainRow:CreateAction("Clear Selection", "Clear", PerformClear)
+    MainRow:CreateAction("TP Selection", "Execute", PerformExecute)
 
     -- Mouse input routing (No keybinds required)
     local mb1DownConn = UIS.InputBegan:Connect(function(input, processed)
