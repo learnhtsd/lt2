@@ -13,11 +13,11 @@ function ShopModule.Init(Tab)
 
     Tab:CreateSection("Hardware Store")
 
-    -- 2. Item Catalog (Now supports custom sizes and rows!)
+    -- 2. Item Catalog
     local Catalog = Tab:CreateImageSelector("Select Item", {
         MultiSelect = false,
-        Rows = 1, -- Change this to add more rows!
-        SlotSize = UDim2.new(0, 75, 0, 75) -- Customize slot width and height
+        Rows = 1,
+        SlotSize = UDim2.new(0, 75, 0, 75)
     }, function(name)
         for _, item in pairs(ShopItems) do
             if item.Name == name then
@@ -34,31 +34,27 @@ function ShopModule.Init(Tab)
         Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
     end
 
-    -- 3. Quantity Slider 
-    local QuantitySlider = Tab:CreateSlider("Quantity / $0", 1, 50, 1, function(val)
+    -- 3. Quantity Slider (Cleaned up: Only shows "Quantity")
+    local QuantitySlider = Tab:CreateSlider("Quantity", 1, 50, 1, function(val)
         Quantity = val
         ShopModule.UpdateDisplay()
     end)
 
-    -- 4. Purchase Action (Secure check removed!)
-    local PurchaseBtn = Tab:CreateAction("Finalize Order", "Purchase", function()
+    -- 4. Purchase Action (Initial state set to Purchase ($0))
+    local PurchaseBtn = Tab:CreateAction("Finalize Order", "Purchase ($0)", function()
         if not SelectedItem then return end
         local total = SelectedItem.Price * Quantity
         print(string.format("Purchased %dx %s for $%d", Quantity, SelectedItem.Name, total))
-    end, false) -- 'false' removes the lock icon
+    end, false) 
 
     -- Update Display Logic
     ShopModule.UpdateDisplay = function()
         if not SelectedItem then return end
         local total = SelectedItem.Price * Quantity
         
-        -- Update Slider text
-        if QuantitySlider and QuantitySlider.SetTitle then
-            QuantitySlider:SetTitle(string.format("Quantity / $%d", total))
-        end
-
-        -- Update Purchase Button text 
-        -- (Note: Use :Set() or :Update() depending on your specific UI library's method for updating actions)
+        -- Update the Purchase Button text dynamically
+        -- Note: If your library uses a specific name for updating the button (like :Set() or :Update()), 
+        -- make sure it matches your library's API.
         if PurchaseBtn then
             local newText = string.format("Purchase ($%d)", total)
             if PurchaseBtn.Set then
