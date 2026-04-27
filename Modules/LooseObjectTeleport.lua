@@ -19,9 +19,9 @@ local Mouse        = Player:GetMouse()
 local Settings = {
     PreClickDelay          = 0.08,
     BetweenRetryDelay      = 0.05,
-    PostSyncDelay          = 0.01,
+    PostSyncDelay          = 0.05,
     CFrameNudgeDelay       = 0.05,
-    PostGrabDelay          = 0.05,
+    PostGrabDelay          = 0.1,
     PostBatchDelay         = 0.01,
     OwnershipMoveThreshold = 0.05,
     OwnershipTimeout       = 2,
@@ -367,7 +367,7 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
     if currentTarget and currentTarget.Parent then
         -- 0.1s pause WHILE THE MOUSE IS STILL HELD — client retains network
         -- ownership so the server cannot begin a rollback during this window.
-        task.wait(0.1)
+        task.wait(0.2)
 
         -- Lock CFrame to goal while still holding. Server accepts these writes
         -- because we have legitimate ownership.
@@ -423,7 +423,7 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
         currentTarget.CanCollide              = wasCollidable
         currentTarget.Anchored                = true
         local ref = currentTarget
-        task.delay(1, function()
+        task.delay(2, function()
             if ref and ref.Parent then ref.Anchored = false end
         end)
     end
