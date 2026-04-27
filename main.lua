@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.136"
+local Version = "v0.0.137"
 
 -- UI ENGINE START
 local Library = {}
@@ -923,7 +923,7 @@ function Library:CreateWindow()
             Instance.new("UICorner", SelectorFrame).CornerRadius = UDim.new(0, 6)
         
             local FrameStroke = Instance.new("UIStroke")
-            FrameStroke.Color = Color3.fromRGB(50, 50, 55)
+            FrameStroke.Color = Color3.fromRGB(0, 0, 28)
             FrameStroke.Thickness = 1
             FrameStroke.Parent = SelectorFrame
         
