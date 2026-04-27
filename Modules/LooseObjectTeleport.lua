@@ -31,6 +31,12 @@ local Settings = {
     LockMouseMovement      = true,
     SelectionColor         = Color3.fromRGB(50, 50, 255),
     OutlineThickness       = 0.02,
+
+    -- Stack settings
+    StackX                 = 1,
+    StackY                 = 5,
+    StackZ                 = 1,
+    StackPadding           = 0.05, -- small gap between stacked items
 }
 
 local State = {
@@ -39,7 +45,7 @@ local State = {
     Connections      = {},
     TempDeleted      = {},
     BatchCancelled   = false,
-    
+
     ClickSelectMode  = false,
     GroupSelectMode  = false,
     LassoMode        = false,
@@ -47,8 +53,14 @@ local State = {
     LassoStartPos    = nil,
     LassoGui         = nil,
     LassoFrame       = nil,
-    
-    Library          = nil, -- Reference to the UI Engine for notifications
+
+    -- Stack mode
+    StackMode        = false,
+    StackPreviewParts= {},
+    StackPreviewConn = nil,
+    StackStartBtn    = nil,  -- button reference for label toggling
+
+    Library          = nil,
 }
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -119,7 +131,7 @@ end
 local function UpdateVisuals()
     for _, v in pairs(State.SelectionBoxes) do v:Destroy() end
     State.SelectionBoxes = {}
-    
+
     for _, obj in ipairs(State.SelectedObjects) do
         if obj and obj.Parent then
             local box         = Instance.new("SelectionBox")
@@ -201,7 +213,7 @@ local function SelectObjectsInLassoRect(startPos, endPos)
                 local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
                 local sx = screenPos.X + inset.X
                 local sy = screenPos.Y + inset.Y
-                
+
                 if onScreen and screenPos.Z > 0 and sx >= minX and sx <= maxX and sy >= minY and sy <= maxY then
                     local idx = table.find(State.SelectedObjects, part)
                     if idx then
@@ -237,7 +249,8 @@ local function WaitForOwnership(target)
     return false
 end
 
-local function GrabAndTeleport(currentTarget, targetGoal, char, head, root, originalParents)
+-- Refactored: goalPos is a Vector3 — rotation is preserved from the object itself.
+local function GrabAndTeleport(currentTarget, goalPos, char, head, root, originalParents)
     currentTarget.Parent = originalParents[currentTarget] or workspace
     local preservedRotation = currentTarget.CFrame.Rotation
 
@@ -294,7 +307,7 @@ local function GrabAndTeleport(currentTarget, targetGoal, char, head, root, orig
     State.TempDeleted = {}
 
     if currentTarget and currentTarget.Parent then
-        local goalCF = CFrame.new(targetGoal.Position) * preservedRotation
+        local goalCF = CFrame.new(goalPos) * preservedRotation
 
         local tpLock = RunService.Heartbeat:Connect(function()
             if currentTarget and currentTarget.Parent then
@@ -315,6 +328,281 @@ local function GrabAndTeleport(currentTarget, targetGoal, char, head, root, orig
     end
 
     task.wait(Settings.PostGrabDelay)
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                         STACK ENGINE                            │
+-- └─────────────────────────────────────────────────────────────────┘
+
+-- Returns false + reason string if selected items are not all the same type.
+local function AllSelectedSameType()
+    if #State.SelectedObjects == 0 then
+        return false, "Queue is empty."
+    end
+    local refName, refSig
+    for _, obj in ipairs(State.SelectedObjects) do
+        if not (obj and obj.Parent) then continue end
+        local model = obj:FindFirstAncestorOfClass("Model")
+        local name  = model and model.Name or obj.Name
+        local sig   = model and GetModelSignature(model) or (obj.ClassName .. ":" .. obj.Name)
+        if not refName then
+            refName = name
+            refSig  = sig
+        elseif name ~= refName or sig ~= refSig then
+            return false, "Mixed item types in queue.\nAll items must be identical to use Stack TP."
+        end
+    end
+    return true, "OK"
+end
+
+-- Builds an ordered list of world positions for the stack grid,
+-- centered on XZ around `origin`, growing upward along Y.
+local function GetStackPositions(origin, itemSize, countX, countY, countZ, totalItems)
+    local positions = {}
+    local stepX = itemSize.X + Settings.StackPadding
+    local stepY = itemSize.Y + Settings.StackPadding
+    local stepZ = itemSize.Z + Settings.StackPadding
+    local offX  = (countX - 1) * stepX * 0.5
+    local offZ  = (countZ - 1) * stepZ * 0.5
+
+    for z = 0, countZ - 1 do
+        for y = 0, countY - 1 do
+            for x = 0, countX - 1 do
+                table.insert(positions, origin + Vector3.new(
+                    x * stepX - offX,
+                    y * stepY,
+                    z * stepZ - offZ
+                ))
+                if #positions >= totalItems then
+                    return positions
+                end
+            end
+        end
+    end
+    return positions
+end
+
+local function ClearStackPreview()
+    if State.StackPreviewConn then
+        State.StackPreviewConn:Disconnect()
+        State.StackPreviewConn = nil
+    end
+    for _, p in ipairs(State.StackPreviewParts) do
+        if p and p.Parent then p:Destroy() end
+    end
+    State.StackPreviewParts = {}
+end
+
+-- Switches the Start button label back to "Start Stack".
+local function SetStackBtnLabel(label)
+    if State.StackStartBtn then
+        -- Dynxe LT2 exposes SetLabel; fall back silently if the API differs.
+        if State.StackStartBtn.SetLabel then
+            State.StackStartBtn:SetLabel(label)
+        elseif State.StackStartBtn.SetText then
+            State.StackStartBtn:SetText(label)
+        end
+    end
+end
+
+local function StopStackMode(silent)
+    State.StackMode = false
+    ClearStackPreview()
+    SetStackBtnLabel("Start Stack")
+    if not silent then
+        Notify("Stack TP", "Placement cancelled.")
+    end
+end
+
+local function StartStackMode()
+    -- Block if already running
+    if State.StackMode then
+        StopStackMode()
+        return
+    end
+
+    -- Type-safety check
+    local ok, reason = AllSelectedSameType()
+    if not ok then
+        Notify("Stack TP — Blocked", reason, 4)
+        return
+    end
+
+    -- Capacity check
+    local capacity = Settings.StackX * Settings.StackY * Settings.StackZ
+    if capacity < #State.SelectedObjects then
+        Notify("Stack TP — Too Small",
+            "Grid holds " .. capacity .. " slots but queue has " .. #State.SelectedObjects .. " items.\n"
+            .. "Increase X / Y / Z sliders.", 5)
+        return
+    end
+
+    -- Get representative item size from first valid object
+    local refSize = Vector3.new(4, 4, 4)
+    for _, obj in ipairs(State.SelectedObjects) do
+        if obj and obj.Parent then refSize = obj.Size; break end
+    end
+
+    -- Build preview ghost parts
+    ClearStackPreview()
+    for i = 1, #State.SelectedObjects do
+        local p           = Instance.new("Part")
+        p.Name            = "StackPreview_" .. i
+        p.Size            = refSize
+        p.Anchored        = true
+        p.CanCollide      = false
+        p.CanTouch        = false
+        p.Transparency    = 0.45
+        p.Color           = Color3.fromRGB(80, 130, 255)
+        p.Material        = Enum.Material.Neon
+        p.CastShadow      = false
+        p.Parent          = workspace
+        table.insert(State.StackPreviewParts, p)
+
+        -- Thin outline box on each preview ghost
+        local box         = Instance.new("SelectionBox")
+        box.Color3        = Color3.fromRGB(140, 180, 255)
+        box.LineThickness = 0.03
+        box.Adornee       = p
+        box.Parent        = game:GetService("CoreGui")
+    end
+
+    State.StackMode = true
+    SetStackBtnLabel("Stop Stack")
+    Notify("Stack TP",
+        "Move cursor to target — click to place " .. #State.SelectedObjects .. " items.", 4)
+
+    -- RenderStepped loop: update ghost positions to follow the cursor
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    State.StackPreviewConn = RunService.RenderStepped:Connect(function()
+        if not State.StackMode then return end
+
+        -- Rebuild exclude list each frame so new parts are always excluded
+        local excludeList = {}
+        if Player.Character then
+            table.insert(excludeList, Player.Character)
+        end
+        for _, p in ipairs(State.StackPreviewParts) do
+            table.insert(excludeList, p)
+        end
+        rayParams.FilterDescendantsInstances = excludeList
+
+        local unitRay = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
+        local result  = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500, rayParams)
+
+        -- Ground origin = hit point lifted by half the item height
+        local groundOrigin
+        if result then
+            groundOrigin = result.Position + Vector3.new(0, refSize.Y * 0.5, 0)
+        else
+            groundOrigin = unitRay.Origin + unitRay.Direction * 40
+        end
+
+        local positions = GetStackPositions(
+            groundOrigin, refSize,
+            Settings.StackX, Settings.StackY, Settings.StackZ,
+            #State.StackPreviewParts
+        )
+
+        for i, ghostPart in ipairs(State.StackPreviewParts) do
+            if positions[i] then
+                ghostPart.CFrame = CFrame.new(positions[i])
+            end
+        end
+    end)
+end
+
+-- Called when the player left-clicks while in StackMode.
+-- hitPos is the world-space raycast hit position at the moment of click.
+local function PerformStackExecute(hitPos)
+    if not State.StackMode then return end
+
+    -- Re-validate (queue may have changed)
+    local ok, reason = AllSelectedSameType()
+    if not ok then
+        StopStackMode()
+        Notify("Stack TP — Blocked", reason, 4)
+        return
+    end
+
+    -- Capture snapshot and goal positions before stopping preview
+    local refSize = Vector3.new(4, 4, 4)
+    for _, obj in ipairs(State.SelectedObjects) do
+        if obj and obj.Parent then refSize = obj.Size; break end
+    end
+
+    local groundOrigin = hitPos + Vector3.new(0, refSize.Y * 0.5, 0)
+    local goalPositions = GetStackPositions(
+        groundOrigin, refSize,
+        Settings.StackX, Settings.StackY, Settings.StackZ,
+        #State.SelectedObjects
+    )
+
+    -- Stop preview now so ghost parts don't interfere with TP
+    StopStackMode(true) -- silent = true (no "cancelled" notification)
+
+    if not Player.Character then return end
+    local char = Player.Character
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum  = char:FindFirstChildOfClass("Humanoid")
+    local head = char:FindFirstChild("Head")
+    if not root or not head or not hum then return end
+
+    State.BatchCancelled = false
+    Notify("Stack TP", "Teleporting " .. #State.SelectedObjects .. " items into stack…", 3)
+
+    local originalCharCFrame = root.CFrame
+
+    Player.CameraMode = Enum.CameraMode.LockFirstPerson
+    UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
+    hum.PlatformStand = true
+    SetCharacterGhosting(char, true)
+
+    local originalParents = {}
+    local totalHeight     = 0
+
+    for _, obj in ipairs(State.SelectedObjects) do
+        if obj and obj.Parent then
+            originalParents[obj] = obj.Parent
+            totalHeight          = totalHeight + obj.Size.Y
+            obj.Parent           = nil
+        end
+    end
+
+    local snapshot = {table.unpack(State.SelectedObjects)}
+
+    for i, currentTarget in ipairs(snapshot) do
+        if not currentTarget then continue end
+
+        if State.BatchCancelled then
+            local op = originalParents[currentTarget]
+            if op then currentTarget.Parent = op end
+            continue
+        end
+
+        local targetPos = goalPositions[i] or groundOrigin
+        GrabAndTeleport(currentTarget, targetPos, char, head, root, originalParents)
+    end
+
+    task.wait(Settings.PostBatchDelay)
+
+    SetCharacterGhosting(char, false)
+    hum.PlatformStand = false
+    Camera.CameraType = Enum.CameraType.Custom
+    Player.CameraMode = Enum.CameraMode.Classic
+    UIS.MouseBehavior = Enum.MouseBehavior.Default
+    root.AssemblyLinearVelocity = Vector3.zero
+
+    -- Teleport character above the new stack so they land on top
+    local topOfStack = groundOrigin + Vector3.new(0, (Settings.StackY * (refSize.Y + Settings.StackPadding)) + 3, 0)
+    char:PivotTo(CFrame.new(topOfStack))
+
+    State.SelectedObjects = {}
+    UpdateVisuals()
+
+    Notify("Stack TP", State.BatchCancelled and "Batch cancelled." or "Stack complete!", 3)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -351,7 +639,11 @@ local function PerformGroupSelect()
 
     for i, obj in ipairs(playerModels:GetDescendants()) do
         if i % 1000 == 0 then task.wait() end
-        if obj:IsA("Model") and obj.Name == itemName and GetOwnerIdentity(obj) == targetOwnerIden and GetModelSignature(obj) == targetSig and GetTreeClass(obj) == targetTreeClass then
+        if obj:IsA("Model") and obj.Name == itemName
+            and GetOwnerIdentity(obj) == targetOwnerIden
+            and GetModelSignature(obj) == targetSig
+            and GetTreeClass(obj) == targetTreeClass then
+
             local part = obj:FindFirstChild("Main") or obj:FindFirstChildWhichIsA("BasePart")
             if part and not part.Anchored then
                 local idx = table.find(State.SelectedObjects, part)
@@ -370,6 +662,7 @@ local function PerformGroupSelect()
 end
 
 local function PerformClear()
+    if State.StackMode then StopStackMode(true) end
     State.SelectedObjects = {}
     State.BatchCancelled  = true
     UpdateVisuals()
@@ -405,8 +698,8 @@ local function PerformExecute()
             end
         end
 
-        local finalGoal = originalCharCFrame * CFrame.new(0, 0.5, 0)
-        local snapshot = {table.unpack(State.SelectedObjects)}
+        local finalPos  = (originalCharCFrame * CFrame.new(0, 0.5, 0)).Position
+        local snapshot  = {table.unpack(State.SelectedObjects)}
 
         for _, currentTarget in ipairs(snapshot) do
             if not currentTarget then continue end
@@ -417,7 +710,7 @@ local function PerformExecute()
                 continue
             end
 
-            GrabAndTeleport(currentTarget, finalGoal, char, head, root, OriginalParents)
+            GrabAndTeleport(currentTarget, finalPos, char, head, root, OriginalParents)
         end
 
         task.wait(Settings.PostBatchDelay)
@@ -450,20 +743,19 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     -- Cleanup old connections if re-initialized
     for _, conn in ipairs(State.Connections) do conn:Disconnect() end
     State.Connections = {}
-    
-    -- Setup Lasso GUI
+
     InitLassoGui()
-    
-    -- UI: Selection Modes
+
+    -- ── Selection section ────────────────────────────────────────
     Tab:CreateSection("Item Teleportation")
     Tab:CreateToggle("Click Selection", false, function(val)
         State.ClickSelectMode = val
     end)
-    
+
     Tab:CreateToggle("Group Selection", false, function(val)
         State.GroupSelectMode = val
     end)
-    
+
     Tab:CreateToggle("Lasso Tool", false, function(val)
         State.LassoMode = val
         if not val then
@@ -471,31 +763,77 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
             if State.LassoFrame then State.LassoFrame.Visible = false end
         end
     end):AddTooltip("Drag a box over objects to select them.")
-    
+
     Tab:CreateSlider("Max Retries", 1, 10, 5, function(val)
         Settings.MaxRetries = val
     end):AddTooltip("How many times to attempt grabbing network ownership per failed object.")
-    
+
     local MainRow = Tab:CreateRow()
     MainRow:CreateAction("Clear Selection", "Clear", PerformClear)
-    MainRow:CreateAction("TP Selection", "Execute", PerformExecute)
+    MainRow:CreateAction("TP Selection",    "Execute", PerformExecute)
 
-    -- Mouse input routing (No keybinds required)
+    -- ── Stack TP section ─────────────────────────────────────────
+    Tab:CreateSection("Stack Teleport")
+
+    Tab:CreateSlider("Stack X (columns)", 1, 20, Settings.StackX, function(val)
+        Settings.StackX = val
+    end):AddTooltip("How many items wide the stack is (left ↔ right).")
+
+    Tab:CreateSlider("Stack Y (layers)",  1, 50, Settings.StackY, function(val)
+        Settings.StackY = val
+    end):AddTooltip("How many items tall the stack is (bottom ↑ top).")
+
+    Tab:CreateSlider("Stack Z (rows)",    1, 20, Settings.StackZ, function(val)
+        Settings.StackZ = val
+    end):AddTooltip("How many items deep the stack is (front ↔ back).")
+
+    -- Start/Stop action — store reference so we can relabel it at runtime.
+    local StackRow = Tab:CreateRow()
+    State.StackStartBtn = StackRow:CreateAction(
+        "Stack TP — place selected items in a neat grid",
+        "Start Stack",
+        StartStackMode
+    )
+    State.StackStartBtn:AddTooltip(
+        "All selected items must be the same type.\n"
+        .. "After clicking Start Stack, a preview follows your cursor.\n"
+        .. "Left-click in the world to confirm placement."
+    )
+
+    -- ── Input routing ────────────────────────────────────────────
     local mb1DownConn = UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if State.LassoMode then
-                State.LassoDragging = true
-                State.LassoStartPos = UIS:GetMouseLocation()
-                if State.LassoFrame then
-                    State.LassoFrame.Size    = UDim2.fromOffset(0, 0)
-                    State.LassoFrame.Visible = false
-                end
-            elseif State.GroupSelectMode then
-                PerformGroupSelect()
-            elseif State.ClickSelectMode then
-                PerformSingleSelect()
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+
+        if State.StackMode then
+            -- Raycast at the exact moment of click to lock in the placement position.
+            local excludeList = {}
+            if Player.Character then table.insert(excludeList, Player.Character) end
+            for _, p in ipairs(State.StackPreviewParts) do table.insert(excludeList, p) end
+
+            local rayParams = RaycastParams.new()
+            rayParams.FilterType                  = Enum.RaycastFilterType.Exclude
+            rayParams.FilterDescendantsInstances  = excludeList
+
+            local unitRay = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
+            local result  = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500, rayParams)
+            local hitPos  = result and result.Position or (unitRay.Origin + unitRay.Direction * 40)
+
+            task.spawn(PerformStackExecute, hitPos)
+
+        elseif State.LassoMode then
+            State.LassoDragging = true
+            State.LassoStartPos = UIS:GetMouseLocation()
+            if State.LassoFrame then
+                State.LassoFrame.Size    = UDim2.fromOffset(0, 0)
+                State.LassoFrame.Visible = false
             end
+
+        elseif State.GroupSelectMode then
+            PerformGroupSelect()
+
+        elseif State.ClickSelectMode then
+            PerformSingleSelect()
         end
     end)
     table.insert(State.Connections, mb1DownConn)
@@ -516,15 +854,16 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
         end
     end)
     table.insert(State.Connections, mb1UpConn)
-    
+
     UpdateVisuals()
 end
 
 function LooseObjectTeleport.Unload()
+    StopStackMode(true)
     for _, conn in ipairs(State.Connections) do conn:Disconnect() end
     for _, v in pairs(State.SelectionBoxes) do v:Destroy() end
     if State.LassoGui then State.LassoGui:Destroy() end
-    
+
     Camera.CameraType = Enum.CameraType.Custom
     Player.CameraMode = Enum.CameraMode.Classic
     UIS.MouseBehavior = Enum.MouseBehavior.Default
