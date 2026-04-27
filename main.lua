@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.135"
+local Version = "v0.0.136"
 
 -- UI ENGINE START
 local Library = {}
@@ -917,7 +917,7 @@ function Library:CreateWindow()
             local SelectorFrame = Instance.new("Frame")
             SelectorFrame.Name = Title .. "_ImageSelector"
             SelectorFrame.Size = UDim2.new(1, 0, 0, TotalHeight) 
-            SelectorFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35) -- Adjusted to match element backgrounds
+            SelectorFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             SelectorFrame.BackgroundTransparency = 0 
             SelectorFrame.Parent = self.Container
             Instance.new("UICorner", SelectorFrame).CornerRadius = UDim.new(0, 6)
