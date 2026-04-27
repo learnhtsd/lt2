@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.127"
+local Version = "v0.0.128"
 
 -- UI ENGINE START
 local Library = {}
@@ -14,33 +14,52 @@ for _, v in pairs(CoreGui:GetChildren()) do
 end
 
 local function GetImage(folder, fileName)
-    -- The local path where the file will be saved on the user's PC
+    -- Paths for the requested image
     local localPath = "Dynxe/Images/" .. folder .. "/" .. fileName
     local folderPath = "Dynxe/Images/" .. folder
     
-    -- Ensure the folders exist locally
+    -- Paths for your custom GitHub placeholder
+    local placeholderLocal = "Dynxe/Images/Placeholder.png"
+    local placeholderUrl = string.format(
+        "https://raw.githubusercontent.com/%s/%s/%s/Images/Placeholder.png",
+        GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH
+    )
+
+    -- 1. Create folders
     if isfolder and not isfolder("Dynxe") then makefolder("Dynxe") end
     if isfolder and not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
-    if isfolder and not isfolder(folderPath) then makefolder(folderPath) end
+    if folder ~= "" and not isfolder(folderPath) then makefolder(folderPath) end
 
-    -- If the file doesn't exist, download it from GitHub
-    if not isfile(localPath) then
-        local url = string.format(
-            "https://raw.githubusercontent.com/%s/%s/%s/Images/%s/%s",
-            GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH, folder, fileName
-        )
-        
-        local success, content = pcall(function() return game:HttpGet(url) end)
-        if success and content then
-            writefile(localPath, content)
-        else
-            warn("Failed to download image: " .. fileName)
-            return "" -- Return empty if failed
+    -- 2. Ensure your custom Placeholder.png exists locally
+    if not isfile(placeholderLocal) then
+        local pSuccess, pContent = pcall(function() return game:HttpGet(placeholderUrl) end)
+        if pSuccess and #pContent > 100 then
+            writefile(placeholderLocal, pContent)
         end
     end
 
-    -- Convert the local file to a Roblox-usable asset
-    return getcustomasset(localPath)
+    -- 3. If requested image exists locally, return it
+    if isfile(localPath) then
+        return getcustomasset(localPath)
+    end
+
+    -- 4. Attempt to download the requested image
+    local url = string.format(
+        "https://raw.githubusercontent.com/%s/%s/%s/Images/%s/%s",
+        GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH, folder, fileName
+    )
+    
+    local success, content = pcall(function() return game:HttpGet(url) end)
+
+    -- 5. Validation Logic
+    if success and content and not content:find("404: Not Found") and #content > 100 then
+        writefile(localPath, content)
+        return getcustomasset(localPath)
+    else
+        warn("Asset Missing: " .. fileName .. " (Using GitHub Placeholder)")
+        -- Return your custom placeholder if it exists, otherwise fall back to a hardcoded ID just in case
+        return isfile(placeholderLocal) and getcustomasset(placeholderLocal) or "rbxassetid://6023426923"
+    end
 end
 
 function Library:CreateWindow()
