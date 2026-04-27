@@ -800,6 +800,10 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
         Settings.StackZ = val
     end):AddTooltip("How many items deep the stack is (front ↔ back).")
 
+    Tab:CreateSlider("Item Padding", 0, 5, Settings.StackPadding * 10, function(val)
+        Settings.StackPadding = val / 10
+    end):AddTooltip("Gap between each item in the stack (0 = flush, 5 = 0.5 studs apart).")
+
     local StackRow = Tab:CreateRow()
     State.StackStartBtn = StackRow:CreateAction(
         "Stack TP — place selected items in a neat grid",
