@@ -1,11 +1,28 @@
 -- [[ SHOP MODULE ]] --
 -- Designed for Dynxe LT2 UI Engine
--- Requires LooseObjectTeleport (LOT) to be passed in via Init()
 
 local ShopModule = {}
 
 local Players = game:GetService("Players")
 local Player  = Players.LocalPlayer
+
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                     LOT REFERENCE                               │
+-- │                                                                 │
+-- │  Set this BEFORE or AFTER Init — both work.                     │
+-- │                                                                 │
+-- │  Option A — pass at init time:                                  │
+-- │    ShopModule.Init(Tab, LOT)                                    │
+-- │                                                                 │
+-- │  Option B — set separately (useful if load order is awkward):   │
+-- │    ShopModule.SetLOT(LOT)                                       │
+-- │    ShopModule.Init(Tab)                                          │
+-- └─────────────────────────────────────────────────────────────────┘
+local _LOT = nil  -- internal reference, set via Init or SetLOT
+
+function ShopModule.SetLOT(lot)
+    _LOT = lot
+end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                     SHOP CONFIGURATION                          │
@@ -18,14 +35,7 @@ local Player  = Players.LocalPlayer
 -- │      │        ├─ Main         (BasePart — what LOT grabs)       │
 -- │      │        ├─ Owner                                          │
 -- │      │        └─ Type                                           │
--- │      ├─ ShopItems                                               │
--- │      │    └─ Box ...                                            │
 -- │      └─ ShopItems  ...                                          │
--- │                                                                 │
--- │  There is no label telling stores apart, so ResolveItemParts    │
--- │  scans EVERY ShopItems folder and collects any Box whose        │
--- │  BoxItemName.Value matches. This works fine because item names  │
--- │  are unique across all stores.                                  │
 -- │                                                                 │
 -- │  Per-item config fields:                                        │
 -- │    Name        — display name shown in the UI catalog           │
@@ -39,9 +49,8 @@ local ShopItems = {
         Name        = "Basic Hatchet",
         Image       = "BasicHatchet.png",
         Price       = 500,
-        BoxItemName = "BasicHatchet",  -- must match BoxItemName.Value in-world
+        BoxItemName = "BasicHatchet",
     },
-    -- Add more items following the same format:
     -- {
     --     Name        = "Large Axe",
     --     Image       = "LargeAxe.png",
@@ -52,10 +61,6 @@ local ShopItems = {
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                      WORLD PATH RESOLVER                        │
--- │                                                                 │
--- │  Scans every ShopItems folder under workspace.Stores and        │
--- │  collects up to `quantity` Box models whose BoxItemName.Value   │
--- │  matches item.BoxItemName. Returns their Main BaseParts.        │
 -- └─────────────────────────────────────────────────────────────────┘
 local function ResolveItemParts(item, quantity)
     local stores = workspace:FindFirstChild("Stores")
@@ -66,7 +71,6 @@ local function ResolveItemParts(item, quantity)
 
     local results = {}
 
-    -- Iterate every direct child of Stores named "ShopItems"
     for _, shopItems in ipairs(stores:GetChildren()) do
         if #results >= quantity then break end
         if shopItems.Name ~= "ShopItems" then continue end
@@ -88,13 +92,12 @@ local function ResolveItemParts(item, quantity)
 
     if #results == 0 then
         warn(string.format(
-            "[ShopModule] No Box with BoxItemName='%s' found in any ShopItems folder.\n"
-            .. "  Check the item is in stock and Main is not anchored.",
+            "[ShopModule] No Box with BoxItemName='%s' found in any ShopItems folder.",
             item.BoxItemName
         ))
     elseif #results < quantity then
         warn(string.format(
-            "[ShopModule] Requested %d × '%s' but only %d found across all stores.",
+            "[ShopModule] Requested %d × '%s' but only %d found.",
             quantity, item.Name, #results
         ))
     end
@@ -107,10 +110,15 @@ end
 -- └─────────────────────────────────────────────────────────────────┘
 
 -- Tab          — the UI tab object from your library
--- LOT          — the LooseObjectTeleport module (already initialised)
--- GetImageFunc — optional override for GetImage(); falls back to the
---               global GetImage if not provided
-function ShopModule.Init(Tab, LOT, GetImageFunc)
+-- lot          — (optional) the LooseObjectTeleport module.
+--               Can also be supplied via ShopModule.SetLOT(lot) instead.
+-- GetImageFunc — (optional) override for GetImage()
+function ShopModule.Init(Tab, lot, GetImageFunc)
+    -- Accept LOT either as a parameter or from a prior SetLOT call
+    if lot ~= nil then
+        _LOT = lot
+    end
+
     local GetImage = GetImageFunc
                   or (getfenv and getfenv().GetImage)
                   or function() return nil end
@@ -122,7 +130,6 @@ function ShopModule.Init(Tab, LOT, GetImageFunc)
     -- ── UI construction ───────────────────────────────────────────
     Tab:CreateSection("Hardware Store")
 
-    -- Item catalog
     local Catalog = Tab:CreateImageSelector("Select Item", {
         MultiSelect = false,
         Rows        = 1,
@@ -142,17 +149,21 @@ function ShopModule.Init(Tab, LOT, GetImageFunc)
         Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
     end
 
-    -- Quantity slider
     Tab:CreateSlider("Quantity", 1, 50, 1, function(val)
         Quantity = val
         ShopModule.UpdateDisplay()
     end)
 
-    -- Purchase button
     local PurchaseBtn = Tab:CreateAction("Finalize Order", "$0", function()
         if not SelectedItem then return end
 
-        if LOT.IsBusy() then
+        -- Guard: LOT must be set before purchasing
+        if _LOT == nil then
+            warn("[ShopModule] LOT is not set. Call ShopModule.SetLOT(lot) or pass it to Init.")
+            return
+        end
+
+        if _LOT.IsBusy() then
             warn("[ShopModule] A teleport is already running — please wait.")
             return
         end
@@ -167,7 +178,6 @@ function ShopModule.Init(Tab, LOT, GetImageFunc)
             return
         end
 
-        -- Fan items out sideways in front of the player
         local jobs      = {}
         local spacing   = 3
         local rightVec  = root.CFrame.RightVector
@@ -191,7 +201,7 @@ function ShopModule.Init(Tab, LOT, GetImageFunc)
         ))
 
         task.spawn(function()
-            local success = LOT.TeleportMany(jobs)
+            local success = _LOT.TeleportMany(jobs)
             print(string.format(
                 "[ShopModule] Teleport %s.",
                 success and "complete" or "cancelled"
@@ -199,7 +209,6 @@ function ShopModule.Init(Tab, LOT, GetImageFunc)
         end)
     end, false)
 
-    -- ── Display updater ───────────────────────────────────────────
     ShopModule.UpdateDisplay = function()
         if not SelectedItem then return end
         local newText = string.format("$%d", SelectedItem.Price * Quantity)
