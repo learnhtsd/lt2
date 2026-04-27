@@ -27,35 +27,39 @@ function World.Init(Tab, Lib)
         waterParts = {}
         boulderParts = {}
         
-        local descendants = Workspace:GetDescendants()
-        local count = 0
+        -- Using a localized reference is slightly faster in Luau
+        local descendants = workspace:GetDescendants()
+        local total = #descendants
         
-        for _, obj in pairs(descendants) do
-            count = count + 1
+        -- Process in batches to maintain high FPS
+        local BATCH_SIZE = 1000 
+        
+        for i = 1, total do
+            local obj = descendants[i]
             
-            -- Yield every 500 objects so the game doesn't hang
-            if count % 500 == 0 then 
+            -- Yield logic: process BATCH_SIZE items then wait for the next frame
+            if i % BATCH_SIZE == 0 then 
                 task.wait() 
             end
-
-            if obj:IsA("BasePart") then
-                -- Cache Water
-                if obj.Name == "Water" then
-                    table.insert(waterParts, {Instance = obj, OriginalTransparency = obj.Transparency})
-                end
+    
+            -- Use ClassName check (faster than IsA for simple types)
+            if obj.ClassName == "Part" or obj.ClassName == "MeshPart" or obj.ClassName == "WedgePart" then
+                local name = obj.Name
                 
-                -- Cache Boulders
-                if obj.Name == "Boulder" or obj.Name == "SmallBoulder" then
-                    -- Filter out the "Dynamic" boulders (the ones with fire) to keep them separate
+                if name == "Water" then
+                    table.insert(waterParts, {Instance = obj, OriginalTransparency = obj.Transparency})
+                elseif name == "Boulder" or name == "SmallBoulder" then
+                    -- Optimization: only check children if the name matches
                     if not (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
                         table.insert(boulderParts, {Instance = obj, OriginalTransparency = obj.Transparency})
                     end
                 end
             end
         end
-
-        for _, effect in pairs(Lighting:GetChildren()) do
-            if effect:IsA("PostProcessEffect") or effect:IsA("BlurEffect") or effect:IsA("BloomEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("SunRaysEffect") then
+    
+        -- Lighting Scan (Much smaller, usually doesn't need yielding)
+        for _, effect in ipairs(Lighting:GetChildren()) do
+            if effect:IsA("PostProcessEffect") then -- Covers Blur, Bloom, etc.
                 effectCache[effect] = effect.Enabled
             end
         end
