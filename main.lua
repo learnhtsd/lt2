@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.133"
+local Version = "v0.0.134"
 
 -- UI ENGINE START
 local Library = {}
@@ -965,7 +965,7 @@ function Library:CreateWindow()
             -- Function to Add Slots
             function Element:AddSlot(ID, SlotTitle, SlotSubText)
                 local Slot = Instance.new("TextButton")
-                Slot.BackgroundColor3 = Color3.fromRGB(20, 20, 24) -- Darker to look like an inset element
+                Slot.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
                 Slot.Text = ""
                 Slot.Parent = Scroll
                 Instance.new("UICorner", Slot).CornerRadius = UDim.new(0, 6)
