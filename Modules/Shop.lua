@@ -41,7 +41,7 @@ function ShopModule.Init(Tab)
     end)
 
     -- 4. Purchase Action (Initial state set to Purchase ($0))
-    local PurchaseBtn = Tab:CreateAction("Finalize Order", "Purchase ($0)", function()
+    local PurchaseBtn = Tab:CreateAction("Finalize Order", "$0", function()
         if not SelectedItem then return end
         local total = SelectedItem.Price * Quantity
         print(string.format("Purchased %dx %s for $%d", Quantity, SelectedItem.Name, total))
@@ -56,7 +56,7 @@ function ShopModule.Init(Tab)
         -- Note: If your library uses a specific name for updating the button (like :Set() or :Update()), 
         -- make sure it matches your library's API.
         if PurchaseBtn then
-            local newText = string.format("Purchase ($%d)", total)
+            local newText = string.format("$%d", total)
             if PurchaseBtn.Set then
                 PurchaseBtn:Set(newText)
             elseif PurchaseBtn.Update then
