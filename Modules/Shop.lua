@@ -13,8 +13,12 @@ function ShopModule.Init(Tab)
 
     Tab:CreateSection("Hardware Store")
 
-    -- 2. Item Catalog
-    local Catalog = Tab:CreateImageSelector("Select Item", false, function(name)
+    -- 2. Item Catalog (Now supports custom sizes and rows!)
+    local Catalog = Tab:CreateImageSelector("Select Item", {
+        MultiSelect = false,
+        Rows = 1, -- Change this to add more rows!
+        SlotSize = UDim2.new(0, 75, 0, 75) -- Customize slot width and height
+    }, function(name)
         for _, item in pairs(ShopItems) do
             if item.Name == name then
                 SelectedItem = item
@@ -24,36 +28,46 @@ function ShopModule.Init(Tab)
         ShopModule.UpdateDisplay()
     end)
 
-    -- Populate the Catalog and pass the Price as the SubText
+    -- Populate the Catalog
     for _, item in pairs(ShopItems) do
         local img = GetImage("Images", item.Image) 
-        -- Pass the formatted price as the third argument (SlotSubText)
         Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
     end
 
-    -- 3. Quantity Slider (Total price display merged here)
+    -- 3. Quantity Slider 
     local QuantitySlider = Tab:CreateSlider("Quantity / $0", 1, 50, 1, function(val)
         Quantity = val
         ShopModule.UpdateDisplay()
     end)
+
+    -- 4. Purchase Action (Secure check removed!)
+    local PurchaseBtn = Tab:CreateAction("Finalize Order", "Purchase", function()
+        if not SelectedItem then return end
+        local total = SelectedItem.Price * Quantity
+        print(string.format("Purchased %dx %s for $%d", Quantity, SelectedItem.Name, total))
+    end, false) -- 'false' removes the lock icon
 
     -- Update Display Logic
     ShopModule.UpdateDisplay = function()
         if not SelectedItem then return end
         local total = SelectedItem.Price * Quantity
         
-        -- Dynamically update the slider title to show Quantity / TotalPrice
-        -- Note: If your UI library uses a different method (like :Set() or :Update()), change :SetTitle below.
+        -- Update Slider text
         if QuantitySlider and QuantitySlider.SetTitle then
             QuantitySlider:SetTitle(string.format("Quantity / $%d", total))
         end
-    end
 
-    -- 4. Purchase Action
-    Tab:CreateAction("Finalize Order", "Purchase", function()
-        local total = SelectedItem.Price * Quantity
-        print(string.format("Purchased %dx %s for $%d", Quantity, SelectedItem.Name, total))
-    end, true) 
+        -- Update Purchase Button text 
+        -- (Note: Use :Set() or :Update() depending on your specific UI library's method for updating actions)
+        if PurchaseBtn then
+            local newText = string.format("Purchase ($%d)", total)
+            if PurchaseBtn.Set then
+                PurchaseBtn:Set(newText)
+            elseif PurchaseBtn.Update then
+                PurchaseBtn:Update(newText)
+            end
+        end
+    end
 
     ShopModule.UpdateDisplay()
 end
