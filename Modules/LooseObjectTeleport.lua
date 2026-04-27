@@ -60,9 +60,10 @@ local State = {
     -- Stack mode
     StackMode         = false,
     StackPreviewParts = {},
-    StackPreviewBoxes = {}, -- FIX 1: track outline SelectionBoxes separately for cleanup
+    StackPreviewBoxes = {}, -- track outline SelectionBoxes separately for cleanup
     StackPreviewConn  = nil,
     StackStartBtn     = nil,
+    StackRotation     = CFrame.new(), -- accumulated R/T key rotation for the preview
 
     Library           = nil,
 }
@@ -288,15 +289,16 @@ local function WaitForOwnership(target)
     return false
 end
 
--- FIX 2: `preserveRotation` param — pass true for regular TP (keep world angle),
--- false for stack TP (force objects upright so they sit flat in the grid).
-local function GrabAndTeleport(currentTarget, goalPos, char, head, root, originalParents, preserveRotation)
+-- goalCFrame is the complete target CFrame (position + rotation).
+-- For regular TP pass CFrame.new(pos) * object.CFrame.Rotation (captured before the grab).
+-- For stack TP pass CFrame.new(pos) * State.StackRotation.
+local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, originalParents)
     currentTarget.Parent = originalParents[currentTarget] or workspace
 
-    -- Build rotation component: upright identity for stacks, original angle for regular TP
-    local rotationPart = preserveRotation
-        and currentTarget.CFrame.Rotation
-        or  CFrame.new()
+    -- Disable collision for the entire TP so the object cannot push or be
+    -- deflected by other parts while being grabbed and repositioned.
+    local wasCollidable = currentTarget.CanCollide
+    currentTarget.CanCollide = false
 
     local overlapParams = OverlapParams.new()
     overlapParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -359,11 +361,9 @@ local function GrabAndTeleport(currentTarget, goalPos, char, head, root, origina
     State.TempDeleted = {}
 
     if currentTarget and currentTarget.Parent then
-        local goalCF = CFrame.new(goalPos) * rotationPart
-
         local tpLock = RunService.Heartbeat:Connect(function()
             if currentTarget and currentTarget.Parent then
-                currentTarget.CFrame                  = goalCF
+                currentTarget.CFrame                  = goalCFrame
                 currentTarget.AssemblyLinearVelocity  = Vector3.zero
                 currentTarget.AssemblyAngularVelocity = Vector3.zero
             end
@@ -373,10 +373,15 @@ local function GrabAndTeleport(currentTarget, goalPos, char, head, root, origina
         tpLock:Disconnect()
 
         if currentTarget and currentTarget.Parent then
-            currentTarget.CFrame = goalCF * CFrame.new(0, 0.05, 0)
+            currentTarget.CFrame = goalCFrame * CFrame.new(0, 0.05, 0)
             task.wait(Settings.CFrameNudgeDelay)
-            currentTarget.CFrame = goalCF
+            currentTarget.CFrame = goalCFrame
         end
+    end
+
+    -- Restore original collision state now that the object is placed
+    if currentTarget and currentTarget.Parent then
+        currentTarget.CanCollide = wasCollidable
     end
 
     task.wait(Settings.PostGrabDelay)
@@ -406,7 +411,8 @@ local function AllSelectedSameType()
     return true, "OK"
 end
 
-local function GetStackPositions(origin, itemSize, countX, countY, countZ, totalItems)
+local function GetStackPositions(origin, itemSize, countX, countY, countZ, totalItems, stackRotation)
+    stackRotation = stackRotation or CFrame.new()
     local positions = {}
     local stepX = itemSize.X + Settings.StackPadding
     local stepY = itemSize.Y + Settings.StackPadding
@@ -417,14 +423,11 @@ local function GetStackPositions(origin, itemSize, countX, countY, countZ, total
     for z = 0, countZ - 1 do
         for y = 0, countY - 1 do
             for x = 0, countX - 1 do
-                table.insert(positions, origin + Vector3.new(
-                    x * stepX - offX,
-                    y * stepY,
-                    z * stepZ - offZ
-                ))
-                if #positions >= totalItems then
-                    return positions
-                end
+                -- Compute offset in local stack space, then rotate into world space
+                local localOffset   = Vector3.new(x * stepX - offX, y * stepY, z * stepZ - offZ)
+                local rotatedOffset = stackRotation:VectorToWorldSpace(localOffset)
+                table.insert(positions, origin + rotatedOffset)
+                if #positions >= totalItems then return positions end
             end
         end
     end
@@ -458,7 +461,8 @@ local function SetStackBtnLabel(label)
 end
 
 local function StopStackMode(silent)
-    State.StackMode = false
+    State.StackMode     = false
+    State.StackRotation = CFrame.new() -- reset so next session starts upright
     ClearStackPreview()
     SetStackBtnLabel("Start Stack")
     if not silent then
@@ -544,12 +548,14 @@ local function StartStackMode()
         local positions = GetStackPositions(
             groundOrigin, refSize,
             Settings.StackX, Settings.StackY, Settings.StackZ,
-            #State.StackPreviewParts
+            #State.StackPreviewParts,
+            State.StackRotation
         )
 
         for i, ghostPart in ipairs(State.StackPreviewParts) do
             if positions[i] then
-                ghostPart.CFrame = CFrame.new(positions[i])
+                -- Apply full rotation so the ghost matches the final placed orientation
+                ghostPart.CFrame = CFrame.new(positions[i]) * State.StackRotation
             end
         end
     end)
@@ -574,8 +580,11 @@ local function PerformStackExecute(hitPos)
     local goalPositions = GetStackPositions(
         groundOrigin, refSize,
         Settings.StackX, Settings.StackY, Settings.StackZ,
-        #State.SelectedObjects
+        #State.SelectedObjects,
+        State.StackRotation
     )
+    -- Capture rotation before StopStackMode resets it
+    local capturedRotation = State.StackRotation
 
     -- FIX 1: Wipe preview (parts + boxes) fully before TP begins
     StopStackMode(true)
@@ -616,9 +625,9 @@ local function PerformStackExecute(hitPos)
             if op then currentTarget.Parent = op end
             continue
         end
-        local targetPos = goalPositions[i] or groundOrigin
-        -- FIX 2: preserveRotation = false → objects placed perfectly upright
-        GrabAndTeleport(currentTarget, targetPos, char, head, root, originalParents, false)
+        local targetPos  = goalPositions[i] or groundOrigin
+        local targetCF   = CFrame.new(targetPos) * capturedRotation
+        GrabAndTeleport(currentTarget, targetCF, char, head, root, originalParents)
     end
 
     task.wait(Settings.PostBatchDelay)
@@ -729,8 +738,15 @@ local function PerformExecute()
         end
     end
 
-    local finalPos = (originalCharCFrame * CFrame.new(0, 0.5, 0)).Position
-    local snapshot = {table.unpack(State.SelectedObjects)}
+    local finalPos      = (originalCharCFrame * CFrame.new(0, 0.5, 0)).Position
+    local snapshot      = {table.unpack(State.SelectedObjects)}
+    -- Capture each object's world rotation before the batch starts (objects are
+    -- nil-parented by this point so we read it from the CFrame we recorded earlier)
+    local capturedRots  = {}
+    for _, obj in ipairs(snapshot) do
+        -- Object is parented to nil; its CFrame is still valid in Lua memory
+        capturedRots[obj] = obj and obj.CFrame.Rotation or CFrame.new()
+    end
 
     for _, currentTarget in ipairs(snapshot) do
         if not currentTarget then continue end
@@ -739,8 +755,8 @@ local function PerformExecute()
             if op then currentTarget.Parent = op end
             continue
         end
-        -- FIX 2: preserveRotation = true → keep world rotation for regular TP
-        GrabAndTeleport(currentTarget, finalPos, char, head, root, OriginalParents, true)
+        local goalCF = CFrame.new(finalPos) * (capturedRots[currentTarget] or CFrame.new())
+        GrabAndTeleport(currentTarget, goalCF, char, head, root, OriginalParents)
     end
 
     task.wait(Settings.PostBatchDelay)
@@ -827,6 +843,20 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     -- ── Input routing ────────────────────────────────────────────
     local mb1DownConn = UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
+
+        -- R / T — rotate stack preview (only while stack placement is active)
+        if State.StackMode and input.UserInputType == Enum.UserInputType.Keyboard then
+            if input.KeyCode == Enum.KeyCode.R then
+                State.StackRotation = State.StackRotation * CFrame.Angles(math.rad(90), 0, 0)
+                Notify("Stack TP", "X rotation +90°")
+                return
+            elseif input.KeyCode == Enum.KeyCode.T then
+                State.StackRotation = State.StackRotation * CFrame.Angles(0, math.rad(90), 0)
+                Notify("Stack TP", "Y rotation +90°")
+                return
+            end
+        end
+
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 
         -- FIX 3: Completely ignore world clicks while any batch is running
