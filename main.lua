@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.130"
+local Version = "v0.0.131"
 
 -- UI ENGINE START
 local Library = {}
@@ -13,7 +13,7 @@ for _, v in pairs(CoreGui:GetChildren()) do
     if v.Name == "DynxeLT2Hub" then v:Destroy() end
 end
 
-local function GetImage(folder, fileName)
+getgenv().GetImage = function(folder, fileName)
     -- Paths for the requested image
     local localPath = "Dynxe/Images/" .. folder .. "/" .. fileName
     local folderPath = "Dynxe/Images/" .. folder
