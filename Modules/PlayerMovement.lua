@@ -152,7 +152,7 @@ function PlayerMovement.Init(Tab)
     Tab:CreateToggle("G Fling", false, function(s) _G.Fling = s end):AddTooltip("Walk into players or objects to launch them.")
     Tab:CreateToggle("Water Walk", false, function(s) _G.WaterWalk = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP = s end)
-    Tab:CreateAction("Reset Character", "Kill", True, function()
+    Tab:CreateAction("Reset Character", "Kill", function()
         if LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
     end)
 
