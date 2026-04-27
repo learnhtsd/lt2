@@ -157,21 +157,24 @@ end
 -- PerformStackExecute do it identically and correctly.
 -- Character is snapped back to `originalCharCFrame` BEFORE PlatformStand
 -- is disabled so humanoid physics re-engage at a safe, grounded position.
-local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame)
-    -- 1. Zero all motion while still ghosted / PlatformStand on
+local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
+    -- 1. Stop the ghost enforcer before anything else
+    if ghostLock then ghostLock:Disconnect() end
+
+    -- 2. Zero all motion while still ghosted / PlatformStand on
     root.AssemblyLinearVelocity  = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
 
-    -- 2. Snap back to where the player started — NOT on top of any objects
+    -- 3. Snap back to where the player started — NOT on top of any objects
     root.CFrame = originalCharCFrame
 
-    -- 3. Un-ghost before re-enabling physics so the character doesn't clip
+    -- 4. Un-ghost before re-enabling physics so the character doesn't clip
     SetCharacterGhosting(char, false)
 
-    -- 4. Re-enable humanoid physics now that the character is safely placed
+    -- 5. Re-enable humanoid physics now that the character is safely placed
     hum.PlatformStand = false
 
-    -- 5. One frame later, zero velocity again in case Roblox physics gave a
+    -- 6. One frame later, zero velocity again in case Roblox physics gave a
     --    small impulse when PlatformStand toggled off
     task.wait()
     if root and root.Parent then
@@ -293,12 +296,10 @@ end
 -- For regular TP pass CFrame.new(pos) * object.CFrame.Rotation (captured before the grab).
 -- For stack TP pass CFrame.new(pos) * State.StackRotation.
 local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, originalParents)
+    -- Re-parent the item back into the world so it can be grabbed.
+    -- CanCollide is already false — disabled at batch start before nil-parenting,
+    -- so there is zero gap where the item is live and collidable.
     currentTarget.Parent = originalParents[currentTarget] or workspace
-
-    -- Disable collision for the entire TP so the object cannot push or be
-    -- deflected by other parts while being grabbed and repositioned.
-    local wasCollidable = currentTarget.CanCollide
-    currentTarget.CanCollide = false
 
     local overlapParams = OverlapParams.new()
     overlapParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -377,11 +378,6 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
             task.wait(Settings.CFrameNudgeDelay)
             currentTarget.CFrame = goalCFrame
         end
-    end
-
-    -- Restore original collision state now that the object is placed
-    if currentTarget and currentTarget.Parent then
-        currentTarget.CanCollide = wasCollidable
     end
 
     task.wait(Settings.PostGrabDelay)
@@ -608,11 +604,26 @@ local function PerformStackExecute(hitPos)
     hum.PlatformStand = true
     SetCharacterGhosting(char, true)
 
+    -- Continuously re-enforce no-collision on the character every frame.
+    local ghostLock = RunService.Heartbeat:Connect(function()
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end)
+
     local originalParents = {}
+    local originalCollide = {}
+
+    -- Disable collision on every queued item WHILE still nil-parented,
+    -- then nil-parent them. Zero gap where an item is live and collidable.
     for _, obj in ipairs(State.SelectedObjects) do
         if obj and obj.Parent then
-            originalParents[obj] = obj.Parent
-            obj.Parent           = nil
+            originalCollide[obj]  = obj.CanCollide
+            obj.CanCollide        = false
+            originalParents[obj]  = obj.Parent
+            obj.Parent            = nil
         end
     end
 
@@ -632,8 +643,14 @@ local function PerformStackExecute(hitPos)
 
     task.wait(Settings.PostBatchDelay)
 
-    -- FIX 4: Safe character restore — snap to origin first, then un-ragdoll
-    RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame)
+    -- Restore each item's original collision state now that all are placed
+    for obj, wasCollidable in pairs(originalCollide) do
+        if obj and obj.Parent then
+            obj.CanCollide = wasCollidable
+        end
+    end
+
+    RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
 
     State.IsBusy          = false
     State.SelectedObjects = {}
@@ -730,21 +747,36 @@ local function PerformExecute()
     hum.PlatformStand = true
     SetCharacterGhosting(char, true)
 
+    -- Continuously re-enforce no-collision on the character every frame.
+    -- Roblox's Humanoid can silently reset CanCollide between physics steps,
+    -- so a one-time call to SetCharacterGhosting is not enough.
+    local ghostLock = RunService.Heartbeat:Connect(function()
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end)
+
     local OriginalParents = {}
+    local OriginalCollide = {}
+
+    -- Disable collision on every queued item WHILE still nil-parented,
+    -- then nil-parent them. This guarantees zero gap where an item is
+    -- live in workspace with collision active.
     for _, obj in ipairs(State.SelectedObjects) do
         if obj and obj.Parent then
-            OriginalParents[obj] = obj.Parent
-            obj.Parent           = nil
+            OriginalCollide[obj]  = obj.CanCollide
+            obj.CanCollide        = false
+            OriginalParents[obj]  = obj.Parent
+            obj.Parent            = nil
         end
     end
 
     local finalPos      = (originalCharCFrame * CFrame.new(0, 0.5, 0)).Position
     local snapshot      = {table.unpack(State.SelectedObjects)}
-    -- Capture each object's world rotation before the batch starts (objects are
-    -- nil-parented by this point so we read it from the CFrame we recorded earlier)
     local capturedRots  = {}
     for _, obj in ipairs(snapshot) do
-        -- Object is parented to nil; its CFrame is still valid in Lua memory
         capturedRots[obj] = obj and obj.CFrame.Rotation or CFrame.new()
     end
 
@@ -761,8 +793,14 @@ local function PerformExecute()
 
     task.wait(Settings.PostBatchDelay)
 
-    -- FIX 4: Safe character restore — snap to origin first, then un-ragdoll
-    RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame)
+    -- Restore each item's original collision state now that all are placed
+    for obj, wasCollidable in pairs(OriginalCollide) do
+        if obj and obj.Parent then
+            obj.CanCollide = wasCollidable
+        end
+    end
+
+    RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
 
     State.IsBusy          = false
     State.SelectedObjects = {}
