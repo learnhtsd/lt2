@@ -48,6 +48,7 @@ local State = {
 
     -- FIX 3: Global busy flag — silences all selection input during any TP batch
     IsBusy            = false,
+    PlacedInBatch     = {}, -- items anchored during TP; all released together at batch end
 
     ClickSelectMode   = false,
     GroupSelectMode   = false,
@@ -384,8 +385,14 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
     -- Restore collision immediately after placing. The ghostLock running on the
     -- character means placed items (CanCollide=true) cannot hit the character
     -- during subsequent grabs, but gravity won't pull the item through the floor.
+    -- Anchor the item so physics cannot shift it during the rest of the batch.
+    -- All items are unanchored together at batch end.
     if currentTarget and currentTarget.Parent then
-        currentTarget.CanCollide = wasCollidable
+        currentTarget.AssemblyLinearVelocity  = Vector3.zero
+        currentTarget.AssemblyAngularVelocity = Vector3.zero
+        currentTarget.CanCollide              = wasCollidable
+        currentTarget.Anchored                = true
+        table.insert(State.PlacedInBatch, currentTarget)
     end
 
     task.wait(Settings.PostGrabDelay)
@@ -603,6 +610,7 @@ local function PerformStackExecute(hitPos)
     -- FIX 3: Raise busy flag — suppresses all selection clicks during TP
     State.IsBusy         = true
     State.BatchCancelled = false
+    State.PlacedInBatch  = {}
     Notify("Stack TP", "Teleporting " .. #State.SelectedObjects .. " items into stack…", 3)
 
     local originalCharCFrame = root.CFrame
@@ -645,6 +653,14 @@ local function PerformStackExecute(hitPos)
     end
 
     task.wait(Settings.PostBatchDelay)
+
+    -- Release all anchored items now that the full stack is set
+    for _, obj in ipairs(State.PlacedInBatch) do
+        if obj and obj.Parent then
+            obj.Anchored = false
+        end
+    end
+    State.PlacedInBatch = {}
 
     RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
 
@@ -734,6 +750,7 @@ local function PerformExecute()
     -- FIX 3: Raise busy flag — suppresses all selection clicks during TP
     State.IsBusy         = true
     State.BatchCancelled = false
+    State.PlacedInBatch  = {}
     Notify("Batch Start", "Syncing " .. #State.SelectedObjects .. " items...", 3)
 
     local originalCharCFrame = root.CFrame
@@ -782,6 +799,14 @@ local function PerformExecute()
     end
 
     task.wait(Settings.PostBatchDelay)
+
+    -- Release all anchored items now that the full arrangement is set
+    for _, obj in ipairs(State.PlacedInBatch) do
+        if obj and obj.Parent then
+            obj.Anchored = false
+        end
+    end
+    State.PlacedInBatch = {}
 
     RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
 
