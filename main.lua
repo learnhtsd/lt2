@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.138"
+local Version = "v0.0.139"
 
 -- UI ENGINE START
 local Library = {}
@@ -669,15 +669,14 @@ function Library:CreateWindow()
         -- ===========================
         function Tab:CreateSlider(Title, Min, Max, Default, Callback)
             local Element = {}
-
+        
             local SliderFrame = Instance.new("Frame")
             SliderFrame.Size = UDim2.new(1, 0, 0, 38)
             SliderFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             SliderFrame.Parent = self.Container
             Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
             AddDepthStroke(SliderFrame)
-
-            -- Title text (left side, does NOT include the value)
+        
             local TitleLabel = Instance.new("TextLabel")
             TitleLabel.Size = UDim2.new(1, -70, 0, 20)
             TitleLabel.Position = UDim2.new(0, 10, 0, 4)
@@ -688,62 +687,76 @@ function Library:CreateWindow()
             TitleLabel.TextSize = 12
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = SliderFrame
-
-            -- Blue value readout (right side of the title row)
-            local ValueLabel = Instance.new("TextLabel")
-            ValueLabel.Size = UDim2.new(0, 55, 0, 20)
-            ValueLabel.AnchorPoint = Vector2.new(1, 0)
-            ValueLabel.Position = UDim2.new(1, -8, 0, 4)
-            ValueLabel.BackgroundTransparency = 1
-            ValueLabel.Text = tostring(Default)
-            ValueLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
-            ValueLabel.Font = Enum.Font.GothamBold
-            ValueLabel.TextSize = 12
-            ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
-            ValueLabel.Parent = SliderFrame
-
-            -- Track background
+        
+            -- CHANGED: Now a TextBox for user input
+            local ValueBox = Instance.new("TextBox")
+            ValueBox.Size = UDim2.new(0, 55, 0, 20)
+            ValueBox.AnchorPoint = Vector2.new(1, 0)
+            ValueBox.Position = UDim2.new(1, -8, 0, 4)
+            ValueBox.BackgroundTransparency = 1
+            ValueBox.Text = tostring(Default)
+            ValueBox.TextColor3 = Color3.fromRGB(74, 120, 255)
+            ValueBox.Font = Enum.Font.GothamBold
+            ValueBox.TextSize = 12
+            ValueBox.TextXAlignment = Enum.TextXAlignment.Right
+            ValueBox.ClearTextOnFocus = false
+            ValueBox.Parent = SliderFrame
+        
             local SliderBG = Instance.new("Frame")
             SliderBG.Size = UDim2.new(1, -20, 0, 4)
             SliderBG.Position = UDim2.new(0, 10, 0, 28)
             SliderBG.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
             SliderBG.Parent = SliderFrame
             Instance.new("UICorner", SliderBG)
-
-            -- Filled portion of track
+        
             local SliderFill = Instance.new("Frame")
             SliderFill.Size = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
             SliderFill.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
             SliderFill.BorderSizePixel = 0
             SliderFill.Parent = SliderBG
             Instance.new("UICorner", SliderFill)
-
-            -- Invisible grab button covers the ENTIRE SliderFrame so the user
-            -- can click anywhere on the element (not just the thin 4px bar).
+        
             local SliderBtn = Instance.new("TextButton")
             SliderBtn.Size = UDim2.new(1, 0, 1, 0)
             SliderBtn.BackgroundTransparency = 1
             SliderBtn.Text = ""
-            SliderBtn.ZIndex = SliderFrame.ZIndex + 5  -- sits above all children
+            SliderBtn.ZIndex = SliderFrame.ZIndex + 5
             SliderBtn.Parent = SliderFrame
-
-            local function UpdateSlider()
-                local mousePos  = UserInputService:GetMouseLocation().X
-                local barPos    = SliderBG.AbsolutePosition.X
-                local barWidth  = SliderBG.AbsoluteSize.X
-                local pct       = math.clamp((mousePos - barPos) / barWidth, 0, 1)
-                local value     = math.floor(Min + (Max - Min) * pct)
+        
+            -- Helper to update visuals
+            local function SetValue(val)
+                local clamped = math.clamp(math.floor(val), Min, Max)
+                local pct = (clamped - Min) / (Max - Min)
                 SliderFill.Size = UDim2.new(pct, 0, 1, 0)
-                ValueLabel.Text = tostring(value)
-                Callback(value)
+                ValueBox.Text = tostring(clamped)
+                Callback(clamped)
             end
-
+        
+            -- Update via dragging
+            local function UpdateSlider()
+                local mousePos = UserInputService:GetMouseLocation().X
+                local barPos = SliderBG.AbsolutePosition.X
+                local barWidth = SliderBG.AbsoluteSize.X
+                local pct = math.clamp((mousePos - barPos) / barWidth, 0, 1)
+                local value = Min + (Max - Min) * pct
+                SetValue(value)
+            end
+        
+            -- Update via TextBox FocusLost (Enter pressed or clicked away)
+            ValueBox.FocusLost:Connect(function(enterPressed)
+                local val = tonumber(ValueBox.Text)
+                if val then
+                    SetValue(val)
+                else
+                    ValueBox.Text = tostring(math.floor(Min + (Max - Min) * (SliderFill.Size.X.Scale)))
+                end
+            end)
+        
             local sliding = false
-
             SliderBtn.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     sliding = true
-                    UpdateSlider()  -- snap immediately on click
+                    UpdateSlider()
                 end
             end)
             UserInputService.InputEnded:Connect(function(input)
@@ -756,7 +769,7 @@ function Library:CreateWindow()
                     UpdateSlider()
                 end
             end)
-
+        
             return AttachTooltip(TitleLabel, Element)
         end
 
