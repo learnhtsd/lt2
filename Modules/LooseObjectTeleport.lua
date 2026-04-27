@@ -337,6 +337,14 @@ local function GrabAndTeleport(currentTarget, goalPos, char, head, root, origina
         mouse1press()
         detected = WaitForOwnership(currentTarget)
         mouse1release()
+
+        -- Kill the throw velocity Roblox applies on drag-release immediately,
+        -- before any yield, so the object doesn't fly back to its origin.
+        if currentTarget and currentTarget.Parent then
+            currentTarget.AssemblyLinearVelocity  = Vector3.zero
+            currentTarget.AssemblyAngularVelocity = Vector3.zero
+        end
+
         if not detected and attempts < Settings.MaxRetries then
             task.wait(Settings.BetweenRetryDelay)
         end
