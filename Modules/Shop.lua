@@ -2,11 +2,7 @@ local ShopModule = {}
 
 -- 1. Shop Configuration (Edit your items here!)
 local ShopItems = {
-    {Name = "Large Axe", Image = "axe.png", Price = 500},
-    {Name = "Golden Saw", Image = "saw.png", Price = 2500},
-    {Name = "Hardened Wood", Image = "wood.png", Price = 150},
-    {Name = "Blueprints", Image = "paper.png", Price = 1000},
-    {Name = "Dynamite", Image = "tnt.png", Price = 200},
+    local img = GetImage("Images", "Axe.png")
 }
 
 function ShopModule.Init(Tab)
