@@ -31,11 +31,6 @@ local Settings = {
     LockMouseMovement      = true,
     SelectionColor         = Color3.fromRGB(50, 50, 255),
     OutlineThickness       = 0.02,
-    
-    -- Stacking Config
-    StackX = 1,
-    StackY = 5,
-    StackZ = 1,
 }
 
 local State = {
@@ -53,12 +48,7 @@ local State = {
     LassoGui         = nil,
     LassoFrame       = nil,
     
-    -- Stacking State
-    IsPreviewing     = false,
-    PreviewFolder    = nil,
-    PreviewCFrame    = CFrame.new(),
-    
-    Library          = nil, 
+    Library          = nil, -- Reference to the UI Engine for notifications
 }
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -143,72 +133,91 @@ local function UpdateVisuals()
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
--- │                        STACK PREVIEW ENGINE                     │
+-- │                         LASSO ENGINE                            │
 -- └─────────────────────────────────────────────────────────────────┘
 
-local function ClearPreview()
-    State.IsPreviewing = false
-    if State.PreviewFolder then
-        State.PreviewFolder:Destroy()
-        State.PreviewFolder = nil
-    end
+local function InitLassoGui()
+    if State.LassoGui then State.LassoGui:Destroy() end
+
+    local sg = Instance.new("ScreenGui")
+    sg.Name           = "LassoDragGui"
+    sg.ResetOnSpawn   = false
+    sg.IgnoreGuiInset = true
+    sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    sg.Parent         = game:GetService("CoreGui")
+
+    local frame = Instance.new("Frame")
+    frame.Name                   = "LassoRect"
+    frame.BackgroundColor3       = Color3.fromRGB(60, 130, 255)
+    frame.BackgroundTransparency = 0.75
+    frame.BorderSizePixel        = 0
+    frame.Visible                = false
+    frame.ZIndex                 = 10
+    frame.Parent                 = sg
+
+    local stroke           = Instance.new("UIStroke")
+    stroke.Color           = Color3.fromRGB(120, 180, 255)
+    stroke.Thickness       = 1.5
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent          = frame
+
+    State.LassoGui   = sg
+    State.LassoFrame = frame
 end
 
-local function StartStackPreview()
-    if #State.SelectedObjects == 0 then return Notify("Error", "No items selected.") end
-    
-    -- Verify identical types
-    local firstModel = State.SelectedObjects[1]:FindFirstAncestorOfClass("Model") or State.SelectedObjects[1]
-    local firstSig = GetModelSignature(firstModel)
-    
-    for i = 2, #State.SelectedObjects do
-        local m = State.SelectedObjects[i]:FindFirstAncestorOfClass("Model") or State.SelectedObjects[i]
-        if GetModelSignature(m) ~= firstSig then
-            return Notify("Error", "Multiple item types selected. Cannot stack mixed items.")
-        end
+local function UpdateLassoFrame(currentPos)
+    if not State.LassoFrame or not State.LassoStartPos then return end
+    local minX = math.min(State.LassoStartPos.X, currentPos.X)
+    local minY = math.min(State.LassoStartPos.Y, currentPos.Y)
+    local maxX = math.max(State.LassoStartPos.X, currentPos.X)
+    local maxY = math.max(State.LassoStartPos.Y, currentPos.Y)
+    State.LassoFrame.Position = UDim2.fromOffset(minX, minY)
+    State.LassoFrame.Size     = UDim2.fromOffset(maxX - minX, maxY - minY)
+    State.LassoFrame.Visible  = true
+end
+
+local function SelectObjectsInLassoRect(startPos, endPos)
+    local minX = math.min(startPos.X, endPos.X)
+    local minY = math.min(startPos.Y, endPos.Y)
+    local maxX = math.max(startPos.X, endPos.X)
+    local maxY = math.max(startPos.Y, endPos.Y)
+
+    if (maxX - minX) < 6 or (maxY - minY) < 6 then return end
+
+    local playerModels = workspace:FindFirstChild("PlayerModels")
+    if not playerModels then
+        Notify("Lasso", "workspace.PlayerModels not found.")
+        return
     end
 
-    ClearPreview()
-    State.IsPreviewing = true
-    
-    local folder = Instance.new("Folder")
-    folder.Name = "StackPreview"
-    folder.Parent = workspace
-    State.PreviewFolder = folder
+    local addedCount   = 0
+    local removedCount = 0
+    local inset        = GuiService:GetGuiInset()
 
-    local itemSize = State.SelectedObjects[1].Size
-    local count = 0
-    
-    -- Create visual ghosts
-    for y = 0, Settings.StackY - 1 do
-        for x = 0, Settings.StackX - 1 do
-            for z = 0, Settings.StackZ - 1 do
-                count = count + 1
-                if count > #State.SelectedObjects then break end
+    for _, obj in ipairs(playerModels:GetDescendants()) do
+        if obj:IsA("Model") then
+            local part = obj:FindFirstChild("Main") or obj:FindFirstChildWhichIsA("BasePart")
+            if part and not part.Anchored and not part:IsDescendantOf(Player.Character) then
+                local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+                local sx = screenPos.X + inset.X
+                local sy = screenPos.Y + inset.Y
                 
-                local ghost = Instance.new("Part")
-                ghost.Size = itemSize
-                ghost.Color = Color3.fromRGB(100, 255, 100)
-                ghost.Transparency = 0.6
-                ghost.CanCollide = false
-                ghost.Anchored = true
-                ghost.Material = Enum.Material.ForceField
-                ghost.Name = "Ghost_" .. count
-                
-                -- Relative offset
-                local offset = Vector3.new(x * itemSize.X, y * itemSize.Y, z * itemSize.Z)
-                ghost.Parent = folder
-                
-                -- Tag the offset for the actual TP logic later
-                local val = Instance.new("Vector3Value")
-                val.Name = "Offset"
-                val.Value = offset
-                val.Parent = ghost
+                if onScreen and screenPos.Z > 0 and sx >= minX and sx <= maxX and sy >= minY and sy <= maxY then
+                    local idx = table.find(State.SelectedObjects, part)
+                    if idx then
+                        table.remove(State.SelectedObjects, idx)
+                        removedCount = removedCount + 1
+                    else
+                        table.insert(State.SelectedObjects, part)
+                        addedCount = addedCount + 1
+                    end
+                end
             end
         end
     end
-    
-    Notify("Preview", "Left Click to place stack. Right Click/Stop to cancel.")
+
+    UpdateVisuals()
+    Notify("Lasso", "+" .. addedCount .. " / -" .. removedCount .. " — Queue: " .. #State.SelectedObjects)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -228,10 +237,10 @@ local function WaitForOwnership(target)
     return false
 end
 
-local function GrabAndTeleport(currentTarget, targetGoalCF, char, head, root, originalParents)
+local function GrabAndTeleport(currentTarget, targetGoal, char, head, root, originalParents)
     currentTarget.Parent = originalParents[currentTarget] or workspace
-    
-    -- Ghosting environment
+    local preservedRotation = currentTarget.CFrame.Rotation
+
     local overlapParams = OverlapParams.new()
     overlapParams.FilterType = Enum.RaycastFilterType.Exclude
     overlapParams.FilterDescendantsInstances = {char, currentTarget}
@@ -285,9 +294,11 @@ local function GrabAndTeleport(currentTarget, targetGoalCF, char, head, root, or
     State.TempDeleted = {}
 
     if currentTarget and currentTarget.Parent then
+        local goalCF = CFrame.new(targetGoal.Position) * preservedRotation
+
         local tpLock = RunService.Heartbeat:Connect(function()
             if currentTarget and currentTarget.Parent then
-                currentTarget.CFrame                  = targetGoalCF
+                currentTarget.CFrame                  = goalCF
                 currentTarget.AssemblyLinearVelocity  = Vector3.zero
                 currentTarget.AssemblyAngularVelocity = Vector3.zero
             end
@@ -297,9 +308,9 @@ local function GrabAndTeleport(currentTarget, targetGoalCF, char, head, root, or
         tpLock:Disconnect()
 
         if currentTarget and currentTarget.Parent then
-            currentTarget.CFrame = targetGoalCF * CFrame.new(0, 0.05, 0)
+            currentTarget.CFrame = goalCF * CFrame.new(0, 0.05, 0)
             task.wait(Settings.CFrameNudgeDelay)
-            currentTarget.CFrame = targetGoalCF
+            currentTarget.CFrame = goalCF
         end
     end
 
@@ -310,7 +321,62 @@ end
 -- │                     BUTTON / HOTKEY ACTIONS                     │
 -- └─────────────────────────────────────────────────────────────────┘
 
-local function PerformExecute(customGoals)
+local function PerformSingleSelect()
+    local main = getObjectData(Mouse.Target)
+    if main then
+        local idx = table.find(State.SelectedObjects, main)
+        if not idx then
+            table.insert(State.SelectedObjects, main)
+            Notify("Added", "Queue: " .. #State.SelectedObjects)
+        else
+            table.remove(State.SelectedObjects, idx)
+            Notify("Removed", "Object removed.")
+        end
+        UpdateVisuals()
+    end
+end
+
+local function PerformGroupSelect()
+    local _, itemName, targetModel = getObjectData(Mouse.Target)
+    local targetOwnerIden = GetOwnerIdentity(targetModel)
+    if not (itemName and targetOwnerIden and targetModel) then return end
+
+    local targetSig       = GetModelSignature(targetModel)
+    local targetTreeClass = GetTreeClass(targetModel)
+    local addedCount      = 0
+    local removedCount    = 0
+
+    local playerModels = workspace:FindFirstChild("PlayerModels")
+    if not playerModels then return end
+
+    for i, obj in ipairs(playerModels:GetDescendants()) do
+        if i % 1000 == 0 then task.wait() end
+        if obj:IsA("Model") and obj.Name == itemName and GetOwnerIdentity(obj) == targetOwnerIden and GetModelSignature(obj) == targetSig and GetTreeClass(obj) == targetTreeClass then
+            local part = obj:FindFirstChild("Main") or obj:FindFirstChildWhichIsA("BasePart")
+            if part and not part.Anchored then
+                local idx = table.find(State.SelectedObjects, part)
+                if idx then
+                    table.remove(State.SelectedObjects, idx)
+                    removedCount = removedCount + 1
+                else
+                    table.insert(State.SelectedObjects, part)
+                    addedCount = addedCount + 1
+                end
+            end
+        end
+    end
+    UpdateVisuals()
+    Notify("Group", "+" .. addedCount .. " / -" .. removedCount .. " — Queue: " .. #State.SelectedObjects)
+end
+
+local function PerformClear()
+    State.SelectedObjects = {}
+    State.BatchCancelled  = true
+    UpdateVisuals()
+    Notify("Cleared", "Queue emptied — batch cancelled.")
+end
+
+local function PerformExecute()
     if #State.SelectedObjects > 0 and Player.Character then
         local char = Player.Character
         local root = char:FindFirstChild("HumanoidRootPart")
@@ -322,31 +388,36 @@ local function PerformExecute(customGoals)
         Notify("Batch Start", "Syncing " .. #State.SelectedObjects .. " items...", 3)
 
         local originalCharCFrame = root.CFrame
+
         Player.CameraMode = Enum.CameraMode.LockFirstPerson
         UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
         hum.PlatformStand = true
         SetCharacterGhosting(char, true)
 
         local OriginalParents = {}
+        local totalHeight     = 0
+
         for _, obj in ipairs(State.SelectedObjects) do
             if obj and obj.Parent then
                 OriginalParents[obj] = obj.Parent
-                obj.Parent = nil
+                totalHeight          = totalHeight + obj.Size.Y
+                obj.Parent           = nil
             end
         end
 
+        local finalGoal = originalCharCFrame * CFrame.new(0, 0.5, 0)
         local snapshot = {table.unpack(State.SelectedObjects)}
-        for i, currentTarget in ipairs(snapshot) do
+
+        for _, currentTarget in ipairs(snapshot) do
             if not currentTarget then continue end
+
             if State.BatchCancelled then
                 local op = OriginalParents[currentTarget]
                 if op then currentTarget.Parent = op end
                 continue
             end
 
-            -- If customGoals (stacking) is provided, use the specific CFrame for this index
-            local goal = customGoals and customGoals[i] or (originalCharCFrame * CFrame.new(0, 0.5, 0) * currentTarget.CFrame.Rotation)
-            GrabAndTeleport(currentTarget, goal, char, head, root, OriginalParents)
+            GrabAndTeleport(currentTarget, finalGoal, char, head, root, OriginalParents)
         end
 
         task.wait(Settings.PostBatchDelay)
@@ -357,29 +428,16 @@ local function PerformExecute(customGoals)
         Player.CameraMode = Enum.CameraMode.Classic
         UIS.MouseBehavior = Enum.MouseBehavior.Default
         root.AssemblyLinearVelocity = Vector3.zero
-        
-        char:PivotTo(originalCharCFrame * CFrame.new(0, 10, 0))
+
+        char:PivotTo(originalCharCFrame * CFrame.new(0, totalHeight + 3, 0))
+
         State.SelectedObjects = {}
         UpdateVisuals()
-        Notify("Finished", State.BatchCancelled and "Batch cancelled." or "Batch complete.", 3)
-    end
-end
 
-local function ExecuteStackPlacement()
-    if not State.PreviewFolder then return end
-    
-    local goals = {}
-    local ghosts = State.PreviewFolder:GetChildren()
-    table.sort(ghosts, function(a, b) 
-        return tonumber(a.Name:match("%d+")) < tonumber(b.Name:match("%d+")) 
-    end)
-    
-    for i, ghost in ipairs(ghosts) do
-        goals[i] = ghost.CFrame
+        Notify("Finished", State.BatchCancelled and "Batch cancelled." or "Batch complete.", 3)
+    else
+        Notify("Wait", "Queue empty or missing character.", 2)
     end
-    
-    ClearPreview()
-    PerformExecute(goals)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -388,106 +446,55 @@ end
 
 function LooseObjectTeleport.Init(Tab, LibraryInstance)
     State.Library = LibraryInstance
+
+    -- Cleanup old connections if re-initialized
     for _, conn in ipairs(State.Connections) do conn:Disconnect() end
     State.Connections = {}
     
     -- Setup Lasso GUI
-    if State.LassoGui then State.LassoGui:Destroy() end
-    local sg = Instance.new("ScreenGui")
-    sg.Name = "LassoDragGui"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.Parent = game:GetService("CoreGui")
-    local frame = Instance.new("Frame")
-    frame.BackgroundColor3 = Color3.fromRGB(60, 130, 255); frame.BackgroundTransparency = 0.75; frame.BorderSizePixel = 0; frame.Visible = false; frame.Parent = sg
-    local stroke = Instance.new("UIStroke"); stroke.Color = Color3.fromRGB(120, 180, 255); stroke.Thickness = 1.5; stroke.Parent = frame
-    State.LassoGui = sg; State.LassoFrame = frame
-
-    -- UI
-    Tab:CreateSection("Item Teleportation")
-    Tab:CreateToggle("Click Selection", false, function(val) State.ClickSelectMode = val end)
-    Tab:CreateToggle("Group Selection", false, function(val) State.GroupSelectMode = val end)
-    Tab:CreateToggle("Lasso Tool", false, function(val) State.LassoMode = val end)
+    InitLassoGui()
     
-    Tab:CreateSection("Stack Configuration")
-    Tab:CreateSlider("Stack Width (X)", 1, 10, 1, function(val) Settings.StackX = val end)
-    Tab:CreateSlider("Stack Height (Y)", 1, 20, 5, function(val) Settings.StackY = val end)
-    Tab:CreateSlider("Stack Depth (Z)", 1, 10, 1, function(val) Settings.StackZ = val end)
+    -- UI: Selection Modes
+    Tab:CreateSection("Item Teleportation")
+    Tab:CreateToggle("Click Selection", false, function(val)
+        State.ClickSelectMode = val
+    end)
+    
+    Tab:CreateToggle("Group Selection", false, function(val)
+        State.GroupSelectMode = val
+    end)
+    
+    Tab:CreateToggle("Lasso Tool", false, function(val)
+        State.LassoMode = val
+        if not val then
+            State.LassoDragging = false
+            if State.LassoFrame then State.LassoFrame.Visible = false end
+        end
+    end):AddTooltip("Drag a box over objects to select them.")
+    
+    Tab:CreateSlider("Max Retries", 1, 10, 5, function(val)
+        Settings.MaxRetries = val
+    end):AddTooltip("How many times to attempt grabbing network ownership per failed object.")
     
     local MainRow = Tab:CreateRow()
-    MainRow:CreateAction("Clear Selection", "Clear", function()
-        State.SelectedObjects = {}
-        UpdateVisuals()
-        ClearPreview()
-        Notify("Cleared", "Selection reset.")
-    end)
-    
-    local stackBtn
-    stackBtn = MainRow:CreateAction("Start Stack", "Layers", function()
-        if State.IsPreviewing then
-            ClearPreview()
-            stackBtn:UpdateText("Start Stack")
-        else
-            StartStackPreview()
-            if State.IsPreviewing then
-                stackBtn:UpdateText("Stop Preview")
-            end
-        end
-    end)
+    MainRow:CreateAction("Clear Selection", "Clear", PerformClear)
+    MainRow:CreateAction("TP Selection", "Execute", PerformExecute)
 
-    MainRow:CreateAction("Quick TP", "Execute", function() PerformExecute() end)
-
-    -- Input & Loop
-    local runConn = RunService.RenderStepped:Connect(function()
-        if State.IsPreviewing and State.PreviewFolder then
-            local mousePos = Mouse.Hit.p
-            for _, ghost in ipairs(State.PreviewFolder:GetChildren()) do
-                local offset = ghost:FindFirstChild("Offset")
-                if offset then
-                    ghost.CFrame = CFrame.new(mousePos) * CFrame.new(offset.Value)
-                end
-            end
-        end
-    end)
-    table.insert(State.Connections, runConn)
-
+    -- Mouse input routing (No keybinds required)
     local mb1DownConn = UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if State.IsPreviewing then
-                stackBtn:UpdateText("Start Stack")
-                ExecuteStackPlacement()
-            elseif State.LassoMode then
+            if State.LassoMode then
                 State.LassoDragging = true
                 State.LassoStartPos = UIS:GetMouseLocation()
+                if State.LassoFrame then
+                    State.LassoFrame.Size    = UDim2.fromOffset(0, 0)
+                    State.LassoFrame.Visible = false
+                end
             elseif State.GroupSelectMode then
-                local _, itemName, targetModel = getObjectData(Mouse.Target)
-                if itemName then
-                    local targetOwnerIden = GetOwnerIdentity(targetModel)
-                    local targetSig = GetModelSignature(targetModel)
-                    local targetTreeClass = GetTreeClass(targetModel)
-                    local playerModels = workspace:FindFirstChild("PlayerModels")
-                    if playerModels then
-                        for _, obj in ipairs(playerModels:GetDescendants()) do
-                            if obj:IsA("Model") and obj.Name == itemName and GetOwnerIdentity(obj) == targetOwnerIden and GetModelSignature(obj) == targetSig and GetTreeClass(obj) == targetTreeClass then
-                                local part = obj:FindFirstChild("Main") or obj:FindFirstChildWhichIsA("BasePart")
-                                if part and not part.Anchored then
-                                    if not table.find(State.SelectedObjects, part) then table.insert(State.SelectedObjects, part) end
-                                end
-                            end
-                        end
-                    end
-                    UpdateVisuals()
-                end
+                PerformGroupSelect()
             elseif State.ClickSelectMode then
-                local main = getObjectData(Mouse.Target)
-                if main then
-                    local idx = table.find(State.SelectedObjects, main)
-                    if not idx then table.insert(State.SelectedObjects, main) else table.remove(State.SelectedObjects, idx) end
-                    UpdateVisuals()
-                end
-            end
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-            if State.IsPreviewing then
-                ClearPreview()
-                stackBtn:UpdateText("Start Stack")
+                PerformSingleSelect()
             end
         end
     end)
@@ -505,47 +512,23 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
             State.LassoDragging = false
             if State.LassoFrame then State.LassoFrame.Visible = false end
             SelectObjectsInLassoRect(State.LassoStartPos, UIS:GetMouseLocation())
+            State.LassoStartPos = nil
         end
     end)
     table.insert(State.Connections, mb1UpConn)
-end
-
-function LooseObjectTeleport.Unload()
-    ClearPreview()
-    for _, conn in ipairs(State.Connections) do conn:Disconnect() end
-    for _, v in pairs(State.SelectionBoxes) do v:Destroy() end
-    if State.LassoGui then State.LassoGui:Destroy() end
-    Notify("Unloaded", "Module cleaned up.")
-end
-
-function SelectObjectsInLassoRect(startPos, endPos)
-    local minX, minY = math.min(startPos.X, endPos.X), math.min(startPos.Y, endPos.Y)
-    local maxX, maxY = math.max(startPos.X, endPos.X), math.max(startPos.Y, endPos.Y)
-    local playerModels = workspace:FindFirstChild("PlayerModels")
-    if not playerModels then return end
-    local inset = GuiService:GetGuiInset()
-    for _, obj in ipairs(playerModels:GetDescendants()) do
-        if obj:IsA("Model") then
-            local part = obj:FindFirstChild("Main") or obj:FindFirstChildWhichIsA("BasePart")
-            if part and not part.Anchored and not part:IsDescendantOf(Player.Character) then
-                local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
-                local sx, sy = screenPos.X + inset.X, screenPos.Y + inset.Y
-                if onScreen and sx >= minX and sx <= maxX and sy >= minY and sy <= maxY then
-                    if not table.find(State.SelectedObjects, part) then table.insert(State.SelectedObjects, part) end
-                end
-            end
-        end
-    end
+    
     UpdateVisuals()
 end
 
-function UpdateLassoFrame(currentPos)
-    if not State.LassoFrame or not State.LassoStartPos then return end
-    local minX, minY = math.min(State.LassoStartPos.X, currentPos.X), math.min(State.LassoStartPos.Y, currentPos.Y)
-    local maxX, maxY = math.max(State.LassoStartPos.X, currentPos.X), math.max(State.LassoStartPos.Y, currentPos.Y)
-    State.LassoFrame.Position = UDim2.fromOffset(minX, minY)
-    State.LassoFrame.Size = UDim2.fromOffset(maxX - minX, maxY - minY)
-    State.LassoFrame.Visible = true
+function LooseObjectTeleport.Unload()
+    for _, conn in ipairs(State.Connections) do conn:Disconnect() end
+    for _, v in pairs(State.SelectionBoxes) do v:Destroy() end
+    if State.LassoGui then State.LassoGui:Destroy() end
+    
+    Camera.CameraType = Enum.CameraType.Custom
+    Player.CameraMode = Enum.CameraMode.Classic
+    UIS.MouseBehavior = Enum.MouseBehavior.Default
+    Notify("Unloaded", "Loose Object Teleport successfully unloaded.")
 end
 
 return LooseObjectTeleport
