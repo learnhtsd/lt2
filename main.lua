@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.126"
+local Version = "v0.0.127"
 
 -- UI ENGINE START
 local Library = {}
@@ -11,6 +11,36 @@ local TweenService = game:GetService("TweenService")
 
 for _, v in pairs(CoreGui:GetChildren()) do
     if v.Name == "DynxeLT2Hub" then v:Destroy() end
+end
+
+local function GetImage(folder, fileName)
+    -- The local path where the file will be saved on the user's PC
+    local localPath = "Dynxe/Images/" .. folder .. "/" .. fileName
+    local folderPath = "Dynxe/Images/" .. folder
+    
+    -- Ensure the folders exist locally
+    if isfolder and not isfolder("Dynxe") then makefolder("Dynxe") end
+    if isfolder and not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
+    if isfolder and not isfolder(folderPath) then makefolder(folderPath) end
+
+    -- If the file doesn't exist, download it from GitHub
+    if not isfile(localPath) then
+        local url = string.format(
+            "https://raw.githubusercontent.com/%s/%s/%s/Images/%s/%s",
+            GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH, folder, fileName
+        )
+        
+        local success, content = pcall(function() return game:HttpGet(url) end)
+        if success and content then
+            writefile(localPath, content)
+        else
+            warn("Failed to download image: " .. fileName)
+            return "" -- Return empty if failed
+        end
+    end
+
+    -- Convert the local file to a Roblox-usable asset
+    return getcustomasset(localPath)
 end
 
 function Library:CreateWindow()
@@ -846,7 +876,129 @@ function Library:CreateWindow()
 
             return InfoBox
         end
-
+        
+        function Tab:CreateImageSelector(Title, MultiSelect, Callback)
+            local Element = {Selected = {}}
+            local Multi = MultiSelect or false
+        
+            -- Container
+            local SelectorFrame = Instance.new("Frame")
+            SelectorFrame.Name = Title .. "_ImageSelector"
+            SelectorFrame.Size = UDim2.new(1, 0, 0, 115) -- Tall enough for Image + Text
+            SelectorFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+            SelectorFrame.BackgroundTransparency = 0.5
+            SelectorFrame.Parent = self.Container
+            Instance.new("UICorner", SelectorFrame).CornerRadius = UDim.new(0, 6)
+        
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(1, -10, 0, 25)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 5)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title
+            TitleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            TitleLabel.Font = Enum.Font.GothamBold
+            TitleLabel.TextSize = 12
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.Parent = SelectorFrame
+        
+            -- Horizontal Scrolling Frame
+            local Scroll = Instance.new("ScrollingFrame")
+            Scroll.Size = UDim2.new(1, -10, 0, 80)
+            Scroll.Position = UDim2.new(0, 5, 0, 30)
+            Scroll.BackgroundTransparency = 1
+            Scroll.BorderSizePixel = 0
+            Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+            Scroll.ScrollBarThickness = 2
+            Scroll.ScrollBarImageColor3 = Color3.fromRGB(74, 120, 255)
+            Scroll.ScrollingDirection = Enum.ScrollingDirection.X
+            Scroll.Parent = SelectorFrame
+        
+            local Layout = Instance.new("UIListLayout", Scroll)
+            Layout.FillDirection = Enum.FillDirection.Horizontal
+            Layout.Padding = UDim.new(0, 8)
+            Layout.SortOrder = Enum.SortOrder.LayoutOrder
+        
+            local Padding = Instance.new("UIPadding", Scroll)
+            Padding.PaddingLeft = UDim.new(0, 5)
+        
+            -- Function to Add Slots
+            function Element:AddSlot(ID, SlotTitle, SlotSubText)
+                local Slot = Instance.new("TextButton")
+                Slot.Size = UDim2.new(0, 70, 0, 70)
+                Slot.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+                Slot.Text = ""
+                Slot.Parent = Scroll
+                Instance.new("UICorner", Slot).CornerRadius = UDim.new(0, 6)
+        
+                local Stroke = Instance.new("UIStroke")
+                Stroke.Color = Color3.fromRGB(50, 50, 55)
+                Stroke.Thickness = 1.5
+                Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                Stroke.Parent = Slot
+        
+                local Image = Instance.new("ImageLabel")
+                Image.Size = UDim2.new(0.6, 0, 0.6, 0)
+                Image.Position = UDim2.new(0.5, 0, 0.4, 0)
+                Image.AnchorPoint = Vector2.new(0.5, 0.5)
+                Image.BackgroundTransparency = 1
+                Image.Image = ID
+                Image.Parent = Slot
+        
+                -- Optional Primary Text
+                if SlotTitle then
+                    local Txt = Instance.new("TextLabel")
+                    Txt.Size = UDim2.new(1, 0, 0, 15)
+                    Txt.Position = UDim2.new(0, 0, 0.8, 0)
+                    Txt.BackgroundTransparency = 1
+                    Txt.Text = SlotTitle
+                    Txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    Txt.Font = Enum.Font.GothamMedium
+                    Txt.TextSize = 9
+                    Txt.Parent = Slot
+                end
+        
+                -- Selection Logic
+                Slot.MouseButton1Click:Connect(function()
+                    local isSelected = (Slot.BackgroundColor3 == Color3.fromRGB(74, 120, 255))
+                    
+                    if not Multi then
+                        -- Reset all other slots if single-select
+                        for _, child in pairs(Scroll:GetChildren()) do
+                            if child:IsA("TextButton") then
+                                TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 40)}):Play()
+                                child:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(50, 50, 55)
+                            end
+                        end
+                        Element.Selected = {SlotTitle or ID}
+                    else
+                        -- Multi-select toggle logic
+                        if isSelected then
+                            for i, v in ipairs(Element.Selected) do
+                                if v == (SlotTitle or ID) then table.remove(Element.Selected, i) break end
+                            end
+                        else
+                            table.insert(Element.Selected, SlotTitle or ID)
+                        end
+                    end
+        
+                    -- Update Visuals
+                    local targetColor = isSelected and Color3.fromRGB(35, 35, 40) or Color3.fromRGB(74, 120, 255)
+                    local strokeColor = isSelected and Color3.fromRGB(50, 50, 55) or Color3.white
+                    
+                    TweenService:Create(Slot, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
+                    Stroke.Color = strokeColor
+                    
+                    Callback(Multi and Element.Selected or Element.Selected[1])
+                end)
+        
+                -- Update scroll canvas size
+                Scroll.CanvasSize = UDim2.new(0, Layout.AbsoluteContentSize.X + 10, 0, 0)
+                return Slot
+            end
+        
+            return Element
+        end
+        
         function Tab:CreateDropdown(Title, Options, Default, Callback)
             local Element = {}
             local Dropdown = { Open = false, Selected = Default or "Select..." }
