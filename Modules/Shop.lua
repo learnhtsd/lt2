@@ -1,8 +1,9 @@
 local ShopModule = {}
 
--- 1. Shop Configuration (Edit your items here!)
+-- 1. Shop Configuration (Proper Table Format)
 local ShopItems = {
-    local img = GetImage("Images", "Axe.png")
+    {Name = "Large Axe", Image = "Axe.png", Price = 500}
+    -- Add more items here following the same format!
 }
 
 function ShopModule.Init(Tab)
@@ -14,30 +15,27 @@ function ShopModule.Init(Tab)
 
     -- 2. Item Catalog (Using our new ImageSelector)
     local Catalog = Tab:CreateImageSelector("Select Item", false, function(name)
-        -- Find the item data based on the name selected
         for _, item in pairs(ShopItems) do
             if item.Name == name then
                 SelectedItem = item
                 break
             end
         end
-        
-        -- Update the info box dynamically
         ShopModule.UpdateDisplay()
     end)
 
     -- Populate the Catalog from our table
     for _, item in pairs(ShopItems) do
-        -- Assuming your images are in GitHub under Images/Shop/
-        local img = GetImage("Shop", item.Image)
+        -- We call GetImage HERE, inside the loop
+        local img = GetImage("Images", item.Image) 
         Catalog:AddSlot(img, item.Name)
     end
 
     -- 3. Pricing & Selection Info
     local PriceInfo = Tab:CreateInfoBox("Selection", "Select an item to see details.")
 
-    -- Helper to update the text display
     ShopModule.UpdateDisplay = function()
+        if not SelectedItem then return end
         local total = SelectedItem.Price * Quantity
         PriceInfo:SetTitle(SelectedItem.Name)
         PriceInfo:SetDescription(string.format(
@@ -56,14 +54,9 @@ function ShopModule.Init(Tab)
     -- 5. Purchase Action
     Tab:CreateAction("Finalize Order", "Purchase", function()
         local total = SelectedItem.Price * Quantity
-        
-        -- Logic for checking money would go here
         print(string.format("Purchased %dx %s for $%d", Quantity, SelectedItem.Name, total))
-        
-        Library:Notify("Purchase Success", "You bought " .. Quantity .. "x " .. SelectedItem.Name, 5)
-    end, true) -- Secure mode enabled (double-click to buy)
+    end, true) 
 
-    -- Initialize the display for the first item
     ShopModule.UpdateDisplay()
 end
 
