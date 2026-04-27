@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.128"
+local Version = "v0.0.129"
 
 -- UI ENGINE START
 local Library = {}
@@ -18,17 +18,18 @@ local function GetImage(folder, fileName)
     local localPath = "Dynxe/Images/" .. folder .. "/" .. fileName
     local folderPath = "Dynxe/Images/" .. folder
     
-    -- Paths for your custom GitHub placeholder
+    -- Paths for your custom GitHub placeholder (Linked to your variables)
     local placeholderLocal = "Dynxe/Images/Placeholder.png"
     local placeholderUrl = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/Placeholder.png",
-        GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH
+        User, Repo, Branch
     )
 
     -- 1. Create folders
     if isfolder and not isfolder("Dynxe") then makefolder("Dynxe") end
     if isfolder and not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
-    if folder ~= "" and not isfolder(folderPath) then makefolder(folderPath) end
+    -- Check if we are in a subfolder before trying to create it
+    if folder ~= "" and isfolder and not isfolder(folderPath) then makefolder(folderPath) end
 
     -- 2. Ensure your custom Placeholder.png exists locally
     if not isfile(placeholderLocal) then
@@ -43,10 +44,10 @@ local function GetImage(folder, fileName)
         return getcustomasset(localPath)
     end
 
-    -- 4. Attempt to download the requested image
+    -- 4. Attempt to download the requested image (Linked to your variables)
     local url = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/%s/%s",
-        GITHUB_USER, GITHUB_REPO, GITHUB_BRANCH, folder, fileName
+        User, Repo, Branch, folder, fileName
     )
     
     local success, content = pcall(function() return game:HttpGet(url) end)
@@ -56,8 +57,8 @@ local function GetImage(folder, fileName)
         writefile(localPath, content)
         return getcustomasset(localPath)
     else
-        warn("Asset Missing: " .. fileName .. " (Using GitHub Placeholder)")
-        -- Return your custom placeholder if it exists, otherwise fall back to a hardcoded ID just in case
+        warn("Asset Missing: " .. fileName .. " (Using Placeholder from " .. User .. "/" .. Repo .. ")")
+        -- Return your custom placeholder if it exists, otherwise fall back to a hardcoded ID
         return isfile(placeholderLocal) and getcustomasset(placeholderLocal) or "rbxassetid://6023426923"
     end
 end
