@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.127"
+local Version = "v0.0.126"
 
 -- UI ENGINE START
 local Library = {}
@@ -849,148 +849,84 @@ function Library:CreateWindow()
 
         function Tab:CreateDropdown(Title, Options, Default, Callback)
             local Element = {}
-            local Dropdown = { 
-                Open = false, 
-                Selected = Default or "Select...", 
-                Options = Options or {} 
-            }
-        
-            -- Main Container
+            local Dropdown = { Open = false, Selected = Default or "Select..." }
+
             local DropdownFrame = Instance.new("Frame")
-            DropdownFrame.Name = Title .. "_Dropdown"
-            DropdownFrame.Size = UDim2.new(1, 0, 0, 32) -- Slightly taller for better reach
-            DropdownFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+            DropdownFrame.Size = UDim2.new(1, 0, 0, 28)
+            DropdownFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             DropdownFrame.ClipsDescendants = true
             DropdownFrame.Parent = self.Container
             Instance.new("UICorner", DropdownFrame).CornerRadius = UDim.new(0, 6)
-            
-            -- Subtle Border/Stroke
-            local Stroke = Instance.new("UIStroke")
-            Stroke.Color = Color3.fromRGB(45, 45, 50)
-            Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            Stroke.Parent = DropdownFrame
-        
-            -- Clickable Header
+            AddDepthStroke(DropdownFrame)
+
             local Header = Instance.new("TextButton")
-            Header.Size = UDim2.new(1, 0, 0, 32)
+            Header.Size = UDim2.new(1, 0, 0, 28)
             Header.BackgroundTransparency = 1
             Header.Text = ""
             Header.Parent = DropdownFrame
-        
+
             local TitleLabel = Instance.new("TextLabel")
-            TitleLabel.Size = UDim2.new(0.5, 0, 1, 0)
-            TitleLabel.Position = UDim2.new(0, 12, 0, 0)
+            TitleLabel.Size = UDim2.new(0.6, 0, 1, 0)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 0)
             TitleLabel.BackgroundTransparency = 1
             TitleLabel.Text = Title
-            TitleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
             TitleLabel.Font = Enum.Font.GothamMedium
-            TitleLabel.TextSize = 13
+            TitleLabel.TextSize = 12
             TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
             TitleLabel.Parent = Header
-        
+
             local SelectedLabel = Instance.new("TextLabel")
-            SelectedLabel.Size = UDim2.new(0.5, -35, 1, 0)
-            SelectedLabel.Position = UDim2.new(1, -35, 0, 0)
+            SelectedLabel.Size = UDim2.new(0.4, -25, 1, 0)
+            SelectedLabel.Position = UDim2.new(1, -10, 0, 0)
             SelectedLabel.AnchorPoint = Vector2.new(1, 0)
             SelectedLabel.BackgroundTransparency = 1
             SelectedLabel.Text = Dropdown.Selected
             SelectedLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
             SelectedLabel.Font = Enum.Font.GothamBold
-            SelectedLabel.TextSize = 12
+            SelectedLabel.TextSize = 11
             SelectedLabel.TextXAlignment = Enum.TextXAlignment.Right
             SelectedLabel.Parent = Header
-        
-            -- The Arrow Icon
-            local Arrow = Instance.new("ImageLabel")
-            Arrow.Name = "Arrow"
-            Arrow.Size = UDim2.new(0, 14, 0, 14)
-            Arrow.Position = UDim2.new(1, -12, 0.5, 0)
-            Arrow.AnchorPoint = Vector2.new(1, 0.5)
-            Arrow.BackgroundTransparency = 1
-            Arrow.Image = "rbxassetid://6034818372" -- Standard Chevron icon
-            Arrow.ImageColor3 = Color3.fromRGB(150, 150, 150)
-            Arrow.Parent = Header
-        
-            -- Scrolling Option Holder (Prevents huge menus from breaking UI)
-            local OptionHolder = Instance.new("ScrollingFrame")
+
+            local OptionHolder = Instance.new("Frame")
             OptionHolder.Size = UDim2.new(1, -10, 0, 0)
-            OptionHolder.Position = UDim2.new(0, 5, 0, 35)
+            OptionHolder.Position = UDim2.new(0, 5, 0, 30)
             OptionHolder.BackgroundTransparency = 1
-            OptionHolder.BorderSizePixel = 0
-            OptionHolder.ScrollBarThickness = 2
-            OptionHolder.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 85)
-            OptionHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
             OptionHolder.Parent = DropdownFrame
-        
+
             local Layout = Instance.new("UIListLayout", OptionHolder)
-            Layout.Padding = UDim.new(0, 4)
-            Layout.SortOrder = Enum.SortOrder.LayoutOrder
-        
-            -- Helper: Update Dropdown Logic
-            function Element:Set(val)
-                Dropdown.Selected = val
-                SelectedLabel.Text = val
-                Callback(val)
-            end
-        
-            function Element:Refresh(newList)
+            Layout.Padding = UDim.new(0, 3)
+
+            local function Refresh()
                 for _, child in pairs(OptionHolder:GetChildren()) do
                     if child:IsA("TextButton") then child:Destroy() end
                 end
-        
-                for _, opt in pairs(newList) do
+                for _, opt in pairs(Options) do
                     local OptBtn = Instance.new("TextButton")
-                    OptBtn.Size = UDim2.new(1, -5, 0, 26)
-                    OptBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+                    OptBtn.Size = UDim2.new(1, 0, 0, 22)
+                    OptBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
                     OptBtn.Text = opt
                     OptBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
                     OptBtn.Font = Enum.Font.Gotham
-                    OptBtn.TextSize = 12
-                    OptBtn.AutoButtonColor = false
+                    OptBtn.TextSize = 11
                     OptBtn.Parent = OptionHolder
                     Instance.new("UICorner", OptBtn).CornerRadius = UDim.new(0, 4)
-        
-                    -- Hover Effect for Options
-                    OptBtn.MouseEnter:Connect(function()
-                        TweenService:Create(OptBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 50), TextColor3 = Color3.white}):Play()
-                    end)
-                    OptBtn.MouseLeave:Connect(function()
-                        TweenService:Create(OptBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 40), TextColor3 = Color3.fromRGB(180, 180, 180)}):Play()
-                    end)
-        
+
                     OptBtn.MouseButton1Click:Connect(function()
-                        Element:Set(opt)
-                        Dropdown.Toggle()
+                        Dropdown.Selected = opt
+                        SelectedLabel.Text = opt
+                        Dropdown.Open = false
+                        TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, 28)}):Play()
+                        Callback(opt)
                     end)
                 end
-                
-                -- Update CanvasSize
-                OptionHolder.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y)
             end
-        
-            -- Toggle Logic
-            Dropdown.Toggle = function()
+
+            Header.MouseButton1Click:Connect(function()
                 Dropdown.Open = not Dropdown.Open
-                
-                -- Limit height to max 150px or content size
-                local listHeight = math.clamp(Layout.AbsoluteContentSize.Y, 0, 150)
-                local targetHeight = Dropdown.Open and (listHeight + 40) or 32
-                local targetRotation = Dropdown.Open and 180 or 0
-        
-                TweenService:Create(DropdownFrame, TweenInfo.new(0.3, Enum.EasingStyle.QuartOut), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
-                TweenService:Create(Arrow, TweenInfo.new(0.3, Enum.EasingStyle.QuartOut), {Rotation = targetRotation}):Play()
-                
-                if Dropdown.Open then
-                    OptionHolder.Size = UDim2.new(1, -10, 0, listHeight)
-                end
-            end
-        
-            Header.MouseButton1Click:Connect(Dropdown.Toggle)
-        
-            -- Initialize
-            Element:Refresh(Dropdown.Options)
-            return Element
-        end
+                local targetHeight = Dropdown.Open and (Layout.AbsoluteContentSize.Y + 35) or 28
+                TweenService:Create(DropdownFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
+            end)
 
             Refresh()
             return AttachTooltip(TitleLabel, Element)
