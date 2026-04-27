@@ -38,10 +38,10 @@ local State = {
     SelectionBoxes   = {},
     Connections      = {},
     TempDeleted      = {},
-    CustomTPPosition = nil,
-    CustomTPMarker   = nil,
     BatchCancelled   = false,
     
+    ClickSelectMode  = false,
+    GroupSelectMode  = false,
     LassoMode        = false,
     LassoDragging    = false,
     LassoStartPos    = nil,
@@ -134,40 +134,8 @@ local function UpdateVisuals()
     
     -- Sync with Dynxe InfoBox
     if State.StatusBox then
-        local tpStatus = State.CustomTPPosition and "Custom (Cursor)" or "Local Player"
-        State.StatusBox:SetDescription("Items Queued: " .. #State.SelectedObjects .. "\nTP Target: " .. tpStatus)
+        State.StatusBox:SetDescription("Items Queued: " .. #State.SelectedObjects)
     end
-end
-
-local function CreateTPMarker(position)
-    if State.CustomTPMarker then
-        State.CustomTPMarker:Destroy()
-        State.CustomTPMarker = nil
-    end
-    local marker      = Instance.new("Part")
-    marker.Name       = "_BatchSyncTPMarker"
-    marker.Size       = Vector3.new(0.6, 0.6, 0.6)
-    marker.Shape      = Enum.PartType.Ball
-    marker.CFrame     = CFrame.new(position)
-    marker.Anchored   = true
-    marker.CanCollide = false
-    marker.CastShadow = false
-    marker.Material   = Enum.Material.Neon
-    marker.Color      = Color3.fromRGB(255, 165, 0)
-    marker.Parent     = workspace
-    TweenService:Create(
-        marker,
-        TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-        { Size = Vector3.new(1.0, 1.0, 1.0) }
-    ):Play()
-    return marker
-end
-
-local function ClearTPPosition()
-    if State.CustomTPMarker then State.CustomTPMarker:Destroy(); State.CustomTPMarker = nil end
-    State.CustomTPPosition = nil
-    Notify("TP Position", "Cleared — will use player position.")
-    UpdateVisuals()
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -360,7 +328,6 @@ end
 -- └─────────────────────────────────────────────────────────────────┘
 
 local function PerformSingleSelect()
-    if State.LassoMode then return end
     local main = getObjectData(Mouse.Target)
     if main then
         local idx = table.find(State.SelectedObjects, main)
@@ -415,26 +382,6 @@ local function PerformClear()
     Notify("Cleared", "Queue emptied — batch cancelled.")
 end
 
-local function PerformSetTP()
-    if State.CustomTPPosition then
-        ClearTPPosition()
-    else
-        local unitRay = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Exclude
-        rayParams.FilterDescendantsInstances = { Player.Character }
-        local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 2000, rayParams)
-        if result then
-            State.CustomTPPosition = result.Position
-            State.CustomTPMarker   = CreateTPMarker(State.CustomTPPosition)
-            Notify("TP Position", "Set at cursor.")
-        else
-            Notify("TP Position", "No surface found.")
-        end
-    end
-    UpdateVisuals()
-end
-
 local function PerformExecute()
     if #State.SelectedObjects > 0 and Player.Character then
         local char = Player.Character
@@ -464,7 +411,7 @@ local function PerformExecute()
             end
         end
 
-        local finalGoal = State.CustomTPPosition and CFrame.new(State.CustomTPPosition) or (originalCharCFrame * CFrame.new(0, 0.5, 0))
+        local finalGoal = originalCharCFrame * CFrame.new(0, 0.5, 0)
         local snapshot = {table.unpack(State.SelectedObjects)}
 
         for _, currentTarget in ipairs(snapshot) do
@@ -515,51 +462,53 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     
     -- UI: Status Overview
     Tab:CreateSection("Selection Overview")
-    State.StatusBox = Tab:CreateInfoBox("Queue Status", "Items Queued: 0\nTP Target: Local Player")
+    State.StatusBox = Tab:CreateInfoBox("Queue Status", "Items Queued: 0")
     
     -- UI: Core Actions
     Tab:CreateSection("Actions")
     local MainRow = Tab:CreateRow()
     MainRow:CreateAction("Clear Selection", "Clear", PerformClear):AddTooltip("Empties your selection queue.")
-    MainRow:CreateAction("Set TP Here", "Set TP", PerformSetTP):AddTooltip("Sets teleport destination at mouse cursor.")
+    MainRow:CreateAction("TP Selection", "Execute", PerformExecute, true):AddTooltip("Teleports all queued items to you securely.")
     
-    Tab:CreateAction("Execute Batch", "Start", PerformExecute, true):AddTooltip("Teleports all queued items securely.")
+    -- UI: Selection Modes
+    Tab:CreateSection("Selection Modes (Left Click)")
+    Tab:CreateToggle("Click Selection", false, function(val)
+        State.ClickSelectMode = val
+    end):AddTooltip("Click objects in the world to add/remove them from the queue.")
     
-    -- UI: Configuration
-    Tab:CreateSection("Configuration")
-    Tab:CreateToggle("Lasso Drag Mode", false, function(val)
+    Tab:CreateToggle("Group Selection", false, function(val)
+        State.GroupSelectMode = val
+    end):AddTooltip("Click an object to add/remove all identical objects owned by that player.")
+    
+    Tab:CreateToggle("Lasso Tool", false, function(val)
         State.LassoMode = val
         if not val then
             State.LassoDragging = false
             if State.LassoFrame then State.LassoFrame.Visible = false end
         end
-    end):AddTooltip("When enabled, drag Left Click to box-select multiple items.")
+    end):AddTooltip("Drag a box over objects to select them.")
     
-    Tab:CreateToggle("Lock Camera/Mouse", true, function(val)
-        Settings.LockMouseMovement = val
-    end):AddTooltip("Locks your camera onto the object being teleported.")
-    
+    -- UI: Configuration
+    Tab:CreateSection("Configuration")
     Tab:CreateSlider("Max Retries", 1, 10, 5, function(val)
         Settings.MaxRetries = val
     end):AddTooltip("How many times to attempt grabbing network ownership per object.")
 
-    -- UI: Keybinds
-    Tab:CreateSection("Keybinds")
-    Tab:CreateKeybind("Single Select", Enum.KeyCode.Z, PerformSingleSelect)
-    Tab:CreateKeybind("Group Select", Enum.KeyCode.G, PerformGroupSelect)
-    Tab:CreateKeybind("Set Custom TP", Enum.KeyCode.V, PerformSetTP)
-    Tab:CreateKeybind("Clear/Cancel", Enum.KeyCode.C, PerformClear)
-    Tab:CreateKeybind("Execute Start", Enum.KeyCode.X, PerformExecute)
-    
-    -- Lasso Drag Connections (Mouse processing)
+    -- Mouse input routing (No keybinds required)
     local mb1DownConn = UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
-        if State.LassoMode and input.UserInputType == Enum.UserInputType.MouseButton1 then
-            State.LassoDragging = true
-            State.LassoStartPos = UIS:GetMouseLocation()
-            if State.LassoFrame then
-                State.LassoFrame.Size    = UDim2.fromOffset(0, 0)
-                State.LassoFrame.Visible = false
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if State.LassoMode then
+                State.LassoDragging = true
+                State.LassoStartPos = UIS:GetMouseLocation()
+                if State.LassoFrame then
+                    State.LassoFrame.Size    = UDim2.fromOffset(0, 0)
+                    State.LassoFrame.Visible = false
+                end
+            elseif State.GroupSelectMode then
+                PerformGroupSelect()
+            elseif State.ClickSelectMode then
+                PerformSingleSelect()
             end
         end
     end)
@@ -588,7 +537,6 @@ end
 function LooseObjectTeleport.Unload()
     for _, conn in ipairs(State.Connections) do conn:Disconnect() end
     for _, v in pairs(State.SelectionBoxes) do v:Destroy() end
-    if State.CustomTPMarker then State.CustomTPMarker:Destroy() end
     if State.LassoGui then State.LassoGui:Destroy() end
     
     Camera.CameraType = Enum.CameraType.Custom
