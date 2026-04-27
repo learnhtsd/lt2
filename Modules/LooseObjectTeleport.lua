@@ -296,9 +296,10 @@ end
 -- For regular TP pass CFrame.new(pos) * object.CFrame.Rotation (captured before the grab).
 -- For stack TP pass CFrame.new(pos) * State.StackRotation.
 local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, originalParents)
-    -- Re-parent the item back into the world so it can be grabbed.
-    -- CanCollide is already false — disabled at batch start before nil-parenting,
-    -- so there is zero gap where the item is live and collidable.
+    -- Disable collision BEFORE re-parenting so there is zero physics frame
+    -- where the item is live in the world and collidable.
+    local wasCollidable = currentTarget.CanCollide
+    currentTarget.CanCollide = false
     currentTarget.Parent = originalParents[currentTarget] or workspace
 
     local overlapParams = OverlapParams.new()
@@ -378,6 +379,13 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
             task.wait(Settings.CFrameNudgeDelay)
             currentTarget.CFrame = goalCFrame
         end
+    end
+
+    -- Restore collision immediately after placing. The ghostLock running on the
+    -- character means placed items (CanCollide=true) cannot hit the character
+    -- during subsequent grabs, but gravity won't pull the item through the floor.
+    if currentTarget and currentTarget.Parent then
+        currentTarget.CanCollide = wasCollidable
     end
 
     task.wait(Settings.PostGrabDelay)
@@ -614,16 +622,11 @@ local function PerformStackExecute(hitPos)
     end)
 
     local originalParents = {}
-    local originalCollide = {}
 
-    -- Disable collision on every queued item WHILE still nil-parented,
-    -- then nil-parent them. Zero gap where an item is live and collidable.
     for _, obj in ipairs(State.SelectedObjects) do
         if obj and obj.Parent then
-            originalCollide[obj]  = obj.CanCollide
-            obj.CanCollide        = false
-            originalParents[obj]  = obj.Parent
-            obj.Parent            = nil
+            originalParents[obj] = obj.Parent
+            obj.Parent           = nil
         end
     end
 
@@ -642,13 +645,6 @@ local function PerformStackExecute(hitPos)
     end
 
     task.wait(Settings.PostBatchDelay)
-
-    -- Restore each item's original collision state now that all are placed
-    for obj, wasCollidable in pairs(originalCollide) do
-        if obj and obj.Parent then
-            obj.CanCollide = wasCollidable
-        end
-    end
 
     RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
 
@@ -759,17 +755,11 @@ local function PerformExecute()
     end)
 
     local OriginalParents = {}
-    local OriginalCollide = {}
 
-    -- Disable collision on every queued item WHILE still nil-parented,
-    -- then nil-parent them. This guarantees zero gap where an item is
-    -- live in workspace with collision active.
     for _, obj in ipairs(State.SelectedObjects) do
         if obj and obj.Parent then
-            OriginalCollide[obj]  = obj.CanCollide
-            obj.CanCollide        = false
-            OriginalParents[obj]  = obj.Parent
-            obj.Parent            = nil
+            OriginalParents[obj] = obj.Parent
+            obj.Parent           = nil
         end
     end
 
@@ -792,13 +782,6 @@ local function PerformExecute()
     end
 
     task.wait(Settings.PostBatchDelay)
-
-    -- Restore each item's original collision state now that all are placed
-    for obj, wasCollidable in pairs(OriginalCollide) do
-        if obj and obj.Parent then
-            obj.CanCollide = wasCollidable
-        end
-    end
 
     RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
 
