@@ -1220,4 +1220,6 @@ local PlotModule = LoadModule("Plot")
 if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
 
 local ShopScript = LoadModule("Shop")
-ShopScript.Init(ShopTab)
+if ShopScript and ShopScript.Init then
+    ShopScript.Init(ShopTab, LooseObjectTeleportModule)
+end
