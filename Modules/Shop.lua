@@ -1,6 +1,5 @@
 -- [[ SHOP MODULE ]] --
--- Optimized for Dynxe LT2 UI Engine
--- Includes: Ownership Validation, Multi-Stage Teleport, and Auto-UI Confirmation
+-- Designed for Dynxe LT2 UI Engine
 
 local ShopModule = {}
 
@@ -8,11 +7,42 @@ local Players = game:GetService("Players")
 local Player  = Players.LocalPlayer
 
 -- ┌─────────────────────────────────────────────────────────────────┐
--- │                         CONFIGURATION                           │
+-- │                     LOT REFERENCE                               │
+-- │                                                                 │
+-- │  Set this BEFORE or AFTER Init — both work.                     │
+-- │                                                                 │
+-- │  Option A — pass at init time:                                  │
+-- │    ShopModule.Init(Tab, LOT)                                    │
+-- │                                                                 │
+-- │  Option B — set separately (useful if load order is awkward):   │
+-- │    ShopModule.SetLOT(LOT)                                       │
+-- │    ShopModule.Init(Tab)                                          │
 -- └─────────────────────────────────────────────────────────────────┘
-local ITEM_TP_POS   = Vector3.new(268.3, 5.2, 67.4)     -- Where boxes land
-local PLAYER_TP_POS = Vector3.new(263.0, 3.2, 63.5)     -- Where you stand to buy
-local _LOT = nil  
+local _LOT = nil  -- internal reference, set via Init or SetLOT
+
+function ShopModule.SetLOT(lot)
+    _LOT = lot
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                     SHOP CONFIGURATION                          │
+-- │                                                                 │
+-- │  World structure:                                               │
+-- │    workspace.Stores                                             │
+-- │      ├─ ShopItems   (one folder per store, all named the same)  │
+-- │      │    └─ Box                                                │
+-- │      │        ├─ BoxItemName  (StringValue — item identity)     │
+-- │      │        ├─ Main         (BasePart — what LOT grabs)       │
+-- │      │        ├─ Owner                                          │
+-- │      │        └─ Type                                           │
+-- │      └─ ShopItems  ...                                          │
+-- │                                                                 │
+-- │  Per-item config fields:                                        │
+-- │    Name        — display name shown in the UI catalog           │
+-- │    Image       — filename passed to GetImage()                  │
+-- │    Price       — cost shown on the buy button                   │
+-- │    BoxItemName — must match BoxItemName.Value inside the Box    │
+-- └─────────────────────────────────────────────────────────────────┘
 
 local ShopItems = {
     {
@@ -21,83 +51,55 @@ local ShopItems = {
         Price       = 500,
         BoxItemName = "BasicHatchet",
     },
-    -- Add more items here following the same structure
+    -- {
+    --     Name        = "Large Axe",
+    --     Image       = "LargeAxe.png",
+    --     Price       = 800,
+    --     BoxItemName = "LargeAxe",
+    -- },
 }
 
-function ShopModule.SetLOT(lot)
-    _LOT = lot
-end
-
 -- ┌─────────────────────────────────────────────────────────────────┐
--- │                     INTERNAL HELPERS                            │
+-- │                      WORLD PATH RESOLVER                        │
 -- └─────────────────────────────────────────────────────────────────┘
-
--- Clicks the "ChatChoice" button you found in PlayerGui
-local function AutoConfirmUI()
-    local PlayerGui = Player:WaitForChild("PlayerGui")
-    local ChatGUI = PlayerGui:FindFirstChild("ChatGUI")
-    
-    if ChatGUI then
-        -- Navigate the path found in your logs
-        local chat = ChatGUI:FindFirstChild("Chat")
-        local choices = chat and chat:FindFirstChild("Choices")
-        
-        if choices then
-            local confirmBtn = choices:WaitForChild("ChatChoice", 2)
-            if confirmBtn and confirmBtn:IsA("TextButton") then
-                -- use firesignal if supported, otherwise standard click simulation
-                if firesignal then
-                    firesignal(confirmBtn.MouseButton1Click)
-                else
-                    -- Fallback for basic executors
-                    for _, connection in pairs(getconnections(confirmBtn.MouseButton1Click)) do
-                        connection:Fire()
-                    end
-                end
-                print("[ShopModule] UI Confirmation Clicked.")
-                return true
-            end
-        end
-    end
-    return false
-end
-
--- Finds boxes that match the ID and are NOT owned by anyone
 local function ResolveItemParts(item, quantity)
     local stores = workspace:FindFirstChild("Stores")
-    if not stores then return {} end
+    if not stores then
+        warn("[ShopModule] workspace.Stores not found.")
+        return {}
+    end
 
     local results = {}
 
-    for _, storeFolder in ipairs(stores:GetChildren()) do
-        local shopItems = storeFolder:FindFirstChild("ShopItems")
-        if not shopItems then continue end
+    for _, shopItems in ipairs(stores:GetChildren()) do
         if #results >= quantity then break end
+        if shopItems.Name ~= "ShopItems" then continue end
 
         for _, box in ipairs(shopItems:GetChildren()) do
             if #results >= quantity then break end
             if not (box:IsA("Model") and box.Name == "Box") then continue end
 
-            -- 1. Identity Check
             local nameVal = box:FindFirstChild("BoxItemName")
-            if not (nameVal and nameVal.Value == item.BoxItemName) then continue end
+            if not (nameVal and nameVal:IsA("StringValue")) then continue end
+            if nameVal.Value ~= item.BoxItemName then continue end
 
-            -- 2. Ownership Check (per your screenshot)
-            local ownerFolder = box:FindFirstChild("Owner")
-            local ownerString = ownerFolder and ownerFolder:FindFirstChild("OwnerString")
-            
-            -- If OwnerString has text, someone else is buying it. Skip.
-            if ownerString and ownerString.Value ~= "" then continue end
-
-            -- 3. Physical Part Check
             local main = box:FindFirstChild("Main")
             if main and main:IsA("BasePart") and not main.Anchored then
-                table.insert(results, {
-                    Part = main,
-                    Box = box
-                })
+                table.insert(results, main)
             end
         end
+    end
+
+    if #results == 0 then
+        warn(string.format(
+            "[ShopModule] No Box with BoxItemName='%s' found in any ShopItems folder.",
+            item.BoxItemName
+        ))
+    elseif #results < quantity then
+        warn(string.format(
+            "[ShopModule] Requested %d × '%s' but only %d found.",
+            quantity, item.Name, #results
+        ))
     end
 
     return results
@@ -107,16 +109,27 @@ end
 -- │                         MODULE INIT                             │
 -- └─────────────────────────────────────────────────────────────────┘
 
+-- Tab          — the UI tab object from your library
+-- lot          — (optional) the LooseObjectTeleport module.
+--               Can also be supplied via ShopModule.SetLOT(lot) instead.
+-- GetImageFunc — (optional) override for GetImage()
 function ShopModule.Init(Tab, lot, GetImageFunc)
-    if lot ~= nil then _LOT = lot end
-    local GetImage = GetImageFunc or (getfenv and getfenv().GetImage) or function() return nil end
+    -- Accept LOT either as a parameter or from a prior SetLOT call
+    if lot ~= nil then
+        _LOT = lot
+    end
 
+    local GetImage = GetImageFunc
+                  or (getfenv and getfenv().GetImage)
+                  or function() return nil end
+
+    -- ── Internal state ────────────────────────────────────────────
     local SelectedItem = ShopItems[1]
     local Quantity     = 1
 
+    -- ── UI construction ───────────────────────────────────────────
     Tab:CreateSection("Hardware Store")
 
-    -- Item Selection
     local Catalog = Tab:CreateImageSelector("Select Item", {
         MultiSelect = false,
         Rows        = 1,
@@ -136,60 +149,63 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
     end
 
-    -- Quantity Slider
     Tab:CreateSlider("Quantity", 1, 50, 1, function(val)
         Quantity = val
         ShopModule.UpdateDisplay()
     end)
 
-    -- The "Buy" Logic
     local PurchaseBtn = Tab:CreateAction("Finalize Order", "$0", function()
         if not SelectedItem then return end
-        if _LOT == nil or _LOT.IsBusy() then return end
 
-        local itemData = ResolveItemParts(SelectedItem, Quantity)
-        
-        -- Fallback: TP player back if nothing is found
-        if #itemData == 0 then 
-            warn("[ShopModule] No available items found.")
-            local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-            if root then root.CFrame = CFrame.new(PLAYER_TP_POS) end
-            return 
+        -- Guard: LOT must be set before purchasing
+        if _LOT == nil then
+            warn("[ShopModule] LOT is not set. Call ShopModule.SetLOT(lot) or pass it to Init.")
+            return
         end
 
-        local jobs = {}
-        for _, data in ipairs(itemData) do
+        if _LOT.IsBusy() then
+            warn("[ShopModule] A teleport is already running — please wait.")
+            return
+        end
+
+        local parts = ResolveItemParts(SelectedItem, Quantity)
+        if #parts == 0 then return end
+
+        local char = Player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then
+            warn("[ShopModule] No character found.")
+            return
+        end
+
+        local jobs      = {}
+        local spacing   = 3
+        local rightVec  = root.CFrame.RightVector
+        local totalSpan = (#parts - 1) * spacing
+
+        for i, part in ipairs(parts) do
+            local sideOffset = rightVec * ((i - 1) * spacing - totalSpan * 0.5)
+            local dropPos    = (root.CFrame * CFrame.new(0, 0, -5)).Position
+                             + sideOffset
+                             + Vector3.new(0, part.Size.Y * 0.5, 0)
+
             table.insert(jobs, {
-                target = data.Part,
-                goalCF = CFrame.new(ITEM_TP_POS + Vector3.new(0, data.Part.Size.Y * 0.5, 0)),
+                target = part,
+                goalCF = CFrame.new(dropPos),
             })
         end
 
-        task.spawn(function()
-            -- 1. TP the Items to the counter
-            local success = _LOT.TeleportMany(jobs)
-            
-            if success then
-                -- 2. TP Player to the counter to trigger the prompt
-                local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-                if root then
-                    root.CFrame = CFrame.new(PLAYER_TP_POS)
-                    task.wait(0.3) -- Wait for character to stabilize
-                end
+        print(string.format(
+            "[ShopModule] Purchasing %d × %s for $%d.",
+            #parts, SelectedItem.Name, SelectedItem.Price * #parts
+        ))
 
-                -- 3. Interact with the store
-                for _, data in ipairs(itemData) do
-                    -- Try to find a ClickDetector on the box or nearby
-                    local detector = data.Box:FindFirstChildOfClass("ClickDetector")
-                    if detector then
-                        fireclickdetector(detector)
-                        task.wait(0.3) -- Wait for UI to pop up
-                        
-                        -- 4. Click the "ChatChoice" button automatically
-                        AutoConfirmUI()
-                    end
-                end
-            end
+        task.spawn(function()
+            local success = _LOT.TeleportMany(jobs)
+            print(string.format(
+                "[ShopModule] Teleport %s.",
+                success and "complete" or "cancelled"
+            ))
         end)
     end, false)
 
@@ -197,7 +213,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         if not SelectedItem then return end
         local newText = string.format("$%d", SelectedItem.Price * Quantity)
         if PurchaseBtn then
-            if PurchaseBtn.Set then PurchaseBtn:Set(newText)
+            if PurchaseBtn.Set        then PurchaseBtn:Set(newText)
             elseif PurchaseBtn.Update then PurchaseBtn:Update(newText) end
         end
     end
