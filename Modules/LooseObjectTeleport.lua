@@ -60,10 +60,10 @@ local State = {
     -- Stack mode
     StackMode         = false,
     StackPreviewParts = {},
-    StackPreviewBoxes = {}, -- track outline SelectionBoxes separately for cleanup
+    StackPreviewBoxes = {},
     StackPreviewConn  = nil,
     StackStartBtn     = nil,
-    StackRotation     = CFrame.new(), -- accumulated R/T key rotation for the preview
+    StackRotation     = CFrame.new(),
 
     Library           = nil,
 }
@@ -153,29 +153,16 @@ end
 -- │                     BATCH CLEANUP HELPER                        │
 -- └─────────────────────────────────────────────────────────────────┘
 
--- FIX 4: Centralised post-batch restore so both PerformExecute and
--- PerformStackExecute do it identically and correctly.
--- Character is snapped back to `originalCharCFrame` BEFORE PlatformStand
--- is disabled so humanoid physics re-engage at a safe, grounded position.
 local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
-    -- 1. Stop the ghost enforcer before anything else
     if ghostLock then ghostLock:Disconnect() end
 
-    -- 2. Zero all motion while still ghosted / PlatformStand on
     root.AssemblyLinearVelocity  = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
-
-    -- 3. Snap back to where the player started — NOT on top of any objects
     root.CFrame = originalCharCFrame
 
-    -- 4. Un-ghost before re-enabling physics so the character doesn't clip
     SetCharacterGhosting(char, false)
-
-    -- 5. Re-enable humanoid physics now that the character is safely placed
     hum.PlatformStand = false
 
-    -- 6. One frame later, zero velocity again in case Roblox physics gave a
-    --    small impulse when PlatformStand toggled off
     task.wait()
     if root and root.Parent then
         root.AssemblyLinearVelocity  = Vector3.zero
@@ -292,12 +279,7 @@ local function WaitForOwnership(target)
     return false
 end
 
--- goalCFrame is the complete target CFrame (position + rotation).
--- For regular TP pass CFrame.new(pos) * object.CFrame.Rotation (captured before the grab).
--- For stack TP pass CFrame.new(pos) * State.StackRotation.
 local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, originalParents)
-    -- Disable collision BEFORE re-parenting so there is zero physics frame
-    -- where the item is live in the world and collidable.
     local wasCollidable = currentTarget.CanCollide
     currentTarget.CanCollide = false
     currentTarget.Parent = originalParents[currentTarget] or workspace
@@ -334,9 +316,6 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
 
     task.wait(Settings.PreClickDelay)
 
-    -- On a successful grab we leave the mouse HELD so the client keeps network
-    -- ownership through the entire CFrame-setting phase. Only failed attempts
-    -- release and retry immediately.
     local attempts     = 0
     local gotOwnership = false
     while not gotOwnership and attempts < Settings.MaxRetries do
@@ -353,7 +332,6 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
                 task.wait(Settings.BetweenRetryDelay)
             end
         end
-        -- gotOwnership == true: mouse is still HELD, loop exits
     end
 
     playerLock:Disconnect()
@@ -365,12 +343,8 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
     State.TempDeleted = {}
 
     if currentTarget and currentTarget.Parent then
-        -- 0.1s pause WHILE THE MOUSE IS STILL HELD — client retains network
-        -- ownership so the server cannot begin a rollback during this window.
         task.wait(0.2)
 
-        -- Lock CFrame to goal while still holding. Server accepts these writes
-        -- because we have legitimate ownership.
         local preLock = RunService.Heartbeat:Connect(function()
             if currentTarget and currentTarget.Parent then
                 currentTarget.CFrame                  = goalCFrame
@@ -381,18 +355,13 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
         task.wait(Settings.PostSyncDelay)
         preLock:Disconnect()
 
-        -- Release NOW — the object is already at the goal with valid ownership.
-        -- The server's last recorded client-authoritative position IS the goal.
         if gotOwnership then mouse1release() end
 
-        -- Kill throw velocity the instant the mouse lifts.
         if currentTarget and currentTarget.Parent then
             currentTarget.AssemblyLinearVelocity  = Vector3.zero
             currentTarget.AssemblyAngularVelocity = Vector3.zero
         end
 
-        -- Short post-release lock to beat any server correction that was already
-        -- in-flight when ownership was returned.
         local postLock = RunService.Heartbeat:Connect(function()
             if currentTarget and currentTarget.Parent then
                 currentTarget.CFrame                  = goalCFrame
@@ -403,7 +372,6 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
         task.wait(Settings.CFrameNudgeDelay)
         postLock:Disconnect()
 
-        -- Final micro-nudge to coax a clean physics settle
         if currentTarget and currentTarget.Parent then
             currentTarget.CFrame = goalCFrame * CFrame.new(0, 0.05, 0)
             task.wait(Settings.CFrameNudgeDelay)
@@ -411,12 +379,9 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
         end
 
     elseif not gotOwnership then
-        -- All retries failed — ensure the mouse is never left stuck pressed
         mouse1release()
     end
 
-    -- Restore collision, anchor for 1 s so physics fully settles,
-    -- then release back to normal simulation.
     if currentTarget and currentTarget.Parent then
         currentTarget.AssemblyLinearVelocity  = Vector3.zero
         currentTarget.AssemblyAngularVelocity = Vector3.zero
@@ -429,6 +394,81 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
     end
 
     task.wait(Settings.PostGrabDelay)
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │              *** NEW: SHARED INTERNAL BATCH RUNNER ***          │
+-- │                                                                 │
+-- │  jobs  — array of { target = BasePart, goalCF = CFrame }       │
+-- │                                                                 │
+-- │  All public API methods AND the existing UI actions             │
+-- │  (PerformExecute, PerformStackExecute) funnel through here.     │
+-- │  Nothing else needs to touch character setup / teardown.        │
+-- └─────────────────────────────────────────────────────────────────┘
+local function RunBatch(jobs)
+    if #jobs == 0 then
+        Notify("Batch", "No jobs supplied.", 2)
+        return
+    end
+    if not Player.Character then
+        Notify("Batch", "Character missing.", 2)
+        return
+    end
+
+    local char = Player.Character
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum  = char:FindFirstChildOfClass("Humanoid")
+    local head = char:FindFirstChild("Head")
+    if not root or not head or not hum then return end
+
+    -- Raise busy flag — blocks all UI selection clicks while running
+    State.IsBusy         = true
+    State.BatchCancelled = false
+
+    local originalCharCFrame = root.CFrame
+
+    Player.CameraMode = Enum.CameraMode.LockFirstPerson
+    UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
+    hum.PlatformStand = true
+    SetCharacterGhosting(char, true)
+
+    -- Continuously re-enforce no-collision every frame
+    local ghostLock = RunService.Heartbeat:Connect(function()
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end)
+
+    -- Pre-collect original parents and pull all targets out of the world
+    local originalParents = {}
+    for _, job in ipairs(jobs) do
+        if job.target and job.target.Parent then
+            originalParents[job.target] = job.target.Parent
+            job.target.Parent = nil
+        end
+    end
+
+    -- Run each job
+    for _, job in ipairs(jobs) do
+        if not job.target then continue end
+        if State.BatchCancelled then
+            -- Restore unprocessed objects on cancel
+            local op = originalParents[job.target]
+            if op then job.target.Parent = op end
+            continue
+        end
+        GrabAndTeleport(job.target, job.goalCF, char, head, root, originalParents)
+    end
+
+    task.wait(Settings.PostBatchDelay)
+
+    RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
+
+    State.IsBusy = false
+
+    return not State.BatchCancelled -- true = all succeeded, false = cancelled
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -467,7 +507,6 @@ local function GetStackPositions(origin, itemSize, countX, countY, countZ, total
     for z = 0, countZ - 1 do
         for y = 0, countY - 1 do
             for x = 0, countX - 1 do
-                -- Compute offset in local stack space, then rotate into world space
                 local localOffset   = Vector3.new(x * stepX - offX, y * stepY, z * stepZ - offZ)
                 local rotatedOffset = stackRotation:VectorToWorldSpace(localOffset)
                 table.insert(positions, origin + rotatedOffset)
@@ -478,7 +517,6 @@ local function GetStackPositions(origin, itemSize, countX, countY, countZ, total
     return positions
 end
 
--- FIX 1: Destroys BOTH ghost parts AND their tracked outline SelectionBoxes
 local function ClearStackPreview()
     if State.StackPreviewConn then
         State.StackPreviewConn:Disconnect()
@@ -506,7 +544,7 @@ end
 
 local function StopStackMode(silent)
     State.StackMode     = false
-    State.StackRotation = CFrame.new() -- reset so next session starts upright
+    State.StackRotation = CFrame.new()
     ClearStackPreview()
     SetStackBtnLabel("Start Stack")
     if not silent then
@@ -554,7 +592,6 @@ local function StartStackMode()
         p.Parent          = workspace
         table.insert(State.StackPreviewParts, p)
 
-        -- FIX 1: Store box reference so ClearStackPreview can destroy it
         local box         = Instance.new("SelectionBox")
         box.Color3        = Color3.fromRGB(140, 180, 255)
         box.LineThickness = 0.03
@@ -598,7 +635,6 @@ local function StartStackMode()
 
         for i, ghostPart in ipairs(State.StackPreviewParts) do
             if positions[i] then
-                -- Apply full rotation so the ghost matches the final placed orientation
                 ghostPart.CFrame = CFrame.new(positions[i]) * State.StackRotation
             end
         end
@@ -627,72 +663,29 @@ local function PerformStackExecute(hitPos)
         #State.SelectedObjects,
         State.StackRotation
     )
-    -- Capture rotation before StopStackMode resets it
     local capturedRotation = State.StackRotation
 
-    -- FIX 1: Wipe preview (parts + boxes) fully before TP begins
     StopStackMode(true)
 
-    if not Player.Character then return end
-    local char = Player.Character
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local hum  = char:FindFirstChildOfClass("Humanoid")
-    local head = char:FindFirstChild("Head")
-    if not root or not head or not hum then return end
-
-    -- FIX 3: Raise busy flag — suppresses all selection clicks during TP
-    State.IsBusy         = true
-    State.BatchCancelled = false
-    Notify("Stack TP", "Teleporting " .. #State.SelectedObjects .. " items into stack…", 3)
-
-    local originalCharCFrame = root.CFrame
-
-    Player.CameraMode = Enum.CameraMode.LockFirstPerson
-    UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
-    hum.PlatformStand = true
-    SetCharacterGhosting(char, true)
-
-    -- Continuously re-enforce no-collision on the character every frame.
-    local ghostLock = RunService.Heartbeat:Connect(function()
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
-            end
-        end
-    end)
-
-    local originalParents = {}
-
-    for _, obj in ipairs(State.SelectedObjects) do
+    -- Build jobs list for RunBatch
+    local jobs = {}
+    for i, obj in ipairs(State.SelectedObjects) do
         if obj and obj.Parent then
-            originalParents[obj] = obj.Parent
-            obj.Parent           = nil
+            local targetPos = goalPositions[i] or groundOrigin
+            table.insert(jobs, {
+                target = obj,
+                goalCF = CFrame.new(targetPos) * capturedRotation
+            })
         end
     end
 
-    local snapshot = {table.unpack(State.SelectedObjects)}
+    Notify("Stack TP", "Teleporting " .. #jobs .. " items into stack…", 3)
 
-    for i, currentTarget in ipairs(snapshot) do
-        if not currentTarget then continue end
-        if State.BatchCancelled then
-            local op = originalParents[currentTarget]
-            if op then currentTarget.Parent = op end
-            continue
-        end
-        local targetPos  = goalPositions[i] or groundOrigin
-        local targetCF   = CFrame.new(targetPos) * capturedRotation
-        GrabAndTeleport(currentTarget, targetCF, char, head, root, originalParents)
-    end
+    local success = RunBatch(jobs)
 
-    task.wait(Settings.PostBatchDelay)
-
-    RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
-
-    State.IsBusy          = false
     State.SelectedObjects = {}
     UpdateVisuals()
-
-    Notify("Stack TP", State.BatchCancelled and "Batch cancelled." or "Stack complete!", 3)
+    Notify("Stack TP", success and "Stack complete!" or "Batch cancelled.", 3)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -767,69 +760,164 @@ local function PerformExecute()
 
     local char = Player.Character
     local root = char:FindFirstChild("HumanoidRootPart")
-    local hum  = char:FindFirstChildOfClass("Humanoid")
-    local head = char:FindFirstChild("Head")
-    if not root or not head or not hum then return end
+    if not root then return end
 
-    -- FIX 3: Raise busy flag — suppresses all selection clicks during TP
-    State.IsBusy         = true
-    State.BatchCancelled = false
-    Notify("Batch Start", "Syncing " .. #State.SelectedObjects .. " items...", 3)
+    local finalPos = (root.CFrame * CFrame.new(0, 0.5, 0)).Position
 
-    local originalCharCFrame = root.CFrame
-
-    Player.CameraMode = Enum.CameraMode.LockFirstPerson
-    UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
-    hum.PlatformStand = true
-    SetCharacterGhosting(char, true)
-
-    -- Continuously re-enforce no-collision on the character every frame.
-    -- Roblox's Humanoid can silently reset CanCollide between physics steps,
-    -- so a one-time call to SetCharacterGhosting is not enough.
-    local ghostLock = RunService.Heartbeat:Connect(function()
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
-            end
-        end
-    end)
-
-    local OriginalParents = {}
-
+    -- Capture rotations before building the jobs list
+    local jobs = {}
     for _, obj in ipairs(State.SelectedObjects) do
         if obj and obj.Parent then
-            OriginalParents[obj] = obj.Parent
-            obj.Parent           = nil
+            table.insert(jobs, {
+                target = obj,
+                goalCF = CFrame.new(finalPos) * obj.CFrame.Rotation
+            })
         end
     end
 
-    local finalPos      = (originalCharCFrame * CFrame.new(0, 0.5, 0)).Position
-    local snapshot      = {table.unpack(State.SelectedObjects)}
-    local capturedRots  = {}
-    for _, obj in ipairs(snapshot) do
-        capturedRots[obj] = obj and obj.CFrame.Rotation or CFrame.new()
-    end
+    Notify("Batch Start", "Syncing " .. #jobs .. " items...", 3)
 
-    for _, currentTarget in ipairs(snapshot) do
-        if not currentTarget then continue end
-        if State.BatchCancelled then
-            local op = OriginalParents[currentTarget]
-            if op then currentTarget.Parent = op end
-            continue
-        end
-        local goalCF = CFrame.new(finalPos) * (capturedRots[currentTarget] or CFrame.new())
-        GrabAndTeleport(currentTarget, goalCF, char, head, root, OriginalParents)
-    end
+    local success = RunBatch(jobs)
 
-    task.wait(Settings.PostBatchDelay)
-
-    RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
-
-    State.IsBusy          = false
     State.SelectedObjects = {}
     UpdateVisuals()
+    Notify("Finished", success and "Batch complete." or "Batch cancelled.", 3)
+end
 
-    Notify("Finished", State.BatchCancelled and "Batch cancelled." or "Batch complete.", 3)
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │              *** NEW: PUBLIC API FOR EXTERNAL SCRIPTS ***       │
+-- │                                                                 │
+-- │  Usage from another module (e.g. ShopModule):                  │
+-- │                                                                 │
+-- │    local LOT = require(path.to.LooseObjectTeleport)            │
+-- │                                                                 │
+-- │    -- Add a part to the selection queue                         │
+-- │    LOT.Select(somePart)                                         │
+-- │                                                                 │
+-- │    -- Remove a part from the selection queue                    │
+-- │    LOT.Deselect(somePart)                                       │
+-- │                                                                 │
+-- │    -- Teleport every part currently in the queue to one CFrame  │
+-- │    LOT.TeleportTo(CFrame.new(0, 5, 0))                         │
+-- │                                                                 │
+-- │    -- Convenience: select + teleport a single part immediately  │
+-- │    -- Does NOT modify the persistent selection queue.           │
+-- │    LOT.TeleportObjectTo(somePart, CFrame.new(100, 5, 200))     │
+-- │                                                                 │
+-- │    -- Teleport multiple specific parts to individual CFrames    │
+-- │    LOT.TeleportMany({                                           │
+-- │        { target = partA, goalCF = CFrame.new(10, 0, 10) },     │
+-- │        { target = partB, goalCF = CFrame.new(20, 0, 10) },     │
+-- │    })                                                           │
+-- └─────────────────────────────────────────────────────────────────┘
+
+-- Add a BasePart to the selection queue (same as clicking it in Click-Select mode).
+-- Safe to call while a batch is NOT running; ignored if already selected.
+function LooseObjectTeleport.Select(part)
+    assert(typeof(part) == "Instance" and part:IsA("BasePart"),
+        "LOT.Select: expected a BasePart, got " .. typeof(part))
+    if State.IsBusy then
+        warn("LOT.Select: ignored — a batch is currently running.")
+        return
+    end
+    if not table.find(State.SelectedObjects, part) then
+        table.insert(State.SelectedObjects, part)
+        UpdateVisuals()
+    end
+end
+
+-- Remove a BasePart from the selection queue.
+function LooseObjectTeleport.Deselect(part)
+    local idx = table.find(State.SelectedObjects, part)
+    if idx then
+        table.remove(State.SelectedObjects, idx)
+        UpdateVisuals()
+    end
+end
+
+-- Clear the entire selection queue (same as the UI "Clear" button).
+function LooseObjectTeleport.Clear()
+    PerformClear()
+end
+
+-- Teleport every part currently in the selection queue to `goalCF`.
+-- All objects land at exactly the same CFrame (position + rotation).
+-- The queue is cleared after a successful run.
+-- Returns true if all succeeded, false if the batch was cancelled.
+--
+-- goalCF  —  CFrame  (required)
+--            The destination.  For a flat placement on the ground you
+--            probably want  CFrame.new(x, y + halfHeight, z).
+function LooseObjectTeleport.TeleportTo(goalCF)
+    assert(typeof(goalCF) == "CFrame",
+        "LOT.TeleportTo: expected a CFrame, got " .. typeof(goalCF))
+    if #State.SelectedObjects == 0 then
+        Notify("LOT API", "Selection queue is empty.", 2)
+        return false
+    end
+    if State.IsBusy then
+        warn("LOT.TeleportTo: ignored — a batch is already running.")
+        return false
+    end
+
+    local jobs = {}
+    for _, obj in ipairs(State.SelectedObjects) do
+        if obj and obj.Parent then
+            table.insert(jobs, { target = obj, goalCF = goalCF })
+        end
+    end
+
+    local success = RunBatch(jobs)
+    State.SelectedObjects = {}
+    UpdateVisuals()
+    return success
+end
+
+-- Teleport a SINGLE part to `goalCF` without touching the selection queue.
+-- Useful for "buy item → move it to the player" style calls.
+-- Returns true if successful, false if it failed or was cancelled.
+--
+-- part    —  BasePart  (the Main part of the object's model, or any unanchored BasePart)
+-- goalCF  —  CFrame    (destination)
+function LooseObjectTeleport.TeleportObjectTo(part, goalCF)
+    assert(typeof(part) == "Instance" and part:IsA("BasePart"),
+        "LOT.TeleportObjectTo: expected a BasePart, got " .. typeof(part))
+    assert(typeof(goalCF) == "CFrame",
+        "LOT.TeleportObjectTo: expected a CFrame, got " .. typeof(goalCF))
+    if State.IsBusy then
+        warn("LOT.TeleportObjectTo: ignored — a batch is already running.")
+        return false
+    end
+
+    return RunBatch({ { target = part, goalCF = goalCF } })
+end
+
+-- Teleport multiple parts, each to its own individual CFrame.
+-- jobs  —  array of  { target = BasePart, goalCF = CFrame }
+-- Returns true if all succeeded, false if cancelled.
+--
+-- Example (shop module places 3 axe spawns in a grid):
+--   LOT.TeleportMany({
+--       { target = axeA, goalCF = CFrame.new(10, 1, 0) },
+--       { target = axeB, goalCF = CFrame.new(15, 1, 0) },
+--       { target = axeC, goalCF = CFrame.new(20, 1, 0) },
+--   })
+function LooseObjectTeleport.TeleportMany(jobs)
+    assert(type(jobs) == "table", "LOT.TeleportMany: expected a table of jobs.")
+    if State.IsBusy then
+        warn("LOT.TeleportMany: ignored — a batch is already running.")
+        return false
+    end
+    return RunBatch(jobs)
+end
+
+-- Read-only helpers so external scripts can inspect state without breaking it.
+function LooseObjectTeleport.IsBusy()
+    return State.IsBusy
+end
+
+function LooseObjectTeleport.GetQueueSize()
+    return #State.SelectedObjects
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -905,7 +993,6 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     local mb1DownConn = UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
 
-        -- R / T — rotate stack preview (only while stack placement is active)
         if State.StackMode and input.UserInputType == Enum.UserInputType.Keyboard then
             if input.KeyCode == Enum.KeyCode.R then
                 State.StackRotation = State.StackRotation * CFrame.Angles(math.rad(90), 0, 0)
@@ -920,7 +1007,6 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
 
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 
-        -- FIX 3: Completely ignore world clicks while any batch is running
         if State.IsBusy then return end
 
         if State.StackMode then
