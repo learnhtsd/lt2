@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.131"
+local Version = "v0.0.132"
 
 -- UI ENGINE START
 local Library = {}
@@ -904,11 +904,17 @@ function Library:CreateWindow()
             -- Container
             local SelectorFrame = Instance.new("Frame")
             SelectorFrame.Name = Title .. "_ImageSelector"
-            SelectorFrame.Size = UDim2.new(1, 0, 0, 115) -- Tall enough for Image + Text
-            SelectorFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
-            SelectorFrame.BackgroundTransparency = 0.5
+            SelectorFrame.Size = UDim2.new(1, 0, 0, 120) -- Slightly taller to prevent cramping
+            SelectorFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40) -- Matches standard elements
+            SelectorFrame.BackgroundTransparency = 0 -- Removed transparency to match elements
             SelectorFrame.Parent = self.Container
             Instance.new("UICorner", SelectorFrame).CornerRadius = UDim.new(0, 6)
+        
+            -- Added UIStroke to match other elements
+            local FrameStroke = Instance.new("UIStroke")
+            FrameStroke.Color = Color3.fromRGB(50, 50, 55)
+            FrameStroke.Thickness = 1.5
+            FrameStroke.Parent = SelectorFrame
         
             local TitleLabel = Instance.new("TextLabel")
             TitleLabel.Size = UDim2.new(1, -10, 0, 25)
@@ -923,7 +929,7 @@ function Library:CreateWindow()
         
             -- Horizontal Scrolling Frame
             local Scroll = Instance.new("ScrollingFrame")
-            Scroll.Size = UDim2.new(1, -10, 0, 80)
+            Scroll.Size = UDim2.new(1, -10, 0, 86) -- Taller to fix top clipping
             Scroll.Position = UDim2.new(0, 5, 0, 30)
             Scroll.BackgroundTransparency = 1
             Scroll.BorderSizePixel = 0
@@ -940,6 +946,8 @@ function Library:CreateWindow()
         
             local Padding = Instance.new("UIPadding", Scroll)
             Padding.PaddingLeft = UDim.new(0, 5)
+            Padding.PaddingTop = UDim.new(0, 3) -- FIX: Stops UIStroke from clipping on top
+            Padding.PaddingBottom = UDim.new(0, 3)
         
             -- Function to Add Slots
             function Element:AddSlot(ID, SlotTitle, SlotSubText)
@@ -957,24 +965,37 @@ function Library:CreateWindow()
                 Stroke.Parent = Slot
         
                 local Image = Instance.new("ImageLabel")
-                Image.Size = UDim2.new(0.6, 0, 0.6, 0)
-                Image.Position = UDim2.new(0.5, 0, 0.4, 0)
+                Image.Size = UDim2.new(0.45, 0, 0.45, 0) -- Scaled down slightly to fit the price
+                Image.Position = UDim2.new(0.5, 0, 0.35, 0) -- Shifted upwards
                 Image.AnchorPoint = Vector2.new(0.5, 0.5)
                 Image.BackgroundTransparency = 1
                 Image.Image = ID
                 Image.Parent = Slot
         
-                -- Optional Primary Text
+                -- Primary Text (Name)
                 if SlotTitle then
                     local Txt = Instance.new("TextLabel")
-                    Txt.Size = UDim2.new(1, 0, 0, 15)
-                    Txt.Position = UDim2.new(0, 0, 0.8, 0)
+                    Txt.Size = UDim2.new(1, 0, 0, 12)
+                    Txt.Position = UDim2.new(0, 0, 0.62, 0) -- Shifted upwards
                     Txt.BackgroundTransparency = 1
                     Txt.Text = SlotTitle
                     Txt.TextColor3 = Color3.fromRGB(255, 255, 255)
                     Txt.Font = Enum.Font.GothamMedium
                     Txt.TextSize = 9
                     Txt.Parent = Slot
+                end
+        
+                -- Secondary Text (Price)
+                if SlotSubText then
+                    local SubTxt = Instance.new("TextLabel")
+                    SubTxt.Size = UDim2.new(1, 0, 0, 12)
+                    SubTxt.Position = UDim2.new(0, 0, 0.78, 0) -- Positioned directly under Title
+                    SubTxt.BackgroundTransparency = 1
+                    SubTxt.Text = SlotSubText
+                    SubTxt.TextColor3 = Color3.fromRGB(150, 255, 150) -- Light green to indicate price
+                    SubTxt.Font = Enum.Font.GothamBold
+                    SubTxt.TextSize = 9
+                    SubTxt.Parent = Slot
                 end
         
                 -- Selection Logic
