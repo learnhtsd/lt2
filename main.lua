@@ -1173,3 +1173,6 @@ if SaveGameModule and SaveGameModule.Init then SaveGameModule.Init(PlotTab, Libr
 
 local PlotModule = LoadModule("Plot")
 if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
+
+local ShopScript = LoadModule("Shop")
+ShopScript.Init(ShopTab)
