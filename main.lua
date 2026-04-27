@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.127"
+local Version = "v0.0.128"
 
 -- ============================================================
 -- GLOBAL THEME ENGINE
@@ -12,7 +12,7 @@ local Library = {}
 
 local Theme = {
     Accent = Color3.fromRGB(74, 120, 255),
-    Scale  = 0.5,
+    Scale  = 0.8,
 }
 
 -- Registry: every accent-coloured object registers here.
