@@ -148,17 +148,19 @@ Tab:CreateSection("Turbo Car Spawner")
         return result
     end
 
-    Tab:CreateToggle("Auto-Roll Color", false, function(state)
+    local AutoToggle
+    AutoToggle = Tab:CreateToggle("Auto-Roll Color", false, function(state)
         if not selectedPadEvent then return end
         isAutoRolling = state
-
+    
         if isAutoRolling then
             task.spawn(function()
                 while isAutoRolling and selectedPadEvent do
                     local color = SpawnAndGetColor()
-
+    
                     if color == targetColorCode then
                         isAutoRolling = false
+                        AutoToggle:SetState(false) -- ← flips the visual back off
                         Library:Notify("Auto-Roll", "Found target color: " .. tostring(targetColorCode), 5)
                         break
                     end
