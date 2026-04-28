@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.156"
+local Version = "v0.0.157"
 
 -- UI ENGINE START
 local Library = {}
@@ -1218,6 +1218,9 @@ if SaveGameModule and SaveGameModule.Init then SaveGameModule.Init(PlotTab, Libr
 
 local PlotModule = LoadModule("Plot")
 if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
+
+local TreeModule = LoadModule("Tree")
+if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, Library) end
 
 local ShopScript = LoadModule("Shop")
 if ShopScript and ShopScript.Init then
