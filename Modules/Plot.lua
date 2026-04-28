@@ -6,7 +6,6 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 function Plot.Init(Tab, Library)
-    -- Safety check: ensure the tab exists
     if not Tab then return warn("Plot Module: Tab was nil!") end
     
     local LocalPlayer = Players.LocalPlayer
@@ -20,32 +19,19 @@ function Plot.Init(Tab, Library)
 
     Tab:CreateAction("Save Slot", "Save", function()
         local currentSlot = LocalPlayer:FindFirstChild("CurrentSaveSlot")
-
         if loadSaveRequests and currentSlot and currentSlot.Value ~= -1 then
             local RequestSaveRemote = loadSaveRequests:FindFirstChild("RequestSave")
-            
             if RequestSaveRemote then
-                if Library and Library.Notify then
-                    Library:Notify("SAVING", "Attempting to force save slot " .. tostring(currentSlot.Value), 3)
-                end
-                
+                if Library and Library.Notify then Library:Notify("SAVING", "Forcing save...", 3) end
                 local success = RequestSaveRemote:InvokeServer(currentSlot.Value)
-                
-                if success then
-                    if Library and Library.Notify then Library:Notify("SUCCESS", "Slot saved!", 5) end
-                else
-                    if Library and Library.Notify then Library:Notify("FAILED", "Save on cooldown", 5) end
-                end
+                if success and Library and Library.Notify then Library:Notify("SUCCESS", "Slot saved!", 5) end
             end
-        else
-            if Library and Library.Notify then Library:Notify("ERROR", "No slot loaded", 5) end
         end
     end)
 
     Tab:CreateSection("Load Management")
     
     local selectedSlotToLoad = 1
-
     if Tab.CreateDropdown then
         Tab:CreateDropdown("Select Slot to Load", {"1", "2", "3", "4", "5", "6"}, "1", function(value)
             selectedSlotToLoad = tonumber(value)
@@ -53,93 +39,74 @@ function Plot.Init(Tab, Library)
     end
 
     Tab:CreateAction("Load Selected Slot", "Load", function()
-        if loadSaveRequests then
-            local RequestLoadRemote = loadSaveRequests:FindFirstChild("RequestLoad")
-
-            if Library and Library.Notify then
-                Library:Notify("LOADING", "Attempting to load slot " .. tostring(selectedSlotToLoad), 3)
-            end
-
-            if RequestLoadRemote then
-                RequestLoadRemote:InvokeServer(selectedSlotToLoad)
-                if Library and Library.Notify then 
-                    Library:Notify("SUCCESS", "Sent load request for slot " .. tostring(selectedSlotToLoad), 5) 
-                end
-            else
-                if Library and Library.Notify then 
-                    Library:Notify("ERROR", "RequestLoad remote not found", 5) 
-                end
-            end
+        local RequestLoadRemote = loadSaveRequests and loadSaveRequests:FindFirstChild("RequestLoad")
+        if RequestLoadRemote then
+            RequestLoadRemote:InvokeServer(selectedSlotToLoad)
+            if Library and Library.Notify then Library:Notify("SUCCESS", "Loading slot " .. selectedSlotToLoad, 5) end
         end
     end)
 
     -- ==========================================
-    -- NEW PROPERTY ACTIONS (From Screenshots)
+    -- PROPERTY ACTIONS
     -- ==========================================
     Tab:CreateSection("Property Actions")
 
-    -- Logic for "Free Land" screenshot
     Tab:CreateAction("Claim Free Land", "Claim", function()
         local properties = Workspace:FindFirstChild("Properties")
         if not properties or not propertyPurchasing then return end
-
         local claimRemote = propertyPurchasing:FindFirstChild("ClientPurchasedProperty")
         
         for _, plot in pairs(properties:GetChildren()) do
             local owner = plot:FindFirstChild("Owner")
             local origin = plot:FindFirstChild("OriginSquare")
-            
-            -- Find a plot with no owner
             if owner and origin and owner.Value == nil then
-                local pos = origin.OriginCFrame.Value.p + Vector3.new(0, 3, 0)
-                
-                claimRemote:FireServer(plot, pos)
-                
-                if Library and Library.Notify then
-                    Library:Notify("PROPERTY", "Claimed an available plot!", 3)
-                end
-                
-                -- Teleport to the new plot after a short delay
+                claimRemote:FireServer(plot, origin.OriginCFrame.Value.p + Vector3.new(0, 3, 0))
+                if Library and Library.Notify then Library:Notify("PROPERTY", "Claimed!", 3) end
                 task.wait(0.5)
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    LocalPlayer.Character.HumanoidRootPart.CFrame = origin.CFrame + Vector3.new(0, 10, 0)
-                end
-                break -- Only claim one
+                if LocalPlayer.Character then LocalPlayer.Character:MoveTo(origin.Position) end
+                break 
             end
         end
     end)
 
-    -- Logic for "Max Land" screenshot
-    Tab:CreateAction("Max Land (Expand)", "Expand", function()
+    Tab:CreateAction("Max Land (Full Expand)", "Expand", function()
         local properties = Workspace:FindFirstChild("Properties")
         if not properties or not propertyPurchasing then return end
-
         local expandRemote = propertyPurchasing:FindFirstChild("ClientExpandedProperty")
+        
         local playerPlot = nil
-
-        -- Find the plot the player actually owns
         for _, plot in pairs(properties:GetChildren()) do
-            local owner = plot:FindFirstChild("Owner")
-            if owner and owner.Value == LocalPlayer then
-                playerPlot = plot
-                break
-            end
+            if plot.Owner.Value == LocalPlayer then playerPlot = plot break end
         end
 
         if playerPlot and playerPlot:FindFirstChild("OriginSquare") then
-            local originPos = playerPlot.OriginSquare.Position
+            local spos = playerPlot.OriginSquare.Position
             
-            -- Fire the expansion remotes (+40 and -40 as seen in your screenshot)
-            expandRemote:FireServer(playerPlot, CFrame.new(originPos.X + 40, originPos.Y, originPos.Z))
-            expandRemote:FireServer(playerPlot, CFrame.new(originPos.X - 40, originPos.Y, originPos.Z))
-            
-            if Library and Library.Notify then
-                Library:Notify("PROPERTY", "Expansion requests sent!", 3)
+            -- This table contains all the offsets from your screenshots
+            local offsets = {
+                -- Sides
+                {0, 40}, {0, -40}, {40, 0}, {-40, 0},
+                -- Inner Corners
+                {40, 40}, {40, -40}, {-40, 40}, {-40, -40},
+                -- Outer Extensions
+                {80, 0}, {-80, 0}, {0, 80}, {0, -80},
+                -- Outer Corners
+                {80, 80}, {80, -80}, {-80, 80}, {-80, -80},
+                -- Remaining Grid Gaps
+                {40, 80}, {-40, 80}, {80, 40}, {80, -40},
+                {-80, 40}, {-80, -40}, {40, -80}, {-40, -80}
+            }
+
+            if Library and Library.Notify then Library:Notify("EXPANDING", "Purchasing all plots...", 4) end
+
+            for _, offset in ipairs(offsets) do
+                expandRemote:FireServer(playerPlot, CFrame.new(spos.X + offset[1], spos.Y, spos.Z + offset[2]))
+                task.wait(0.05) -- Small delay to prevent server lag/kicks
             end
+
+            if Library and Library.Notify then Library:Notify("SUCCESS", "Plot fully expanded!", 3) end
         else
-            if Library and Library.Notify then
-                Library:Notify("ERROR", "You need to own a plot first!", 3)
-            end
+            if Library and Library.Notify then Library:Notify("ERROR", "Claim a plot first!", 3) end
         end
     end)
 end
