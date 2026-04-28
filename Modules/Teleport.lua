@@ -35,20 +35,20 @@ function TeleportModule.Init(Tab)
         ["Swamp"] = Vector3.new(-1209, 132, -801),
         ["Palm Island #1"] = Vector3.new(2000, -6, -1500),
         ["Lonecave"] = Vector3.new(3581, -179, 430),
-        ["The Den"] = Vector3.new(323.0, 41.8, 1930.0)
-        ["Light House"] = Vector3.new(1464.8, 355.2, 3257.2)
-        ["Safari"] = Vector3.new(111.9, 11.0, -998.8)
-        ["Bridge"] = Vector3.new(112.3, 11.0, -782.4)
-        ["Bob's Shack"] = Vector3.new(260.0, 8.4, -2542.0)
-        ["The Cabin"] = Vector3.new(1244.0, 63.6, 2306.0)
-        ["SnowGlow Biome"] = Vector3.new(-1087.3, -5.9, -946.2)
-        ["Cave"] = Vector3.new(3581.0, -179.5, 430.0)
-        ["Shrine of Sight"] = Vector3.new(-1600.0, 195.4, 919.0)
-        ["Docks"] = Vector3.new(1114.0, -1.2, -197.0)
-        ["Strange Man"] = Vector3.new(1061.0, 16.8, 1131.0)
-        ["Snow Biome"] = Vector3.new(890.0, 59.8, 1195.6)
-        ["Green Box"] = Vector3.new(-1668.1, 349.6, 1475.4)
-        ["Cherry Meadow"] = Vector3.new(220.9, 59.8, 1305.8)
+        ["The Den"] = Vector3.new(323.0, 41.8, 1930.0),
+        ["Light House"] = Vector3.new(1464.8, 355.2, 3257.2),
+        ["Safari"] = Vector3.new(111.9, 11.0, -998.8),
+        ["Bridge"] = Vector3.new(112.3, 11.0, -782.4),
+        ["Bob's Shack"] = Vector3.new(260.0, 8.4, -2542.0),
+        ["The Cabin"] = Vector3.new(1244.0, 63.6, 2306.0),
+        ["SnowGlow Biome"] = Vector3.new(-1087.3, -5.9, -946.2),
+        ["Cave"] = Vector3.new(3581.0, -179.5, 430.0),
+        ["Shrine of Sight"] = Vector3.new(-1600.0, 195.4, 919.0),
+        ["Docks"] = Vector3.new(1114.0, -1.2, -197.0),
+        ["Strange Man"] = Vector3.new(1061.0, 16.8, 1131.0),
+        ["Snow Biome"] = Vector3.new(890.0, 59.8, 1195.6),
+        ["Green Box"] = Vector3.new(-1668.1, 349.6, 1475.4),
+        ["Cherry Meadow"] = Vector3.new(220.9, 59.8, 1305.8),
         ["Bird Cave"] = Vector3.new(4813.1, 17.7, -978.8)
     }
 
