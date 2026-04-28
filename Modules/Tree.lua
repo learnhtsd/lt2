@@ -38,7 +38,7 @@ local Settings = {
 
     -- [ LOT Settings ]
     -- How long to wait after chop completes for logs to physically settle
-    -- in the world before LOT tries to grab them.
+    -- before LOT tries to grab them.
     LogSettleDelay  = 1.5,
     -- Drop offset in front of the player when logs are delivered.
     LogDropDistance = 6,
@@ -60,6 +60,9 @@ local currentTargetWood   = nil
 local preChopCFrame       = nil
 local preChopCameraCFrame = nil
 local lockConn            = nil
+
+-- Snapshot of LogModels BEFORE chopping so we only deliver NEW logs
+local preChopLogModels    = {}
 
 local groundObject         = Workspace:FindFirstChild("Baseplate")
 local originalTransparency = groundObject and groundObject.Transparency or 0
@@ -106,7 +109,7 @@ local function DetermineAndEquipAxe(treeClass)
 end
 
 local function FindPriorityWood(treeClass)
-    local targetPart = nil
+    local targetPart  = nil
     local maxSections = -1
 
     for _, folder in ipairs(Workspace:GetChildren()) do
@@ -161,8 +164,57 @@ local function ScanForTreeTypes()
     return #foundTypes > 0 and foundTypes or {"None Found"}
 end
 
+-- Records every model currently in LogModels so we can
+-- ignore them later and only deliver logs from THIS chop.
+local function SnapshotLogModels()
+    preChopLogModels = {}
+    local logModels = Workspace:FindFirstChild("LogModels")
+    if not logModels then return end
+    for _, model in ipairs(logModels:GetChildren()) do
+        preChopLogModels[model] = true
+    end
+end
+
+-- Only returns InnerWood parts from models that did NOT exist
+-- before this chop started, matching the correct TreeClass.
+local function CollectNewStumps(treeClass)
+    local results   = {}
+    local logModels = Workspace:FindFirstChild("LogModels")
+    if not logModels then
+        warn("[TreeModule] workspace.LogModels not found.")
+        return results
+    end
+
+    for _, model in ipairs(logModels:GetChildren()) do
+        -- Skip anything that existed before we started chopping
+        if preChopLogModels[model] then continue end
+
+        if model:IsA("Model") then
+            local tc = model:FindFirstChild("TreeClass")
+            if tc and tc.Value == treeClass then
+                -- Find the WoodSection whose ID value == 1 (the stump)
+                for _, part in ipairs(model:GetChildren()) do
+                    if part.Name == "WoodSection" and part:IsA("BasePart") then
+                        local id = part:FindFirstChild("ID")
+                        if id and id.Value == 1 then
+                            table.insert(results, part)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if #results == 0 then
+        warn("[TreeModule] No stump (WoodSection ID=1) found after chop for TreeClass:", treeClass)
+    end
+
+    return results
+end
+
 local function CleanupState()
-    isChopping = false
+    isChopping        = false
     currentTargetWood = nil
     SetGroundVisible(true)
 
@@ -192,80 +244,13 @@ local function CleanupState()
 end
 
 -- ==========================================
---   COLLECT LOOSE LOGS FROM PLAYERMODELS
---   after the tree has been chopped.
---
---   Scans workspace.PlayerModels for any
---   Model whose TreeClass matches treeClass
---   and returns the "Main" BasePart of each,
---   ready to pass straight into LOT.
--- ==========================================
-local function CollectLooseLogs(treeClass)
-    local parts = {}
-    local logModels = Workspace:FindFirstChild("LogModels")
-
-    if not logModels then
-        warn("[TreeModule] workspace.LogModels not found.")
-        return parts
-    end
-
-    for _, model in ipairs(logModels:GetChildren()) do
-        if model:IsA("Model") then
-            local tc = model:FindFirstChild("TreeClass")
-            if tc and tc.Value == treeClass then
-                local innerWood = model:FindFirstChild("InnerWood")
-                if innerWood and innerWood:IsA("BasePart") then
-                    table.insert(parts, innerWood)
-                end
-            end
-        end
-    end
-
-    if #parts == 0 then
-        warn("[TreeModule] No InnerWood part found in LogModels for TreeClass:", treeClass)
-    end
-
-    return parts
-end
-
--- ==========================================
---   BUILD LOT JOB LIST
---   Fans logs out in a row in front of
---   the player so they don't all stack.
--- ==========================================
-local function BuildLOTJobs(logParts)
-    local jobs = {}
-    local char = player.Character
-    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return jobs end
-
-    local origin   = hrp.CFrame
-    local forward  = origin.LookVector
-    local right    = origin.RightVector
-    local spacing  = 5  -- studs between each log side-by-side
-    local count    = #logParts
-    local startOff = -((count - 1) / 2) * spacing  -- centre the row
-
-    for i, part in ipairs(logParts) do
-        local sideOffset = startOff + (i - 1) * spacing
-        local goalPos    = origin.Position
-                         + (forward * Settings.LogDropDistance)
-                         + (right   * sideOffset)
-                         + Vector3.new(0, 2, 0)  -- slight lift so logs don't clip ground
-        table.insert(jobs, {
-            target = part,
-            goalCF = CFrame.new(goalPos),
-        })
-    end
-
-    return jobs
-end
-
--- ==========================================
 --             CHOP + DELIVER
 -- ==========================================
 local function StartChopping(treeClass, LOT, onComplete)
     if isChopping then return end
+
+    -- Snapshot BEFORE anything changes so we know which logs are new
+    SnapshotLogModels()
 
     local targetWood = FindPriorityWood(treeClass)
     if not targetWood then return end
@@ -277,7 +262,6 @@ local function StartChopping(treeClass, LOT, onComplete)
     local equippedTool = DetermineAndEquipAxe(treeClass)
     if not equippedTool then return end
 
-    -- Save state so CleanupState can return us home.
     preChopCFrame       = hrp.CFrame
     preChopCameraCFrame = camera.CFrame
 
@@ -287,16 +271,14 @@ local function StartChopping(treeClass, LOT, onComplete)
 
     SetGroundVisible(false)
 
-    -- Position player next to the bottom log.
-    local logUp     = targetWood.CFrame.UpVector
+    local logUp      = targetWood.CFrame.UpVector
     local halfHeight = targetWood.Size.Y / 2
-    local aimPoint  = targetWood.Position - (logUp * (halfHeight * 0.7))
+    local aimPoint   = targetWood.Position - (logUp * (halfHeight * 0.7))
 
-    local lookDir   = targetWood.CFrame.LookVector
-    local standPos  = aimPoint
-                    + (lookDir * Settings.DistanceToTree)
-                    + Vector3.new(0, Settings.VerticalOffset, 0)
-
+    local lookDir        = targetWood.CFrame.LookVector
+    local standPos       = aimPoint
+                         + (lookDir * Settings.DistanceToTree)
+                         + Vector3.new(0, Settings.VerticalOffset, 0)
     local baseLook       = CFrame.lookAt(standPos, aimPoint)
     local upsideDownCFrame = baseLook * CFrame.Angles(0, 0, math.pi)
 
@@ -323,12 +305,11 @@ local function StartChopping(treeClass, LOT, onComplete)
         local center = camera.ViewportSize / 2
         local rng    = Random.new()
 
-        -- ── PHASE 1: CHOP ──────────────────────────────────────────────
+        -- ── PHASE 1: CHOP ─────────────────────────────────────────────
         while isChopping
         and currentTargetWood.Parent
         and currentTargetWood:IsDescendantOf(Workspace) do
 
-            -- A meaningful size change means the section detached — stop.
             if math.abs(currentTargetWood.Size.Y - originalSizeY) > 0.4 then
                 break
             end
@@ -340,69 +321,45 @@ local function StartChopping(treeClass, LOT, onComplete)
                      + rng:NextNumber(-Settings.RandomVariation, Settings.RandomVariation))
         end
 
-        -- ── PHASE 2: RETURN PLAYER HOME ────────────────────────────────
-        -- CleanupState teleports the player back to preChopCFrame,
-        -- unequips the axe, restores the camera, and clears isChopping.
+        -- ── PHASE 2: RETURN PLAYER HOME ───────────────────────────────
         CleanupState()
 
-        -- ── PHASE 3: WAIT FOR LOGS TO SETTLE ──────────────────────────
-        -- Give the physics sim time to drop the cut sections into
-        -- PlayerModels so CollectLooseLogs can find them.
+        -- ── PHASE 3: WAIT FOR LOGS TO SETTLE ─────────────────────────
         task.wait(Settings.LogSettleDelay)
 
-        -- ── PHASE 4: TELEPORT LOGS TO PLAYER VIA LOT ──────────────────
-        -- Temporarily add this right before the LOT block in Phase 4
-        print("[TreeModule] LOT value:", LOT)
+        -- ── PHASE 4: TELEPORT NEW LOGS TO PLAYER VIA LOT ─────────────
         if LOT then
-            print("[TreeModule] LOT functions:")
-            for k, v in pairs(LOT) do
-                print("  ", k, type(v))
-            end
-        end
-            
-        if LOT then
-            local logModels = Workspace:FindFirstChild("LogModels")
-            local innerWood = nil
-        
-            if logModels then
-                for _, model in ipairs(logModels:GetChildren()) do
-                    if model:IsA("Model") then
-                        local tc = model:FindFirstChild("TreeClass")
-                        if tc and tc.Value == treeClass then
-                            local iw = model:FindFirstChild("InnerWood")
-                            if iw and iw:IsA("BasePart") then
-                                innerWood = iw
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        
-            if innerWood then
+            local newLogs = CollectNewStumps(treeClass)
+
+            if #newLogs > 0 then
                 if not LOT.IsBusy() then
-                    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                    local goalCF = hrp
-                        and (hrp.CFrame * CFrame.new(0, 0, -Settings.LogDropDistance))
-                        or CFrame.new(innerWood.Position) -- fallback
-        
+                    local currentHRP = player.Character
+                                   and player.Character:FindFirstChild("HumanoidRootPart")
+
                     task.spawn(function()
-                        LOT.TeleportObjectTo(innerWood, goalCF)
-                        currentTreeModel = nil
+                        for i, iw in ipairs(newLogs) do
+                            if LOT.IsBusy() then
+                                -- Wait for LOT to finish the previous log before queuing next
+                                repeat task.wait(0.1) until not LOT.IsBusy()
+                            end
+
+                            local goalCF = currentHRP
+                                and (currentHRP.CFrame * CFrame.new((i - 1) * 5, 0, -Settings.LogDropDistance))
+                                or CFrame.new(iw.Position)
+
+                            LOT.TeleportObjectTo(iw, goalCF)
+                        end
+
                         if onComplete then onComplete() end
                     end)
                 else
                     warn("[TreeModule] LOT is busy — skipping log delivery.")
-                    currentTreeModel = nil
                     if onComplete then onComplete() end
                 end
             else
-                warn("[TreeModule] InnerWood not found in LogModels for TreeClass:", treeClass)
-                currentTreeModel = nil
                 if onComplete then onComplete() end
             end
         else
-            currentTreeModel = nil
             if onComplete then onComplete() end
         end
     end)
@@ -411,9 +368,6 @@ end
 -- ==========================================
 --             DYNXE UI INITIALIZATION
 -- ==========================================
--- LOT is optional. Pass it in from your loader:
---   TreeModule.Init(Tab, LooseObjectTeleportModule)
--- If omitted the module chops normally with no delivery step.
 function TreeModule.Init(Tab, LOT)
     Tab:CreateSection("Auto Chop Settings")
 
@@ -427,7 +381,6 @@ function TreeModule.Init(Tab, LOT)
 
     chopActionButton = Tab:CreateAction("Process Tree", "Start Chop", function()
         if isChopping then
-            -- Cancel mid-chop.
             isChopping = false
             if type(chopActionButton) == "table" and chopActionButton.SetText then
                 chopActionButton:SetText("Start Chop")
