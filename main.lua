@@ -673,11 +673,13 @@ function Library:CreateWindow()
             return AttachTooltip(TitleLabel, Element)
         end
 
+
+        
         -- ── INPUT ─────────────────────────────────────────────
         function Tab:CreateInput(Title, Placeholder, Callback)
             local Element   = {}
             local RowHeight = ES(28)
-            local BoxWidth  = ES(80) -- Width for the input area
+            local BoxWidth  = ES(70) -- Width for the input area
             local BoxHeight = ES(20)
 
             local InputFrame = Instance.new("Frame")
