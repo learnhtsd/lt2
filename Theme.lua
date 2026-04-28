@@ -232,3 +232,5 @@ end)
 
 print("[DynxeTheme] Applying dark navy theme...")
 ThemeAll(PlayerGui)
+
+return true
