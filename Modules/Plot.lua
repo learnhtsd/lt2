@@ -11,6 +11,7 @@ function Plot.Init(Tab, Library)
     local LocalPlayer = Players.LocalPlayer
     local loadSaveRequests = ReplicatedStorage:FindFirstChild("LoadSaveRequests")
     local propertyPurchasing = ReplicatedStorage:FindFirstChild("PropertyPurchasing")
+    local interaction = ReplicatedStorage:FindFirstChild("Interaction")
     
     -- ==========================================
     -- SAVE & LOAD MANAGEMENT
@@ -81,32 +82,55 @@ function Plot.Init(Tab, Library)
 
         if playerPlot and playerPlot:FindFirstChild("OriginSquare") then
             local spos = playerPlot.OriginSquare.Position
-            
-            -- This table contains all the offsets from your screenshots
             local offsets = {
-                -- Sides
                 {0, 40}, {0, -40}, {40, 0}, {-40, 0},
-                -- Inner Corners
                 {40, 40}, {40, -40}, {-40, 40}, {-40, -40},
-                -- Outer Extensions
                 {80, 0}, {-80, 0}, {0, 80}, {0, -80},
-                -- Outer Corners
                 {80, 80}, {80, -80}, {-80, 80}, {-80, -80},
-                -- Remaining Grid Gaps
                 {40, 80}, {-40, 80}, {80, 40}, {80, -40},
                 {-80, 40}, {-80, -40}, {40, -80}, {-40, -80}
             }
 
-            if Library and Library.Notify then Library:Notify("EXPANDING", "Purchasing all plots...", 4) end
-
             for _, offset in ipairs(offsets) do
                 expandRemote:FireServer(playerPlot, CFrame.new(spos.X + offset[1], spos.Y, spos.Z + offset[2]))
-                task.wait(0.05) -- Small delay to prevent server lag/kicks
+                task.wait(0.05) 
             end
-
             if Library and Library.Notify then Library:Notify("SUCCESS", "Plot fully expanded!", 3) end
-        else
-            if Library and Library.Notify then Library:Notify("ERROR", "Claim a plot first!", 3) end
+        end
+    end)
+
+    -- ==========================================
+    -- NEW: BASE MANAGEMENT (From Screenshots)
+    -- ==========================================
+    Tab:CreateSection("Base Management")
+
+    Tab:CreateAction("Clear Entire Base", "Wipe", function()
+        local playerModels = Workspace:FindFirstChild("PlayerModels")
+        local destroyRemote = interaction and interaction:FindFirstChild("DestroyStructure")
+
+        if not playerModels or not destroyRemote then
+            if Library and Library.Notify then Library:Notify("ERROR", "Wipe system unavailable", 3) end
+            return
+        end
+
+        if Library and Library.Notify then 
+            Library:Notify("WIPE", "Clearing your base... this may take a moment.", 4) 
+        end
+
+        local count = 0
+        for _, model in pairs(playerModels:GetChildren()) do
+            local owner = model:FindFirstChild("Owner")
+            -- Verify you are the owner before firing
+            if owner and owner.Value == LocalPlayer then
+                destroyRemote:FireServer(model)
+                count = count + 1
+                -- Wait every 20 items to prevent the server from lagging out
+                if count % 20 == 0 then task.wait(0.1) end
+            end
+        end
+
+        if Library and Library.Notify then 
+            Library:Notify("SUCCESS", "Base wipe complete!", 3) 
         end
     end)
 end
