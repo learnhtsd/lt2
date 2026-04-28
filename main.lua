@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.182"
+local Version = "v0.0.183"
 
 -- ============================================================
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -492,17 +492,19 @@ function Library:CreateWindow()
         -- ── ACTION ────────────────────────────────────────────
         function Tab:CreateAction(Title, ButtonText, Callback, Secure)
             local Element     = {}
+            Element.Disabled  = false -- Track disabled state
+            
             local RowHeight   = ES(28)
             local BtnHeight   = ES(20)
             local BtnWidth    = ES(70)
-
+        
             local ActionFrame = Instance.new("Frame")
             ActionFrame.Size             = UDim2.new(1, 0, 0, RowHeight)
             ActionFrame.BackgroundColor3 = T.Surface
             ActionFrame.Parent           = self.Container
             Instance.new("UICorner", ActionFrame).CornerRadius = UDim.new(0, 6)
             AddDepthStroke(ActionFrame)
-
+        
             local TitleLabel = Instance.new("TextLabel")
             TitleLabel.Size            = UDim2.new(0.65, 0, 1, 0)
             TitleLabel.Position        = UDim2.new(0, ES(10), 0, 0)
@@ -513,7 +515,7 @@ function Library:CreateWindow()
             TitleLabel.TextSize        = FS(12)
             TitleLabel.TextXAlignment  = Enum.TextXAlignment.Left
             TitleLabel.Parent          = ActionFrame
-
+        
             if Secure then
                 local LockBadge = Instance.new("TextLabel")
                 LockBadge.Size             = UDim2.new(0, ES(22), 0, ES(14))
@@ -532,7 +534,7 @@ function Library:CreateWindow()
                 TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(updateBadgePos)
                 updateBadgePos()
             end
-
+        
             local ActionBtn = Instance.new("TextButton")
             ActionBtn.Size             = UDim2.new(0, BtnWidth, 0, BtnHeight)
             ActionBtn.AnchorPoint      = Vector2.new(1, 0.5)
@@ -545,23 +547,55 @@ function Library:CreateWindow()
             ActionBtn.Parent           = ActionFrame
             Instance.new("UICorner", ActionBtn).CornerRadius = UDim.new(0, 4)
             AddDepthStroke(ActionBtn)
-
-            if Secure then
-                local COL_IDLE    = T.SurfaceDeep
-                local COL_WARN    = T.Warning
-                local COL_SUCCESS = T.Success
-                local awaitingConfirm = false
-                local resetThread     = nil
-                local function resetBtn()
-                    awaitingConfirm = false
-                    TweenService:Create(ActionBtn, TweenInfo.new(0.25), {BackgroundColor3 = COL_IDLE}):Play()
-                    ActionBtn.Text      = ButtonText
-                    ActionBtn.TextColor3 = T.TextWhite
+        
+            -- INTERNAL STATE HELPERS
+            local awaitingConfirm = false
+            local resetThread     = nil
+        
+            local function resetBtn()
+                awaitingConfirm = false
+                TweenService:Create(ActionBtn, TweenInfo.new(0.25), {
+                    BackgroundColor3 = Element.Disabled and T.Surface or T.SurfaceDeep,
+                    TextTransparency = Element.Disabled and 0.5 or 0
+                }):Play()
+                ActionBtn.Text      = ButtonText
+                ActionBtn.TextColor3 = T.TextWhite
+            end
+        
+            -- PUBLIC METHODS
+            function Element:SetText(NewText)
+                ButtonText = NewText
+                if not awaitingConfirm then
+                    ActionBtn.Text = NewText
                 end
-                ActionBtn.MouseButton1Click:Connect(function()
+            end
+        
+            function Element:SetDisabled(State)
+                Element.Disabled = State
+                ActionBtn.Active = not State
+                
+                -- Visual feedback for disabled state
+                TweenService:Create(ActionBtn, TweenInfo.new(0.2), {
+                    BackgroundTransparency = State and 0.5 or 0,
+                    TextTransparency = State and 0.5 or 0,
+                    BackgroundColor3 = State and T.Surface or T.SurfaceDeep
+                }):Play()
+        
+                -- Cancel any active confirmation if we disable it mid-process
+                if State and awaitingConfirm then
+                    if resetThread then task.cancel(resetThread) end
+                    resetBtn()
+                end
+            end
+        
+            -- CLICK LOGIC
+            ActionBtn.MouseButton1Click:Connect(function()
+                if Element.Disabled then return end
+                
+                if Secure then
                     if not awaitingConfirm then
                         awaitingConfirm = true
-                        TweenService:Create(ActionBtn, TweenInfo.new(0.2), {BackgroundColor3 = COL_WARN}):Play()
+                        TweenService:Create(ActionBtn, TweenInfo.new(0.2), {BackgroundColor3 = T.Warning}):Play()
                         ActionBtn.Text      = "Confirm?"
                         ActionBtn.TextColor3 = Color3.fromRGB(255, 240, 180)
                         if resetThread then task.cancel(resetThread) end
@@ -569,17 +603,17 @@ function Library:CreateWindow()
                     else
                         if resetThread then task.cancel(resetThread) end
                         awaitingConfirm = false
-                        TweenService:Create(ActionBtn, TweenInfo.new(0.15), {BackgroundColor3 = COL_SUCCESS}):Play()
+                        TweenService:Create(ActionBtn, TweenInfo.new(0.15), {BackgroundColor3 = T.Success}):Play()
                         ActionBtn.Text      = "✓ Done"
                         ActionBtn.TextColor3 = Color3.fromRGB(200, 255, 210)
                         Callback()
                         task.delay(1.2, resetBtn)
                     end
-                end)
-            else
-                ActionBtn.MouseButton1Click:Connect(Callback)
-            end
-
+                else
+                    Callback()
+                end
+            end)
+        
             return AttachTooltip(TitleLabel, Element)
         end
 
