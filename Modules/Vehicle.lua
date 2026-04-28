@@ -230,7 +230,7 @@ function VehicleModule.Init(Tab, Library)
         end)
     end)
 
-    --------------------------------------------------------------------
+--------------------------------------------------------------------
     -- BACKGROUND MONITORING
     --------------------------------------------------------------------
     task.spawn(function()
@@ -244,22 +244,17 @@ function VehicleModule.Init(Tab, Library)
                 lastSeat = currentSeat
 
                 if currentSeat then
-                    print("[Vehicle Debug] Player entered seat. Polling for config...")
-
+                    -- PLAYER ENTERED VEHICLE
                     FlipButton:SetDisabled(false)
                     FlipButton:SetText("Flip 180°")
                     SpeedSlider:SetDisabled(false)
                     SteerAngleSlider:SetDisabled(false)
                     SteerVelocitySlider:SetDisabled(false)
 
-                    -- Poll for the config for up to 3 seconds to account for replication delays
                     local config = nil
                     for i = 1, 6 do
                         config = GetVehicleConfig()
-                        if config then 
-                            print("[Vehicle Debug] Config found on attempt " .. i)
-                            break 
-                        end
+                        if config then break end
                         task.wait(0.5)
                     end
 
@@ -268,39 +263,34 @@ function VehicleModule.Init(Tab, Library)
                         local angle    = ReadConfigValue(config, "SteerAngle")
                         local velocity = ReadConfigValue(config, "SteerVelocity")
 
-                        print(string.format("[Vehicle Debug] Data read -> Speed: %s | Angle: %s | Velocity: %s", tostring(speed), tostring(angle), tostring(velocity)))
+                        if speed    then SafeUpdateSlider(SpeedSlider, math.clamp(speed, 0.1, 2.0)) end
+                        if angle    then SafeUpdateSlider(SteerAngleSlider, math.clamp(angle, 0.1, 2.0)) end
+                        if velocity then SafeUpdateSlider(SteerVelocitySlider, math.clamp(velocity, 0.01, 0.05)) end
 
-                        if speed ~= nil then
-                            SafeUpdateSlider(SpeedSlider, math.clamp(speed, 0.1, 2.0))
-                        end
-                        if angle ~= nil then
-                            SafeUpdateSlider(SteerAngleSlider, math.clamp(angle, 0.1, 2.0))
-                        end
-                        if velocity ~= nil then
-                            SafeUpdateSlider(SteerVelocitySlider, math.clamp(velocity, 0.01, 0.05))
-                        end
-
-                        -- Re-apply player customisations only if explicitly changed
-                        if customSettings.MaxSpeed > 0 and customSettings.MaxSpeed ~= speed then
-                            ApplyCustomization("MaxSpeed", customSettings.MaxSpeed)
-                        end
-                        if customSettings.SteerAngle > 0 and customSettings.SteerAngle ~= angle then
-                            ApplyCustomization("SteerAngle", customSettings.SteerAngle)
-                        end
-                        if customSettings.SteerVelocity > 0 and customSettings.SteerVelocity ~= velocity then
-                            ApplyCustomization("SteerVelocity", customSettings.SteerVelocity)
-                        end
-                    else
-                        warn("[Vehicle Debug] Failed to find vehicle Configuration folder after 3 seconds.")
+                        -- Apply stored custom settings if they exist
+                        if customSettings.MaxSpeed > 0 then ApplyCustomization("MaxSpeed", customSettings.MaxSpeed) end
+                        if customSettings.SteerAngle > 0 then ApplyCustomization("SteerAngle", customSettings.SteerAngle) end
+                        if customSettings.SteerVelocity > 0 then ApplyCustomization("SteerVelocity", customSettings.SteerVelocity) end
                     end
                 else
-                    print("[Vehicle Debug] Player left seat.")
+                    -- PLAYER EXITED VEHICLE (RESET EVERYTHING)
+                    print("[Vehicle] Resetting values and disabling sliders.")
+                    
+                    -- 1. Reset Internal Memory so the next car starts fresh
+                    customSettings.MaxSpeed = 0
+                    customSettings.SteerAngle = 0
+                    customSettings.SteerVelocity = 0
+
+                    -- 2. Reset UI Visuals
                     FlipButton:SetDisabled(true)
                     FlipButton:SetText("No Vehicle")
+                    
                     SpeedSlider:SetDisabled(true)
                     SafeUpdateSlider(SpeedSlider, 0.1)
+                    
                     SteerAngleSlider:SetDisabled(true)
                     SafeUpdateSlider(SteerAngleSlider, 0.1)
+                    
                     SteerVelocitySlider:SetDisabled(true)
                     SafeUpdateSlider(SteerVelocitySlider, 0.01)
                 end
