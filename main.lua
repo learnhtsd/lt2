@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.166"
+local Version = "v0.0.167"
 
 -- UI ENGINE START
 local Library = {}
@@ -1221,3 +1221,7 @@ local ShopScript = LoadModule("Shop")
 if ShopScript and ShopScript.Init then
     ShopScript.Init(ShopTab, LooseObjectTeleportModule)
 end
+
+local Theme = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
+))()
