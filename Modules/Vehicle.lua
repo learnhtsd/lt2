@@ -23,11 +23,20 @@ local customSettings = {
 local function GetVehicleConfig()
     local char = player.Character
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
-    if hum and hum.SeatPart and hum.SeatPart:IsA("VehicleSeat") then
-        local model = hum.SeatPart.Parent
-        if model and model:FindFirstChild("Configuration") then
-            return model.Configuration
-        end
+    if not hum or not hum.SeatPart then return nil end
+
+    local playerModels = workspace:FindFirstChild("PlayerModels")
+    if not playerModels then return nil end
+
+    -- Walk up from the seat until we find the Model sitting directly under PlayerModels
+    local part = hum.SeatPart
+    while part and part.Parent ~= playerModels do
+        part = part.Parent
+    end
+
+    if part and part:IsA("Model") then
+        local config = part:FindFirstChild("Configuration")
+        return config
     end
     return nil
 end
@@ -235,7 +244,7 @@ function VehicleModule.Init(Tab, Library)
                     SteerVelocitySlider:SetDisabled(false)
     
                     -- Wait for the server to finish populating the config values
-                    task.wait(0.3)
+                    task.wait(0.6)
     
                     local config = GetVehicleConfig()
                     if config then
