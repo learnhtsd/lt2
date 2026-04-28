@@ -124,10 +124,33 @@ function VehicleModule.Init(Tab)
     SelectButton = Tab:CreateAction("Select Car Pad", "Pick Pad", function()
         SelectButton:SetText("Click Pad...")
         local conn
-        conn = UserInputService.InputBegan:Connect(function(input, processed)
-            if processed or input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        conn = UserInputService.InputBegan:Connect(function(input)
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
             conn:Disconnect()
-            -- (Pad selection logic from previous response remains here)
+    
+            local mp     = UserInputService:GetMouseLocation()
+            local ray    = workspace.CurrentCamera:ViewportPointToRay(mp.X, mp.Y)
+            local result = workspace:Raycast(ray.Origin, ray.Direction * 1000)
+    
+            if result and result.Instance then
+                local current = result.Instance
+                for _ = 1, 10 do
+                    if not current then break end
+                    local ev = current:FindFirstChild("ButtonRemote_SpawnButton")
+                    if ev then
+                        selectedPadRoot  = current
+                        selectedPadEvent = ev
+                        SelectButton:SetText("LOCKED: " .. current.Name)
+                        SpawnButton:SetDisabled(false)
+                        AutoButton:SetDisabled(false)
+                        return
+                    end
+                    current = current.Parent
+                end
+                SelectButton:SetText("NOT FOUND — retry")
+            else
+                SelectButton:SetText("Nothing Hit")
+            end
         end)
     end)
 
