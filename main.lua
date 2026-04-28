@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.179"
+local Version = "v0.0.180"
 
 -- ============================================================
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -785,70 +785,172 @@ function Library:CreateWindow()
         end
 
         -- ── INFO BOX ──────────────────────────────────────────
-        function Tab:CreateInfoBox(Title, Description)
+        function Tab:CreateInfoBox(Cfg)
+            -- Accept the old (Title, Description) signature as well as the new table form
+            if type(Cfg) == "string" then
+                Cfg = { Title = Cfg, Description = select(2, ...) }
+            end
+            Cfg = Cfg or {}
+         
             local InfoBox = {}
-
-            local InfoFrame = Instance.new("Frame")
-            InfoFrame.Size             = UDim2.new(1, 0, 0, 0)
-            InfoFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
-            InfoFrame.AutomaticSize    = Enum.AutomaticSize.Y
-            InfoFrame.Parent           = self.Container
-            Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 6)
-            AddDepthStroke(InfoFrame)
-
-            local Accent = Instance.new("Frame")
-            Accent.Size             = UDim2.new(0, 2, 1, 0)
-            Accent.BackgroundColor3 = T.Accent
-            Accent.BorderSizePixel  = 0
-            Accent.Parent           = InfoFrame
-            Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 2)
-
-            local TextContainer = Instance.new("Frame")
-            TextContainer.BackgroundTransparency = 1
-            TextContainer.Position = UDim2.new(0, 12, 0, 0)
-            TextContainer.Size     = UDim2.new(1, -12, 0, 0)
-            TextContainer.AutomaticSize = Enum.AutomaticSize.Y
-            TextContainer.Parent   = InfoFrame
-
-            local InfoLayout = Instance.new("UIListLayout")
-            InfoLayout.Parent   = TextContainer
-            InfoLayout.Padding  = UDim.new(0, ES(4))
-            InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-            local InfoPadding = Instance.new("UIPadding")
-            InfoPadding.Parent        = TextContainer
-            InfoPadding.PaddingTop    = UDim.new(0, ES(8))
-            InfoPadding.PaddingBottom = UDim.new(0, ES(8))
-            InfoPadding.PaddingRight  = UDim.new(0, ES(10))
-
+         
+            -- ── Outer card ───────────────────────────────────────────
+            local Card = Instance.new("Frame")
+            Card.Size              = UDim2.new(1, 0, 0, 0)
+            Card.AutomaticSize     = Enum.AutomaticSize.Y
+            Card.BackgroundColor3  = T.Surface
+            Card.BorderSizePixel   = 0
+            Card.ClipsDescendants  = false
+            Card.Parent            = self.Container
+            Instance.new("UICorner", Card).CornerRadius = UDim.new(0, 6)
+         
+            -- Shared stroke (same as every other element)
+            local CardStroke = Instance.new("UIStroke", Card)
+            CardStroke.Color     = T.Stroke
+            CardStroke.Thickness = 1
+            CardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+         
+            -- ── Top accent stripe ────────────────────────────────────
+            -- A thin 2 px bar along the very top edge, accent-coloured.
+            local TopStripe = Instance.new("Frame")
+            TopStripe.Size             = UDim2.new(1, 0, 0, 2)
+            TopStripe.BackgroundColor3 = T.Accent
+            TopStripe.BorderSizePixel  = 0
+            TopStripe.ZIndex           = 2
+            TopStripe.Parent           = Card
+            -- Round only the top two corners to sit flush with the card
+            local StripeCorner = Instance.new("UICorner", TopStripe)
+            StripeCorner.CornerRadius  = UDim.new(0, 6)
+            -- A covering frame hides the bottom-corner rounding
+            local StripeCapBottom = Instance.new("Frame")
+            StripeCapBottom.Size             = UDim2.new(1, 0, 0, 6)
+            StripeCapBottom.Position         = UDim2.new(0, 0, 1, -6)
+            StripeCapBottom.BackgroundColor3 = T.Accent
+            StripeCapBottom.BorderSizePixel  = 0
+            StripeCapBottom.ZIndex           = 1
+            StripeCapBottom.Parent           = TopStripe
+         
+            -- ── Header row (icon · title · badge) ───────────────────
+            local Header = Instance.new("Frame")
+            Header.Size              = UDim2.new(1, 0, 0, ES(28))
+            Header.Position          = UDim2.new(0, 0, 0, 2)   -- sits just below the stripe
+            Header.BackgroundColor3  = Color3.fromRGB(22, 22, 28) -- very slightly lighter than Surface
+            Header.BorderSizePixel   = 0
+            Header.Parent            = Card
+         
+            local HeaderPad = Instance.new("UIPadding", Header)
+            HeaderPad.PaddingLeft  = UDim.new(0, ES(10))
+            HeaderPad.PaddingRight = UDim.new(0, ES(8))
+         
+            local HeaderLayout = Instance.new("UIListLayout", Header)
+            HeaderLayout.FillDirection    = Enum.FillDirection.Horizontal
+            HeaderLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+            HeaderLayout.Padding          = UDim.new(0, ES(6))
+         
+            -- Optional icon label
+            local IconLabel = Instance.new("TextLabel")
+            IconLabel.BackgroundTransparency = 1
+            IconLabel.Text      = Cfg.Icon or ""
+            IconLabel.TextColor3 = T.Accent
+            IconLabel.Font      = Enum.Font.GothamBold
+            IconLabel.TextSize  = FS(13)
+            IconLabel.AutomaticSize = Enum.AutomaticSize.X
+            IconLabel.Size      = UDim2.new(0, 0, 1, 0)
+            IconLabel.Visible   = (Cfg.Icon ~= nil and Cfg.Icon ~= "")
+            IconLabel.Parent    = Header
+         
+            -- Title
             local TitleLabel = Instance.new("TextLabel")
-            TitleLabel.Size            = UDim2.new(1, 0, 0, ES(18))
             TitleLabel.BackgroundTransparency = 1
-            TitleLabel.Text            = Title or ""
+            TitleLabel.Text            = Cfg.Title or ""
             TitleLabel.TextColor3      = T.TextWhite
             TitleLabel.Font            = Enum.Font.GothamBold
-            TitleLabel.TextSize        = FS(13)
-            TitleLabel.TextXAlignment  = Enum.TextXAlignment.Left
-            TitleLabel.LayoutOrder     = 1
-            TitleLabel.Visible         = (Title ~= "" and Title ~= nil)
-            TitleLabel.Parent          = TextContainer
-
+            TitleLabel.TextSize        = FS(12)
+            TitleLabel.AutomaticSize   = Enum.AutomaticSize.X
+            TitleLabel.Size            = UDim2.new(0, 0, 1, 0)
+            TitleLabel.Visible         = (Cfg.Title ~= nil and Cfg.Title ~= "")
+            TitleLabel.Parent          = Header
+         
+            -- Spacer pushes badge to the right
+            local Spacer = Instance.new("Frame")
+            Spacer.BackgroundTransparency = 1
+            Spacer.Size   = UDim2.new(1, 0, 1, 0)  -- grows to fill remaining space
+            Spacer.Parent = Header
+         
+            -- Optional status badge (e.g. "Online", "Offline")
+            local BadgeLabel = Instance.new("TextLabel")
+            BadgeLabel.BackgroundColor3 = Cfg.BadgeColor or T.Success
+            BadgeLabel.TextColor3       = T.TextWhite
+            BadgeLabel.Font             = Enum.Font.GothamBold
+            BadgeLabel.TextSize         = FS(10)
+            BadgeLabel.Text             = Cfg.Badge or ""
+            BadgeLabel.AutomaticSize    = Enum.AutomaticSize.X
+            BadgeLabel.Size             = UDim2.new(0, 0, 0, ES(17))
+            BadgeLabel.AnchorPoint      = Vector2.new(0, 0.5)
+            BadgeLabel.Visible          = (Cfg.Badge ~= nil and Cfg.Badge ~= "")
+            BadgeLabel.Parent           = Header
+            Instance.new("UICorner", BadgeLabel).CornerRadius = UDim.new(1, 0)
+         
+            local BadgePad = Instance.new("UIPadding", BadgeLabel)
+            BadgePad.PaddingLeft  = UDim.new(0, ES(7))
+            BadgePad.PaddingRight = UDim.new(0, ES(7))
+         
+            -- ── Description body ─────────────────────────────────────
+            local Body = Instance.new("Frame")
+            Body.BackgroundTransparency = 1
+            Body.Size            = UDim2.new(1, 0, 0, 0)
+            Body.Position        = UDim2.new(0, 0, 0, ES(28) + 2)
+            Body.AutomaticSize   = Enum.AutomaticSize.Y
+            Body.Parent          = Card
+         
+            local BodyPad = Instance.new("UIPadding", Body)
+            BodyPad.PaddingLeft   = UDim.new(0, ES(10))
+            BodyPad.PaddingRight  = UDim.new(0, ES(10))
+            BodyPad.PaddingTop    = UDim.new(0, ES(7))
+            BodyPad.PaddingBottom = UDim.new(0, ES(9))
+         
             local DescLabel = Instance.new("TextLabel")
             DescLabel.Size             = UDim2.new(1, 0, 0, 0)
             DescLabel.BackgroundTransparency = 1
-            DescLabel.Text             = Description
+            DescLabel.Text             = Cfg.Description or ""
             DescLabel.TextColor3       = T.TextDark
             DescLabel.Font             = Enum.Font.Gotham
-            DescLabel.TextSize         = FS(12)
+            DescLabel.TextSize         = FS(11)
             DescLabel.TextWrapped      = true
             DescLabel.RichText         = true
+            DescLabel.LineHeight       = 1.35
             DescLabel.TextXAlignment   = Enum.TextXAlignment.Left
             DescLabel.AutomaticSize    = Enum.AutomaticSize.Y
-            DescLabel.LayoutOrder      = 2
-            DescLabel.Parent           = TextContainer
-
-            function InfoBox:SetTitle(t) TitleLabel.Text = t; TitleLabel.Visible = (t ~= "") end
-            function InfoBox:SetDescription(d) DescLabel.Text = d end
+            DescLabel.Parent           = Body
+         
+            -- ── Public API ───────────────────────────────────────────
+            function InfoBox:SetTitle(text)
+                TitleLabel.Text    = text or ""
+                TitleLabel.Visible = (text ~= nil and text ~= "")
+            end
+         
+            function InfoBox:SetDescription(text)
+                DescLabel.Text = text or ""
+            end
+         
+            function InfoBox:SetIcon(icon)
+                IconLabel.Text    = icon or ""
+                IconLabel.Visible = (icon ~= nil and icon ~= "")
+            end
+         
+            function InfoBox:SetBadge(text, color)
+                BadgeLabel.Text             = text or ""
+                BadgeLabel.BackgroundColor3 = color or T.Success
+                BadgeLabel.Visible          = (text ~= nil and text ~= "")
+            end
+         
+            function InfoBox:SetAccentColor(color)
+                TopStripe.BackgroundColor3      = color
+                StripeCapBottom.BackgroundColor3 = color
+                IconLabel.TextColor3             = color
+                CardStroke.Color                 = color
+            end
+         
             return InfoBox
         end
 
