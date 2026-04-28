@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main" 
-local Version = "v0.0.175"
+local Version = "v0.0.176"
 
 -- UI ENGINE START
 local Library = {}
@@ -1145,7 +1145,7 @@ local TeleportTab   = HubWindow:CreateTab("Teleport")
 local WoodTab       = HubWindow:CreateTab("Wood")
 local PlotTab       = HubWindow:CreateTab("Plot")
 local ShopTab       = HubWindow:CreateTab("Shop")
-local VehicleTab    = Window:CreateTab("Vehicle")
+local VehicleTab    = HubWindow:CreateTab("Vehicle")
 local BuildTab      = HubWindow:CreateTab("Build")
 local ToolTab       = HubWindow:CreateTab("Tool")
 local ProtectionTab = HubWindow:CreateTab("Protection")
