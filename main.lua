@@ -1215,7 +1215,7 @@ local PlotModule = LoadModule("Plot")
 if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
 
 local TreeModule = LoadModule("Tree")
-if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, Library) end
+if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, LOT) end
 
 local ShopScript = LoadModule("Shop")
 if ShopScript and ShopScript.Init then
