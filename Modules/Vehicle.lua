@@ -1,17 +1,15 @@
 local VehicleModule = {}
 
-local Players          = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
+local Players           = game:GetService("Players")
+local UserInputService  = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local player           = Players.LocalPlayer
+local player            = Players.LocalPlayer
 
--- Internal State
 local selectedPadRoot  = nil
 local selectedPadEvent = nil
 local isAutoRolling    = false
 local targetColorCode  = 148
 
--- Customization State
 local customSettings = {
     MaxSpeed      = 0,
     SteerAngle    = 0,
@@ -19,7 +17,7 @@ local customSettings = {
 }
 
 --------------------------------------------------------------------
--- HELPER FUNCTIONS
+-- HELPERS
 --------------------------------------------------------------------
 
 local function GetVehicleConfig()
@@ -80,25 +78,33 @@ function VehicleModule.Init(Tab, Library)
 
     Tab:CreateSection("Vehicle Customization")
 
-    -- Decimals = 1 enables values like 70.5, 22.5 etc.
-    -- All three start disabled until the player enters a vehicle.
-    local SpeedSlider = Tab:CreateSlider("Max Speed", 0, 500, 0, function(val)
+    --[[
+        Real LT2 Configuration ranges:
+            MaxSpeed      — 0.1  to 2.0   (2 decimal places)
+            SteerAngle    — 0.1  to 2.0   (2 decimal places)
+            SteerVelocity — 0.01 to 0.05  (3 decimal places)
+
+        Default is set to the minimum so the fill bar starts at 0%
+        and SetValue() syncs the real value when entering a vehicle.
+    --]]
+
+    local SpeedSlider = Tab:CreateSlider("Max Speed", 0.1, 2.0, 0.1, function(val)
         ApplyCustomization("MaxSpeed", val)
-    end, 1)
+    end, 2)
     SpeedSlider:SetDisabled(true)
-    SpeedSlider:AddTooltip("Adjusts the top speed of your current vehicle.")
+    SpeedSlider:AddTooltip("LT2 range: 0.1 – 2.0. Higher = faster top speed.")
 
-    local SteerAngleSlider = Tab:CreateSlider("Steer Angle", 0, 90, 0, function(val)
+    local SteerAngleSlider = Tab:CreateSlider("Steer Angle", 0.1, 2.0, 0.1, function(val)
         ApplyCustomization("SteerAngle", val)
-    end, 1)
+    end, 2)
     SteerAngleSlider:SetDisabled(true)
-    SteerAngleSlider:AddTooltip("Adjusts how sharp the vehicle turns.")
+    SteerAngleSlider:AddTooltip("LT2 range: 0.1 – 2.0. Higher = sharper turns.")
 
-    local SteerVelocitySlider = Tab:CreateSlider("Steer Velocity", 0, 50, 0, function(val)
+    local SteerVelocitySlider = Tab:CreateSlider("Steer Velocity", 0.01, 0.05, 0.01, function(val)
         ApplyCustomization("SteerVelocity", val)
-    end, 1)
+    end, 3)
     SteerVelocitySlider:SetDisabled(true)
-    SteerVelocitySlider:AddTooltip("Adjusts how fast the wheels turn to the target angle.")
+    SteerVelocitySlider:AddTooltip("LT2 range: 0.01 – 0.05. How fast wheels rotate to target angle.")
 
     Tab:CreateSection("Vehicle Utilities")
 
@@ -124,12 +130,9 @@ function VehicleModule.Init(Tab, Library)
     local function SpawnAndGetColor()
         local watchFolder = workspace:FindFirstChild("PlayerModels") or workspace
         local existing = {}
-        for _, m in ipairs(watchFolder:GetChildren()) do
-            existing[m] = true
-        end
+        for _, m in ipairs(watchFolder:GetChildren()) do existing[m] = true end
 
-        local done   = false
-        local result = nil
+        local done, result = false, nil
 
         local conn = watchFolder.ChildAdded:Connect(function(model)
             if done or existing[model] or not model:IsA("Model") then return end
@@ -138,9 +141,7 @@ function VehicleModule.Init(Tab, Library)
             local colorVal = settings:WaitForChild("Color", 0.5)
             if not colorVal then return end
             local deadline = tick() + 0.4
-            while colorVal.Value == 0 and tick() < deadline do
-                task.wait(POLL_RATE)
-            end
+            while colorVal.Value == 0 and tick() < deadline do task.wait(POLL_RATE) end
             if colorVal.Value ~= 0 and not done then
                 done   = true
                 result = colorVal.Value
@@ -227,41 +228,37 @@ function VehicleModule.Init(Tab, Library)
                 lastSeat = currentSeat
 
                 if currentSeat and currentSeat:IsA("VehicleSeat") then
-                    -- Enable all controls
                     FlipButton:SetDisabled(false)
                     FlipButton:SetText("Flip 180°")
                     SpeedSlider:SetDisabled(false)
                     SteerAngleSlider:SetDisabled(false)
                     SteerVelocitySlider:SetDisabled(false)
 
-                    -- Sync sliders to the vehicle's actual current values
+                    -- Clamp the live config value into our slider range before syncing,
+                    -- so SetValue never receives a number outside min/max.
                     local config = GetVehicleConfig()
                     if config then
                         local speed    = ReadConfigValue(config, "MaxSpeed")
                         local angle    = ReadConfigValue(config, "SteerAngle")
                         local velocity = ReadConfigValue(config, "SteerVelocity")
 
-                        if speed    then SpeedSlider:SetValue(speed)             end
-                        if angle    then SteerAngleSlider:SetValue(angle)         end
-                        if velocity then SteerVelocitySlider:SetValue(velocity)   end
+                        if speed    then SpeedSlider:SetValue(math.clamp(speed, 0.1, 2.0))         end
+                        if angle    then SteerAngleSlider:SetValue(math.clamp(angle, 0.1, 2.0))     end
+                        if velocity then SteerVelocitySlider:SetValue(math.clamp(velocity, 0.01, 0.05)) end
 
-                        -- Re-apply any previously customised values
                         for name, value in pairs(customSettings) do
-                            if value > 0 then
-                                ApplyCustomization(name, value)
-                            end
+                            if value > 0 then ApplyCustomization(name, value) end
                         end
                     end
                 else
-                    -- Disable and blank the sliders
                     FlipButton:SetDisabled(true)
                     FlipButton:SetText("No Vehicle")
                     SpeedSlider:SetDisabled(true)
-                    SpeedSlider:SetValue(0)
+                    SpeedSlider:SetValue(0.1)
                     SteerAngleSlider:SetDisabled(true)
-                    SteerAngleSlider:SetValue(0)
+                    SteerAngleSlider:SetValue(0.1)
                     SteerVelocitySlider:SetDisabled(true)
-                    SteerVelocitySlider:SetValue(0)
+                    SteerVelocitySlider:SetValue(0.01)
                 end
             end
         end
