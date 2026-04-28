@@ -2,60 +2,58 @@ local VehicleModule = {}
 
 -- Services
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-
 local player = Players.LocalPlayer
 
 -- Function to flip the vehicle
 local function FlipVehicle()
     local character = player.Character
-    if not character then return end
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
     
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not (humanoid and humanoid.SeatPart and humanoid.SeatPart:IsA("VehicleSeat")) then
-        -- Optional: Library:Notify call if you want feedback when not in a car
-        warn("You must be in a VehicleSeat to flip the vehicle!")
-        return 
-    end
+    if humanoid and humanoid.SeatPart and humanoid.SeatPart:IsA("VehicleSeat") then
+        local vehicleMain = humanoid.SeatPart.Parent
+        local targetPart = vehicleMain:IsA("Model") and vehicleMain.PrimaryPart or humanoid.SeatPart
 
-    local vehicleMain = humanoid.SeatPart.Parent
-    -- Attempt to find the PrimaryPart or the Seat itself to move the whole assembly
-    local targetPart = vehicleMain:IsA("Model") and vehicleMain.PrimaryPart or humanoid.SeatPart
-
-    if targetPart then
-        -- Calculate new CFrame: Same position, but rotated 180 degrees on the LookVector axis (Flip)
-        -- We also add 2 studs of height to prevent clipping into the floor
-        local currentCF = targetPart.CFrame
-        local flipCF = currentCF * CFrame.Angles(0, 0, math.pi) -- math.pi is 180 degrees
-        
-        targetPart.CFrame = flipCF + Vector3.new(0, 2, 0)
+        if targetPart then
+            -- Flip 180 degrees and nudge up to prevent clipping
+            local currentCF = targetPart.CFrame
+            local flipCF = currentCF * CFrame.Angles(0, 0, math.pi)
+            
+            targetPart.CFrame = flipCF + Vector3.new(0, 2, 0)
+        end
     end
 end
 
 -- The Init function called by your Main Script
 function VehicleModule.Init(Tab)
-    -- Create Section for categorization
     Tab:CreateSection("Vehicle Utilities")
 
-    -- Flip Button
-    Tab:CreateAction("Flip Vehicle", "Flip 180°", function()
+    -- Flip Button (Captured as a variable)
+    local FlipButton = Tab:CreateAction("Flip Vehicle", "Flip 180°", function()
         FlipVehicle()
-    end):AddTooltip("Flips your current vehicle right-side up (or upside down).")
-
-    -- Optional: InfoBox to show current vehicle status
-    local VehInfo = Tab:CreateInfoBox("Vehicle Status", "No vehicle detected.")
+    end)
     
-    -- Dynamic update loop for the InfoBox
+    FlipButton:AddTooltip("Flips your current vehicle right-side up. (Only active when driving)")
+
+    -- Logic Loop: Handles button state
     task.spawn(function()
-        while task.wait(1) do
+        local lastVehicleState = nil -- Track state to avoid redundant updates
+
+        while task.wait(0.5) do
             local char = player.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum and hum.SeatPart then
-                VehInfo:SetTitle("Driving")
-                VehInfo:SetDescription("Connected to: " .. hum.SeatPart.Parent.Name)
-            else
-                VehInfo:SetTitle("Walking")
-                VehInfo:SetDescription("Not currently in a vehicle.")
+            local isInVehicle = !!(hum and hum.SeatPart and hum.SeatPart:IsA("VehicleSeat"))
+
+            -- Only update if the state has changed
+            if isInVehicle ~= lastVehicleState then
+                lastVehicleState = isInVehicle
+                
+                if isInVehicle then
+                    FlipButton:SetDisabled(false)
+                    FlipButton:SetText("Flip 180°")
+                else
+                    FlipButton:SetDisabled(true)
+                    FlipButton:SetText("No Vehicle")
+                end
             end
         end
     end)
