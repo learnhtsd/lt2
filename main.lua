@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.196"
+local Version = "v0.0.197"
 
 -- ============================================================
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -749,18 +749,29 @@ function Library:CreateWindow()
             return AttachTooltip(TitleLabel, Element)
         end
         
-        -- ── SLIDER ────────────────────────────────────────────
-        function Tab:CreateSlider(Title, Min, Max, Default, Callback)
-            local Element   = {}
-            local RowHeight = ES(38)
-
+        -- ── SLIDER ────────────────────────────────────────────────────
+        function Tab:CreateSlider(Title, Min, Max, Default, Callback, Decimals)
+            Decimals = Decimals or 0  -- default = integers, pass e.g. 1 or 2 for decimals
+        
+            local Element        = {}
+            local sliderDisabled = false
+            local RowHeight      = ES(38)
+        
+            local function RoundValue(v)
+                if Decimals == 0 then
+                    return math.floor(v)
+                end
+                local factor = 10 ^ Decimals
+                return math.floor(v * factor + 0.5) / factor
+            end
+        
             local SliderFrame = Instance.new("Frame")
             SliderFrame.Size             = UDim2.new(1, 0, 0, RowHeight)
             SliderFrame.BackgroundColor3 = T.Surface
             SliderFrame.Parent           = self.Container
             Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
             AddDepthStroke(SliderFrame)
-
+        
             local TitleLabel = Instance.new("TextLabel")
             TitleLabel.Size            = UDim2.new(1, -ES(70), 0, ES(20))
             TitleLabel.Position        = UDim2.new(0, ES(10), 0, ES(4))
@@ -771,19 +782,19 @@ function Library:CreateWindow()
             TitleLabel.TextSize        = FS(12)
             TitleLabel.TextXAlignment  = Enum.TextXAlignment.Left
             TitleLabel.Parent          = SliderFrame
-
+        
             local ValueLabel = Instance.new("TextLabel")
             ValueLabel.Size            = UDim2.new(0, ES(55), 0, ES(20))
             ValueLabel.AnchorPoint     = Vector2.new(1, 0)
             ValueLabel.Position        = UDim2.new(1, -ES(8), 0, ES(4))
             ValueLabel.BackgroundTransparency = 1
-            ValueLabel.Text            = tostring(Default)
+            ValueLabel.Text            = tostring(RoundValue(Default))
             ValueLabel.TextColor3      = T.Accent
             ValueLabel.Font            = Enum.Font.GothamBold
             ValueLabel.TextSize        = FS(12)
             ValueLabel.TextXAlignment  = Enum.TextXAlignment.Right
             ValueLabel.Parent          = SliderFrame
-
+        
             local trackY = ES(28)
             local SliderBG = Instance.new("Frame")
             SliderBG.Size             = UDim2.new(1, -ES(20), 0, ES(4))
@@ -791,48 +802,41 @@ function Library:CreateWindow()
             SliderBG.BackgroundColor3 = T.SurfaceDeep
             SliderBG.Parent           = SliderFrame
             Instance.new("UICorner", SliderBG)
-
+        
             local SliderFill = Instance.new("Frame")
             SliderFill.Size             = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
             SliderFill.BackgroundColor3 = T.Accent
             SliderFill.BorderSizePixel  = 0
             SliderFill.Parent           = SliderBG
             Instance.new("UICorner", SliderFill)
-
+        
             local SliderBtn = Instance.new("TextButton")
             SliderBtn.Size               = UDim2.new(1, 0, 1, 0)
             SliderBtn.BackgroundTransparency = 1
             SliderBtn.Text               = ""
             SliderBtn.ZIndex             = SliderFrame.ZIndex + 5
             SliderBtn.Parent             = SliderFrame
-
+        
             local function UpdateSlider()
                 local mousePos = UserInputService:GetMouseLocation().X
                 local barPos   = SliderBG.AbsolutePosition.X
                 local barWidth = SliderBG.AbsoluteSize.X
                 local pct      = math.clamp((mousePos - barPos) / barWidth, 0, 1)
-                local value    = math.floor(Min + (Max - Min) * pct)
-                SliderFill.Size   = UDim2.new(pct, 0, 1, 0)
-                ValueLabel.Text   = tostring(value)
+                local value    = RoundValue(Min + (Max - Min) * pct)
+                SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+                ValueLabel.Text = tostring(value)
                 Callback(value)
             end
-
-            local sliding = false
-            SliderBtn.InputBegan:Connect(function(input)
-                if sliderDisabled then return end
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    sliding = true; UpdateSlider()
-                end
-            end)
-            UserInputService.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end
-            end)
-            UserInputService.InputChanged:Connect(function(input)
-                if sliding and not sliderDisabled and input.UserInputType == Enum.UserInputType.MouseMovement then UpdateSlider() end
-            end)
-
-            local sliderDisabled = false
-            
+        
+            -- PUBLIC: set value programmatically without firing Callback
+            function Element:SetValue(value)
+                value = math.clamp(RoundValue(value), Min, Max)
+                local pct = (value - Min) / (Max - Min)
+                SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+                ValueLabel.Text = tostring(value)
+            end
+        
+            -- PUBLIC: disable / enable
             function Element:SetDisabled(state)
                 sliderDisabled = state
                 TweenService:Create(SliderFill, TweenInfo.new(0.2), {
@@ -841,14 +845,30 @@ function Library:CreateWindow()
                 TweenService:Create(SliderBG, TweenInfo.new(0.2), {
                     BackgroundTransparency = state and 0.5 or 0
                 }):Play()
-                TweenService:Create(SliderBtn, TweenInfo.new(0.2), {
-                    BackgroundTransparency = 1  -- always invisible, just blocks input
-                }):Play()
-                ValueLabel.TextColor3  = state and T.TextSecondary or T.Accent
-                TitleLabel.TextColor3  = state and T.TextSecondary or T.TextPrimary
-                SliderBtn.Active       = not state
+                ValueLabel.TextColor3 = state and T.TextSecondary or T.Accent
+                TitleLabel.TextColor3 = state and T.TextSecondary or T.TextPrimary
+                SliderBtn.Active      = not state
             end
-            
+        
+            local sliding = false
+            SliderBtn.InputBegan:Connect(function(input)
+                if sliderDisabled then return end
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    sliding = true
+                    UpdateSlider()
+                end
+            end)
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    sliding = false
+                end
+            end)
+            UserInputService.InputChanged:Connect(function(input)
+                if sliding and not sliderDisabled and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    UpdateSlider()
+                end
+            end)
+        
             return AttachTooltip(TitleLabel, Element)
         end
 
