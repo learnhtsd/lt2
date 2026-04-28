@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.192"
+local Version = "v0.0.193"
 
 -- ============================================================
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -670,6 +670,15 @@ function Library:CreateWindow()
                 Callback(Toggled)
             end)
 
+            function Element:SetState(state)
+                if state == Toggled then return end
+                Toggled = state
+                local targetPos = Toggled and UDim2.new(0, dotOn, 0.5, -dotSz/2) or UDim2.new(0, dotOff, 0.5, -dotSz/2)
+                local targetCol = Toggled and T.Accent or T.SurfaceDeep
+                TweenService:Create(ToggleDot, TweenInfo.new(0.2), {Position = targetPos}):Play()
+                TweenService:Create(ToggleBG,  TweenInfo.new(0.2), {BackgroundColor3 = targetCol}):Play()
+            end
+            
             return AttachTooltip(TitleLabel, Element)
         end
 
