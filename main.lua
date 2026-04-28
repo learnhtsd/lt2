@@ -1185,11 +1185,6 @@ if SettingsModule and SettingsModule.Init then
     SettingsModule.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch})
 end
 
-local GetWoodModule = LoadModule("GetWood")
-if GetWoodModule and GetWoodModule.Init then
-    GetWoodModule.Init(WoodTab, Library)
-end
-
 local DraggerModule = LoadModule("HardDragger")
 if DraggerModule and DraggerModule.Init then DraggerModule.Init(ToolTab) end
 
