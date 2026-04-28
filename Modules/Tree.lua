@@ -201,22 +201,31 @@ end
 --   ready to pass straight into LOT.
 -- ==========================================
 local function CollectLooseLogs(treeClass)
-    local jobs = {}
-    local playerModels = Workspace:FindFirstChild("PlayerModels")
-    if not playerModels then return jobs end
+    local parts = {}
+    local logModels = Workspace:FindFirstChild("LogModels")
 
-    for _, model in ipairs(playerModels:GetChildren()) do
+    if not logModels then
+        warn("[TreeModule] workspace.LogModels not found.")
+        return parts
+    end
+
+    for _, model in ipairs(logModels:GetChildren()) do
         if model:IsA("Model") then
             local tc = model:FindFirstChild("TreeClass")
             if tc and tc.Value == treeClass then
                 local main = model:FindFirstChild("Main")
                 if main and main:IsA("BasePart") then
-                    table.insert(jobs, main)
+                    table.insert(parts, main)
                 end
             end
         end
     end
-    return jobs
+
+    if #parts == 0 then
+        warn("[TreeModule] No logs found in workspace.LogModels for TreeClass:", treeClass)
+    end
+
+    return parts
 end
 
 -- ==========================================
