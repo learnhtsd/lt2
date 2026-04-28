@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.193"
+local Version = "v0.0.194"
 
 -- ============================================================
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1263,7 +1263,8 @@ function Library:CreateWindow()
 
         return Tab
     end
-
+    
+    Window.Frame = MainFrame
     return Window
 end
 
@@ -1316,7 +1317,7 @@ if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end
 
 local SettingsModule = LoadModule("Settings")
 if SettingsModule and SettingsModule.Init then
-    SettingsModule.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch})
+    SettingsModule.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch}, Config)
 end
 
 local DraggerModule = LoadModule("HardDragger")
