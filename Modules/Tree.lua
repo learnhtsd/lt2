@@ -409,7 +409,8 @@ local function StartChopping(treeClass, LOT, onComplete)
         CleanupState()
 
         -- ── PHASE 3: WAIT FOR LOGS TO SETTLE ─────────────────────────
-        task.wait(Settings.LogSettleDelay)
+        -- Old: task.wait(Settings.LogSettleDelay)
+        WaitForLogsToSettle(treeClass)  -- ← dynamic velocity-based wait
 
         -- ── PHASE 4: DELIVER NEW LOGS ─────────────────────────────────
         local stumps     = CollectNewStumps(treeClass)
@@ -421,6 +422,76 @@ local function StartChopping(treeClass, LOT, onComplete)
                 or CFrame.new(0, 0, 0)
         end, onComplete)
     end)
+end
+
+-- ==========================================
+--   WAIT FOR LOG TO SETTLE
+--   Polls the AssemblyLinearVelocity of each
+--   new InnerWood until it stops moving,
+--   with a max timeout so we never hang.
+-- ==========================================
+local function WaitForLogsToSettle(treeClass)
+    local VELOCITY_THRESHOLD = 0.5   -- studs/s — below this = "still"
+    local STABLE_DURATION    = 0.3   -- must stay still for this many seconds
+    local TIMEOUT            = 10    -- give up after this many seconds regardless
+    local POLL_RATE          = 0.05  -- how often to check (seconds)
+
+    local logModels = Workspace:FindFirstChild("LogModels")
+    if not logModels then
+        task.wait(Settings.LogSettleDelay)
+        return
+    end
+
+    -- Collect the InnerWood parts from NEW models only
+    local innerWoods = {}
+    for _, model in ipairs(logModels:GetChildren()) do
+        if preChopLogModels[model] then continue end
+        if model:IsA("Model") then
+            local tc = model:FindFirstChild("TreeClass")
+            if tc and tc.Value == treeClass then
+                local iw = model:FindFirstChild("InnerWood")
+                if iw and iw:IsA("BasePart") then
+                    table.insert(innerWoods, iw)
+                end
+            end
+        end
+    end
+
+    if #innerWoods == 0 then
+        task.wait(Settings.LogSettleDelay)
+        return
+    end
+
+    local deadline   = tick() + TIMEOUT
+    local stableFrom = nil
+
+    while tick() < deadline do
+        local allStill = true
+
+        for _, iw in ipairs(innerWoods) do
+            if not iw or not iw.Parent then continue end
+            if iw.AssemblyLinearVelocity.Magnitude > VELOCITY_THRESHOLD then
+                allStill = false
+                break
+            end
+        end
+
+        if allStill then
+            if not stableFrom then
+                stableFrom = tick()
+            elseif tick() - stableFrom >= STABLE_DURATION then
+                -- Been still long enough — good to go
+                return
+            end
+        else
+            -- Still moving — reset the stable timer
+            stableFrom = nil
+        end
+
+        task.wait(POLL_RATE)
+    end
+
+    warn("[TreeModule] WaitForLogsToSettle timed out after", TIMEOUT, "seconds — proceeding anyway.")
 end
 
 -- ==========================================
