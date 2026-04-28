@@ -1334,9 +1334,6 @@ if TreeCamModule and TreeCamModule.Init then TreeCamModule.Init(WoodTab) end
 local VehicleModule = LoadModule("Vehicle")
 if VehicleModule and VehicleModule.Init then VehicleModule.Init(VehicleTab) end
 
-local SaveGameModule = LoadModule("SaveGame")
-if SaveGameModule and SaveGameModule.Init then SaveGameModule.Init(PlotTab, Library) end
-
 local PlotModule = LoadModule("Plot")
 if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
 
