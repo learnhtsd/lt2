@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.177"
+local Version = "v0.0.178"
 
 -- ============================================================
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -19,8 +19,8 @@ local Config = {
     -- ── WINDOW SIZE ──────────────────────────────────────────
     -- Controls the overall menu frame dimensions in pixels.
     Window = {
-        Width  = 500,   -- total menu width
-        Height = 300,   -- total menu height
+        Width  = 420,   -- total menu width
+        Height = 320,   -- total menu height
         SidebarWidth = 40,  -- icon sidebar width
     },
 
@@ -29,7 +29,7 @@ local Config = {
     -- Elements: row heights, font sizes, padding, toggle/button sizes.
     -- 1.0 = default  |  0.75 = compact  |  1.25 = large
     Elements = {
-        Scale = 0.8,
+        Scale = 0.6,
     },
 
     -- ── COLOR THEME ───────────────────────────────────────────
