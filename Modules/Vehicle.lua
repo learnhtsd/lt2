@@ -223,31 +223,41 @@ function VehicleModule.Init(Tab, Library)
             local char        = player.Character
             local hum         = char and char:FindFirstChildOfClass("Humanoid")
             local currentSeat = hum and hum.SeatPart
-
+    
             if currentSeat ~= lastSeat then
                 lastSeat = currentSeat
-
+    
                 if currentSeat and currentSeat:IsA("VehicleSeat") then
                     FlipButton:SetDisabled(false)
                     FlipButton:SetText("Flip 180°")
                     SpeedSlider:SetDisabled(false)
                     SteerAngleSlider:SetDisabled(false)
                     SteerVelocitySlider:SetDisabled(false)
-
-                    -- Clamp the live config value into our slider range before syncing,
-                    -- so SetValue never receives a number outside min/max.
+    
+                    -- Wait for the server to finish populating the config values
+                    task.wait(0.3)
+    
                     local config = GetVehicleConfig()
                     if config then
                         local speed    = ReadConfigValue(config, "MaxSpeed")
                         local angle    = ReadConfigValue(config, "SteerAngle")
                         local velocity = ReadConfigValue(config, "SteerVelocity")
-
-                        if speed    then SpeedSlider:SetValue(math.clamp(speed, 0.1, 2.0))         end
-                        if angle    then SteerAngleSlider:SetValue(math.clamp(angle, 0.1, 2.0))     end
-                        if velocity then SteerVelocitySlider:SetValue(math.clamp(velocity, 0.01, 0.05)) end
-
-                        for name, value in pairs(customSettings) do
-                            if value > 0 then ApplyCustomization(name, value) end
+    
+                        -- Sync sliders to live vehicle values
+                        if speed    then SpeedSlider:SetValue(math.clamp(speed, 0.1, 2.0))              end
+                        if angle    then SteerAngleSlider:SetValue(math.clamp(angle, 0.1, 2.0))          end
+                        if velocity then SteerVelocitySlider:SetValue(math.clamp(velocity, 0.01, 0.05))  end
+    
+                        -- Only re-apply custom settings that were explicitly changed by the player
+                        -- (i.e. non-zero AND different from the live value so we don't stomp the read)
+                        if customSettings.MaxSpeed > 0 and customSettings.MaxSpeed ~= speed then
+                            ApplyCustomization("MaxSpeed", customSettings.MaxSpeed)
+                        end
+                        if customSettings.SteerAngle > 0 and customSettings.SteerAngle ~= angle then
+                            ApplyCustomization("SteerAngle", customSettings.SteerAngle)
+                        end
+                        if customSettings.SteerVelocity > 0 and customSettings.SteerVelocity ~= velocity then
+                            ApplyCustomization("SteerVelocity", customSettings.SteerVelocity)
                         end
                     end
                 else
