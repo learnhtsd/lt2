@@ -11,27 +11,68 @@ function HardDragger.Init(Tab, Library)
 
     local Config = {
         Enabled       = false,
-        DragStrength  = 1e8,
         Snappiness    = 150,
-        MaxDragRadius = 10,   -- max studs from player root the object can be dragged to
+        MaxDragRadius = 10,
         MaxThrowSpeed = 300,
     }
 
-    local isDragging      = false
-    local currentObject   = nil
-    local physicsFolder   = nil
-    local connections     = {}
+    local isDragging         = false
+    local currentObject      = nil
+    local physicsFolder      = nil
+    local connections        = {}
 
-    local throwVelocity   = Vector3.zero
-    local lastPosition    = nil
-    local initialRotation = nil
+    local throwVelocity      = Vector3.zero
+    local lastPosition       = nil
+    local initialRotation    = nil
+    local grabHoldDistance   = 10
 
-    -- Recorded at grab time
-    local grabHoldDistance = 10   -- camera → object distance when grabbed
-    local grabRootOffset   = nil  -- object position relative to rootPart at grab time
+    -- Store original physical properties so we can restore them
+    local originalProperties = nil
+    local hadCustomProperties = false
+
+    -- Nearly massless properties used during drag
+    local DRAG_PROPERTIES = PhysicalProperties.new(
+        0.01,  -- density   (near zero = near massless)
+        0,     -- friction
+        0,     -- elasticity
+        0,     -- frictionWeight
+        0      -- elasticityWeight
+    )
+
+    local alignPos = nil  -- kept in scope so heartbeat can write Position before first tick
+
+    local function computeTargetPos(rootPart)
+        local unitRay  = Mouse.UnitRay
+        local targetPos = Camera.CFrame.Position + (unitRay.Direction * grabHoldDistance)
+
+        local toTarget = targetPos - rootPart.Position
+        if toTarget.Magnitude > Config.MaxDragRadius then
+            targetPos = rootPart.Position + (toTarget.Unit * Config.MaxDragRadius)
+        end
+
+        local rayParams = RaycastParams.new()
+        rayParams.FilterDescendantsInstances = {Player.Character, currentObject, physicsFolder}
+        rayParams.FilterType = Enum.RaycastFilterType.Exclude
+        local rayHit = workspace:Raycast(Camera.CFrame.Position, targetPos - Camera.CFrame.Position, rayParams)
+        if rayHit then
+            targetPos = rayHit.Position - (unitRay.Direction * 1.5)
+        end
+
+        return targetPos
+    end
 
     local function stopPhysics()
         if isDragging and currentObject and currentObject.Parent then
+            -- Restore original physical properties
+            if hadCustomProperties then
+                currentObject.CustomPhysicalProperties = originalProperties
+            else
+                currentObject.CustomPhysicalProperties = PhysicalProperties.new(
+                    -- Roblox default material properties
+                    0.7, 0.3, 0.5, 1, 1
+                )
+            end
+
             local finalVel = throwVelocity
             if finalVel.Magnitude > Config.MaxThrowSpeed then
                 finalVel = finalVel.Unit * Config.MaxThrowSpeed
@@ -39,11 +80,13 @@ function HardDragger.Init(Tab, Library)
             currentObject.AssemblyLinearVelocity = finalVel
         end
 
-        isDragging      = false
-        currentObject   = nil
-        lastPosition    = nil
-        initialRotation = nil
-        grabRootOffset  = nil
+        isDragging       = false
+        currentObject    = nil
+        lastPosition     = nil
+        initialRotation  = nil
+        alignPos         = nil
+        originalProperties   = nil
+        hadCustomProperties  = false
 
         if physicsFolder then
             physicsFolder:Destroy()
@@ -60,47 +103,48 @@ function HardDragger.Init(Tab, Library)
         local rootPart  = character and character:FindFirstChild("HumanoidRootPart")
         if not rootPart then return end
 
-        isDragging      = true
-        currentObject   = obj
-        lastPosition    = obj.Position
+        isDragging     = true
+        currentObject  = obj
+        lastPosition   = obj.Position
 
-        -- KEY FIX: record true camera→object distance at grab time.
-        -- This becomes the fixed "hold distance" for the entire drag,
-        -- so the target always sits at the same depth regardless of zoom.
         grabHoldDistance = (Camera.CFrame.Position - obj.Position).Magnitude
+        initialRotation  = Camera.CFrame.Rotation:Inverse() * obj.CFrame
 
-        -- Record where the object sat relative to the player root at grab time.
-        -- The radius clamp will measure from rootPart but we already know the
-        -- initial offset was valid, so we clamp to MaxDragRadius from root.
-        grabRootOffset = obj.Position - rootPart.Position
+        -- Save and override physical properties to make object massless during drag
+        hadCustomProperties  = obj.CustomPhysicalProperties ~= nil
+        originalProperties   = obj.CustomPhysicalProperties
+        obj.CustomPhysicalProperties = DRAG_PROPERTIES
 
-        -- Store rotation relative to camera at grab time
-        initialRotation = Camera.CFrame.Rotation:Inverse() * obj.CFrame
-
-        physicsFolder      = Instance.new("Folder")
-        physicsFolder.Name = "HardDrag_Override"
-        physicsFolder.Parent = obj
-
-        local att = Instance.new("Attachment", obj)
         obj.AssemblyLinearVelocity  = Vector3.zero
         obj.AssemblyAngularVelocity = Vector3.zero
 
-        local alignPos = Instance.new("AlignPosition")
-        alignPos.Mode          = Enum.PositionAlignmentMode.OneAttachment
-        alignPos.Attachment0   = att
-        alignPos.MaxForce      = Config.DragStrength
-        alignPos.MaxVelocity   = math.huge
-        alignPos.Responsiveness = Config.Snappiness
-        alignPos.Parent        = physicsFolder
+        physicsFolder        = Instance.new("Folder")
+        physicsFolder.Name   = "HardDrag_Override"
+        physicsFolder.Parent = obj
 
-        local alignOri = Instance.new("AlignOrientation")
-        alignOri.Mode          = Enum.OrientationAlignmentMode.OneAttachment
-        alignOri.Attachment0   = att
-        alignOri.MaxTorque     = Config.DragStrength
-        alignOri.Responsiveness = Config.Snappiness
-        alignOri.Parent        = physicsFolder
+        local att        = Instance.new("Attachment", obj)
 
-        -- Suppress player↔object collisions to stop riding/jitter
+        alignPos                 = Instance.new("AlignPosition")
+        alignPos.Mode            = Enum.PositionAlignmentMode.OneAttachment
+        alignPos.Attachment0     = att
+        alignPos.MaxForce        = math.huge
+        alignPos.MaxVelocity     = math.huge
+        alignPos.Responsiveness  = Config.Snappiness
+        alignPos.Parent          = physicsFolder
+
+        -- KEY FIX: set Position immediately so there's zero
+        -- frames where it defaults to Vector3.zero and jolts
+        alignPos.Position = computeTargetPos(rootPart)
+
+        local alignOri               = Instance.new("AlignOrientation")
+        alignOri.Mode                = Enum.OrientationAlignmentMode.OneAttachment
+        alignOri.Attachment0         = att
+        alignOri.MaxTorque           = math.huge
+        alignOri.Responsiveness      = Config.Snappiness
+        alignOri.CFrame              = Camera.CFrame.Rotation * initialRotation
+        alignOri.Parent              = physicsFolder
+
+        -- Suppress player collision to stop riding/jitter
         if character then
             for _, part in pairs(character:GetDescendants()) do
                 if part:IsA("BasePart") then
@@ -115,53 +159,25 @@ function HardDragger.Init(Tab, Library)
         local dragLoop
         dragLoop = RunService.Heartbeat:Connect(function(dt)
             local char     = Player.Character
-            local rootPart = char and char:FindFirstChild("HumanoidRootPart")
+            local root     = char and char:FindFirstChild("HumanoidRootPart")
 
             if not isDragging or not currentObject or not currentObject.Parent
-            or not rootPart or not Config.Enabled then
+            or not root or not Config.Enabled then
                 if dragLoop then dragLoop:Disconnect() end
                 stopPhysics()
                 return
             end
 
-            -- Track velocity for throw
             throwVelocity = (currentObject.Position - lastPosition) / dt
             lastPosition  = currentObject.Position
 
-            local unitRay = Mouse.UnitRay
-
-            -- KEY FIX: use the distance recorded AT GRAB TIME, not
-            -- camToCharDist + HoldDistance. This keeps the object at
-            -- the same depth in the scene regardless of where on the
-            -- object you clicked or how far zoomed out the camera is.
-            local targetPos = Camera.CFrame.Position + (unitRay.Direction * grabHoldDistance)
-
-            -- Clamp so the object can't be dragged further than MaxDragRadius
-            -- from the player root. Because we use grabHoldDistance, a part
-            -- grabbed at e.g. 8 studs will naturally sit at ~8 studs and won't
-            -- fight the clamp unless you actively try to drag past MaxDragRadius.
-            local toTarget = targetPos - rootPart.Position
-            if toTarget.Magnitude > Config.MaxDragRadius then
-                targetPos = rootPart.Position + (toTarget.Unit * Config.MaxDragRadius)
-            end
-
-            -- Wall/obstacle raycast — stop object going through geometry
-            local rayParams = RaycastParams.new()
-            rayParams.FilterDescendantsInstances = {char, currentObject, physicsFolder}
-            rayParams.FilterType = Enum.RaycastFilterType.Exclude
-
-            local rayHit = workspace:Raycast(
-                Camera.CFrame.Position,
-                targetPos - Camera.CFrame.Position,
-                rayParams
-            )
-            if rayHit then
-                targetPos = rayHit.Position - (unitRay.Direction * 1.5)
-            end
+            local targetPos = computeTargetPos(root)
 
             alignPos.Position = targetPos
             alignOri.CFrame   = Camera.CFrame.Rotation * initialRotation
 
+            -- Belt-and-suspenders: keep killing residual velocity
+            -- so the near-massless object doesn't drift
             currentObject.AssemblyLinearVelocity  = Vector3.zero
             currentObject.AssemblyAngularVelocity = Vector3.zero
         end)
@@ -191,8 +207,21 @@ function HardDragger.Init(Tab, Library)
         if not state then stopPhysics() end
     end)
 
-    Tab:CreateSlider("Snappiness",  50,  300, 150, function(v) Config.Snappiness    = v end)
-    Tab:CreateSlider("Max Radius",   5,  100,  10, function(v) Config.MaxDragRadius = v end)
+    Tab:CreateSlider("Snappiness",  50, 200, 150, function(v)
+        Config.Snappiness = v
+        -- Apply live to active constraints if currently dragging
+        if physicsFolder then
+            for _, c in ipairs(physicsFolder:GetChildren()) do
+                if c:IsA("AlignPosition") or c:IsA("AlignOrientation") then
+                    c.Responsiveness = v
+                end
+            end
+        end
+    end)
+
+    Tab:CreateSlider("Max Radius", 5, 100, 10, function(v)
+        Config.MaxDragRadius = v
+    end)
 end
 
 return HardDragger
