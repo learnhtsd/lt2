@@ -29,31 +29,29 @@ local function GetVehicleConfig()
         return nil 
     end
 
-    -- Dynamically walk up the hierarchy from the seat looking for the Configuration folder
-    local current = seat
-    while current and current ~= workspace do
-        local config = current:FindFirstChild("Configuration")
-        
-        -- Verify it's the correct config by checking for one of the expected vehicle values
+    -- 1. Walk up to find the top-most model (the vehicle itself)
+    local vehicle = seat
+    while vehicle.Parent and vehicle.Parent ~= workspace and vehicle.Parent.Name ~= "PlayerModels" do
+        vehicle = vehicle.Parent
+    end
+
+    -- 2. Recursively search the entire vehicle for the Configuration folder
+    if vehicle and vehicle:IsA("Model") then
+        local config = vehicle:FindFirstChild("Configuration", true)
         if config and config:FindFirstChild("MaxSpeed") then
             return config
         end
-        current = current.Parent
     end
 
-    print("[Vehicle] GetVehicleConfig: Configuration folder not found in vehicle hierarchy.")
     return nil
 end
 
 local function ReadConfigValue(config, name)
     if not config then return nil end
     local setting = config:FindFirstChild(name)
-    
-    -- Broadened check to ValueBase to catch NumberValue, IntValue, DoubleConstrainedValue, etc.
     if setting and setting:IsA("ValueBase") then
         return setting.Value
     end
-    print("[Vehicle] ReadConfigValue: '" .. name .. "' not found or wrong type")
     return nil
 end
 
@@ -66,6 +64,18 @@ local function ApplyCustomization(name, value)
             setting.Value = value
         end
     end
+end
+
+-- Safely updates UI sliders regardless of which UI library you use
+local function SafeUpdateSlider(slider, value)
+    if not slider then return end
+    pcall(function()
+        if type(slider.SetValue) == "function" then
+            slider:SetValue(value)
+        elseif type(slider.Set) == "function" then
+            slider:Set(value)
+        end
+    end)
 end
 
 local function FlipVehicle()
@@ -233,9 +243,8 @@ function VehicleModule.Init(Tab, Library)
             if currentSeat ~= lastSeat then
                 lastSeat = currentSeat
 
-                -- We just check if currentSeat exists. LT2 uses regular "Seat" objects, not VehicleSeats.
                 if currentSeat then
-                    print("[Vehicle] Seat detected:", currentSeat.Name, "| parent:", currentSeat.Parent and currentSeat.Parent.Name or "nil")
+                    print("[Vehicle Debug] Player entered seat. Polling for config...")
 
                     FlipButton:SetDisabled(false)
                     FlipButton:SetText("Flip 180°")
@@ -243,28 +252,32 @@ function VehicleModule.Init(Tab, Library)
                     SteerAngleSlider:SetDisabled(false)
                     SteerVelocitySlider:SetDisabled(false)
 
-                    -- Wait for server replication
-                    task.wait(0.8)
+                    -- Poll for the config for up to 3 seconds to account for replication delays
+                    local config = nil
+                    for i = 1, 6 do
+                        config = GetVehicleConfig()
+                        if config then 
+                            print("[Vehicle Debug] Config found on attempt " .. i)
+                            break 
+                        end
+                        task.wait(0.5)
+                    end
 
-                    local config = GetVehicleConfig()
                     if config then
                         local speed    = ReadConfigValue(config, "MaxSpeed")
                         local angle    = ReadConfigValue(config, "SteerAngle")
                         local velocity = ReadConfigValue(config, "SteerVelocity")
 
-                        print("[Vehicle] Raw read — MaxSpeed:", speed, "| SteerAngle:", angle, "| SteerVelocity:", velocity)
+                        print(string.format("[Vehicle Debug] Data read -> Speed: %s | Angle: %s | Velocity: %s", tostring(speed), tostring(angle), tostring(velocity)))
 
                         if speed ~= nil then
-                            local clamped = math.clamp(speed, 0.1, 2.0)
-                            SpeedSlider:SetValue(clamped)
+                            SafeUpdateSlider(SpeedSlider, math.clamp(speed, 0.1, 2.0))
                         end
                         if angle ~= nil then
-                            local clamped = math.clamp(angle, 0.1, 2.0)
-                            SteerAngleSlider:SetValue(clamped)
+                            SafeUpdateSlider(SteerAngleSlider, math.clamp(angle, 0.1, 2.0))
                         end
                         if velocity ~= nil then
-                            local clamped = math.clamp(velocity, 0.01, 0.05)
-                            SteerVelocitySlider:SetValue(clamped)
+                            SafeUpdateSlider(SteerVelocitySlider, math.clamp(velocity, 0.01, 0.05))
                         end
 
                         -- Re-apply player customisations only if explicitly changed
@@ -278,17 +291,18 @@ function VehicleModule.Init(Tab, Library)
                             ApplyCustomization("SteerVelocity", customSettings.SteerVelocity)
                         end
                     else
-                        print("[Vehicle] Config was nil after wait — sliders not synced")
+                        warn("[Vehicle Debug] Failed to find vehicle Configuration folder after 3 seconds.")
                     end
                 else
+                    print("[Vehicle Debug] Player left seat.")
                     FlipButton:SetDisabled(true)
                     FlipButton:SetText("No Vehicle")
                     SpeedSlider:SetDisabled(true)
-                    SpeedSlider:SetValue(0.1)
+                    SafeUpdateSlider(SpeedSlider, 0.1)
                     SteerAngleSlider:SetDisabled(true)
-                    SteerAngleSlider:SetValue(0.1)
+                    SafeUpdateSlider(SteerAngleSlider, 0.1)
                     SteerVelocitySlider:SetDisabled(true)
-                    SteerVelocitySlider:SetValue(0.01)
+                    SafeUpdateSlider(SteerVelocitySlider, 0.01)
                 end
             end
         end
