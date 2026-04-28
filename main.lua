@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.188"
+local Version = "v0.0.189"
 
 -- ============================================================
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -673,6 +673,71 @@ function Library:CreateWindow()
             return AttachTooltip(TitleLabel, Element)
         end
 
+        -- ── INPUT ─────────────────────────────────────────────
+        function Tab:CreateInput(Title, Placeholder, Callback)
+            local Element   = {}
+            local RowHeight = ES(28)
+            local BoxWidth  = ES(80) -- Width for the input area
+            local BoxHeight = ES(20)
+
+            local InputFrame = Instance.new("Frame")
+            InputFrame.Size             = UDim2.new(1, 0, 0, RowHeight)
+            InputFrame.BackgroundColor3 = T.Surface
+            InputFrame.Parent           = self.Container
+            Instance.new("UICorner", InputFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(InputFrame)
+
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size            = UDim2.new(0.6, 0, 1, 0)
+            TitleLabel.Position        = UDim2.new(0, ES(10), 0, 0)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text            = Title
+            TitleLabel.TextColor3      = T.TextPrimary
+            TitleLabel.Font            = Enum.Font.GothamMedium
+            TitleLabel.TextSize        = FS(12)
+            TitleLabel.TextXAlignment  = Enum.TextXAlignment.Left
+            TitleLabel.Parent          = InputFrame
+
+            local InputBox = Instance.new("TextBox")
+            InputBox.Name              = "InputBox"
+            InputBox.Size              = UDim2.new(0, BoxWidth, 0, BoxHeight)
+            InputBox.AnchorPoint       = Vector2.new(1, 0.5)
+            InputBox.Position          = UDim2.new(1, -ES(8), 0.5, 0)
+            InputBox.BackgroundColor3  = T.SurfaceDeep
+            InputBox.Text              = ""
+            InputBox.PlaceholderText   = Placeholder
+            InputBox.PlaceholderColor3 = T.TextSecondary
+            InputBox.TextColor3        = T.TextWhite
+            InputBox.Font              = Enum.Font.GothamMedium
+            InputBox.TextSize          = FS(11)
+            InputBox.ClipsDescendants  = true
+            InputBox.ClearTextOnFocus  = false
+            InputBox.Parent            = InputFrame
+            Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 4)
+            AddDepthStroke(InputBox)
+
+            -- Interaction Logic
+            InputBox.FocusLost:Connect(function(enterPressed)
+                Callback(InputBox.Text)
+                TweenService:Create(InputBox, TweenInfo.new(0.2), {BackgroundColor3 = T.SurfaceDeep}):Play()
+            end)
+
+            InputBox.Focused:Connect(function()
+                TweenService:Create(InputBox, TweenInfo.new(0.2), {BackgroundColor3 = T.Stroke}):Play()
+            end)
+
+            -- Public Methods
+            function Element:SetText(val)
+                InputBox.Text = tostring(val)
+            end
+
+            function Element:GetText()
+                return InputBox.Text
+            end
+
+            return AttachTooltip(TitleLabel, Element)
+        end
+        
         -- ── SLIDER ────────────────────────────────────────────
         function Tab:CreateSlider(Title, Min, Max, Default, Callback)
             local Element   = {}
