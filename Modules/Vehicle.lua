@@ -93,32 +93,79 @@ function VehicleModule.Init(Tab)
     end)
     FlipButton:SetDisabled(true)
 
-    Tab:CreateSection("Turbo Car Spawner")
+Tab:CreateSection("Turbo Car Spawner")
 
     Tab:CreateInput("Target Color ID", "148", function(val)
         targetColorCode = tonumber(val) or 148
-    end)
+    end):AddTooltip("The BrickColor number ID you want to roll for.")
 
-    local SpawnButton = Tab:CreateAction("Spawn Once", "No Pad", function()
+    local SpawnButton = Tab:CreateAction("Spawn Once", "Execute", function()
         InteractWithPad()
     end)
-    SpawnButton:SetDisabled(true)
 
-    local AutoButton
-    AutoButton = Tab:CreateAction("Auto-Roll Color", "OFF", function()
+    -- SPEED CONFIG
+    local SPAWN_INTERVAL = 0.5
+    local POLL_RATE      = 0.02
+
+    local function SpawnAndGetColor()
+        local watchFolder = workspace:FindFirstChild("PlayerModels") or workspace
+        local existing = {}
+        for _, m in ipairs(watchFolder:GetChildren()) do
+            existing[m] = true
+        end
+
+        local done   = false
+        local result = nil
+
+        local conn = watchFolder.ChildAdded:Connect(function(model)
+            if done or existing[model] or not model:IsA("Model") then return end
+
+            local settings = model:WaitForChild("Settings", 0.5)
+            if not settings then return end
+
+            local colorVal = settings:WaitForChild("Color", 0.5)
+            if not colorVal then return end
+
+            local deadline = tick() + 0.4
+            while colorVal.Value == 0 and tick() < deadline do
+                task.wait(POLL_RATE)
+            end
+
+            if colorVal.Value ~= 0 and not done then
+                done   = true
+                result = colorVal.Value
+            end
+        end)
+
+        InteractWithPad()
+
+        local deadline = tick() + SPAWN_INTERVAL
+        while not done and tick() < deadline and isAutoRolling do
+            task.wait(POLL_RATE)
+        end
+
+        conn:Disconnect()
+        return result
+    end
+
+    Tab:CreateToggle("Auto-Roll Color", false, function(state)
         if not selectedPadEvent then return end
-        isAutoRolling = not isAutoRolling
-        AutoButton:SetText(isAutoRolling and "ROLLING..." or "OFF")
-        
+        isAutoRolling = state
+
         if isAutoRolling then
             task.spawn(function()
                 while isAutoRolling and selectedPadEvent do
-                    -- High-speed detect logic...
-                    task.wait(0.5) -- Simplified for brevity in this block
+                    local color = SpawnAndGetColor()
+
+                    if color == targetColorCode then
+                        isAutoRolling = false
+                        Library:Notify("Auto-Roll", "Found target color: " .. tostring(targetColorCode), 5)
+                        break
+                    end
                 end
             end)
         end
-    end)
+    end):AddTooltip("Automatically spawns cars until the target color ID is matched.")
 
     local SelectButton
     SelectButton = Tab:CreateAction("Select Car Pad", "Pick Pad", function()
@@ -127,11 +174,11 @@ function VehicleModule.Init(Tab)
         conn = UserInputService.InputBegan:Connect(function(input)
             if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
             conn:Disconnect()
-    
+
             local mp     = UserInputService:GetMouseLocation()
             local ray    = workspace.CurrentCamera:ViewportPointToRay(mp.X, mp.Y)
             local result = workspace:Raycast(ray.Origin, ray.Direction * 1000)
-    
+
             if result and result.Instance then
                 local current = result.Instance
                 for _ = 1, 10 do
@@ -142,7 +189,6 @@ function VehicleModule.Init(Tab)
                         selectedPadEvent = ev
                         SelectButton:SetText("LOCKED: " .. current.Name)
                         SpawnButton:SetDisabled(false)
-                        AutoButton:SetDisabled(false)
                         return
                     end
                     current = current.Parent
