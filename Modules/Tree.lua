@@ -18,7 +18,7 @@ local Settings = {
         ["GoldSwampy"]  = "AxeSwamp",
         ["GreenSwampy"] = "AxeSwamp",
         ["Walnut"]      = "GingerbreadAxe",
-        ["Koa"]          = "GingerbreadAxe",
+        ["Koa"]         = "GingerbreadAxe",
         ["CaveCrawler"] = "CaveAxe",
         ["LoneCave"]    = "EndTimesAxe",
     },
@@ -39,7 +39,10 @@ local Settings = {
     -- [ LOT Settings ]
     LogSettleDelay  = 1.5,
     LogDropDistance = 6,
-    ResizeTarget    = Vector3.new(3, 3, 3), -- The size logs become during TP
+    ResizeTarget    = Vector3.new(3, 3, 3),
+
+    -- [ Sell Location ]
+    SellPosition    = Vector3.new(315.0, 1, 88.3),
 }
 
 -- ==========================================
@@ -55,7 +58,7 @@ local camera  = Workspace.CurrentCamera
 
 local isChopping          = false
 local currentTargetWood   = nil
-local preChopCFrame        = nil
+local preChopCFrame       = nil
 local preChopCameraCFrame = nil
 local lockConn            = nil
 
@@ -117,13 +120,13 @@ local function FindPriorityWood(treeClass)
                 and model.TreeClass.Value == treeClass then
                     local sectionCount   = 0
                     local tempLowestPart = nil
-                    local lowestY         = math.huge
+                    local lowestY        = math.huge
 
                     for _, part in ipairs(model:GetChildren()) do
                         if part.Name == "WoodSection" then
                             sectionCount = sectionCount + 1
                             if part.Position.Y < lowestY then
-                                lowestY         = part.Position.Y
+                                lowestY        = part.Position.Y
                                 tempLowestPart = part
                             end
                         end
@@ -170,10 +173,43 @@ local function SnapshotLogModels()
     end
 end
 
-local function CollectNewInnerWood(treeClass)
+-- ==========================================
+--   OWNERSHIP CHECK
+--   Checks both Owner (ObjectValue → Player)
+--   and OwnerString (StringValue → player.Name)
+-- ==========================================
+local function IsOwnedByLocalPlayer(model)
+    local ownerObj = model:FindFirstChild("Owner")
+    if ownerObj then
+        -- ObjectValue pointing directly to the Player instance
+        if ownerObj:IsA("ObjectValue") and ownerObj.Value == player then
+            return true
+        end
+        -- StringValue holding the player's name
+        if ownerObj:IsA("StringValue") and ownerObj.Value == player.Name then
+            return true
+        end
+    end
+
+    local ownerStr = model:FindFirstChild("OwnerString")
+    if ownerStr and ownerStr:IsA("StringValue") and ownerStr.Value == player.Name then
+        return true
+    end
+
+    return false
+end
+
+-- ==========================================
+--   COLLECT STUMPS (WoodSection with ID=1)
+--   from models that are NEW since snapshot
+-- ==========================================
+local function CollectNewStumps(treeClass)
     local results   = {}
     local logModels = Workspace:FindFirstChild("LogModels")
-    if not logModels then return results end
+    if not logModels then
+        warn("[TreeModule] workspace.LogModels not found.")
+        return results
+    end
 
     for _, model in ipairs(logModels:GetChildren()) do
         if preChopLogModels[model] then continue end
@@ -181,13 +217,59 @@ local function CollectNewInnerWood(treeClass)
         if model:IsA("Model") then
             local tc = model:FindFirstChild("TreeClass")
             if tc and tc.Value == treeClass then
-                local iw = model:FindFirstChild("InnerWood")
-                if iw and iw:IsA("BasePart") then
-                    table.insert(results, iw)
+                for _, part in ipairs(model:GetChildren()) do
+                    if part.Name == "WoodSection" and part:IsA("BasePart") then
+                        local id = part:FindFirstChild("ID")
+                        if id and id.Value == 1 then
+                            table.insert(results, part)
+                            break
+                        end
+                    end
                 end
             end
         end
     end
+
+    if #results == 0 then
+        warn("[TreeModule] No stump (WoodSection ID=1) found after chop for TreeClass:", treeClass)
+    end
+
+    return results
+end
+
+-- ==========================================
+--   COLLECT ALL OWNED STUMPS
+--   Scans ALL of LogModels for logs owned
+--   by the local player regardless of chop.
+-- ==========================================
+local function CollectAllOwnedStumps()
+    local results   = {}
+    local logModels = Workspace:FindFirstChild("LogModels")
+    if not logModels then
+        warn("[TreeModule] workspace.LogModels not found.")
+        return results
+    end
+
+    for _, model in ipairs(logModels:GetChildren()) do
+        if not model:IsA("Model") then continue end
+        if not IsOwnedByLocalPlayer(model) then continue end
+
+        -- Grab the WoodSection with ID == 1 (stump) as the grab handle
+        for _, part in ipairs(model:GetChildren()) do
+            if part.Name == "WoodSection" and part:IsA("BasePart") then
+                local id = part:FindFirstChild("ID")
+                if id and id.Value == 1 then
+                    table.insert(results, part)
+                    break
+                end
+            end
+        end
+    end
+
+    if #results == 0 then
+        warn("[TreeModule] No owned logs found in workspace.LogModels.")
+    end
+
     return results
 end
 
@@ -222,7 +304,50 @@ local function CleanupState()
 end
 
 -- ==========================================
---              CHOP + DELIVER
+--   SHARED LOT BATCH HELPER
+--   Teleports a list of stump parts to a
+--   list of goal CFrames via LOT, one by one.
+-- ==========================================
+local function RunLOTBatch(LOT, stumps, goalCFBuilder, onComplete)
+    if not LOT then
+        if onComplete then onComplete() end
+        return
+    end
+
+    if #stumps == 0 then
+        warn("[TreeModule] RunLOTBatch: nothing to teleport.")
+        if onComplete then onComplete() end
+        return
+    end
+
+    task.spawn(function()
+        for i, stump in ipairs(stumps) do
+            if LOT.IsBusy() then
+                repeat task.wait(0.1) until not LOT.IsBusy()
+            end
+
+            local goalCF = goalCFBuilder(i, stump)
+
+            local originalSize = stump.Size
+            stump.Size = Settings.ResizeTarget
+
+            LOT.TeleportObjectTo(stump, goalCF)
+
+            -- Reset size after this specific TP finishes
+            task.spawn(function()
+                repeat task.wait(0.1) until not LOT.IsBusy()
+                if stump and stump.Parent then
+                    stump.Size = originalSize
+                end
+            end)
+        end
+
+        if onComplete then onComplete() end
+    end)
+end
+
+-- ==========================================
+--             CHOP + DELIVER
 -- ==========================================
 local function StartChopping(treeClass, LOT, onComplete)
     if isChopping then return end
@@ -239,7 +364,7 @@ local function StartChopping(treeClass, LOT, onComplete)
     local equippedTool = DetermineAndEquipAxe(treeClass)
     if not equippedTool then return end
 
-    preChopCFrame        = hrp.CFrame
+    preChopCFrame       = hrp.CFrame
     preChopCameraCFrame = camera.CFrame
 
     isChopping        = true
@@ -282,7 +407,7 @@ local function StartChopping(treeClass, LOT, onComplete)
         local center = camera.ViewportSize / 2
         local rng    = Random.new()
 
-        -- PHASE 1: CHOP
+        -- ── PHASE 1: CHOP ─────────────────────────────────────────────
         while isChopping
         and currentTargetWood.Parent
         and currentTargetWood:IsDescendantOf(Workspace) do
@@ -296,59 +421,26 @@ local function StartChopping(treeClass, LOT, onComplete)
                      + rng:NextNumber(-Settings.RandomVariation, Settings.RandomVariation))
         end
 
-        -- PHASE 2: RETURN PLAYER HOME
+        -- ── PHASE 2: RETURN PLAYER HOME ───────────────────────────────
         CleanupState()
 
-        -- PHASE 3: WAIT FOR LOGS TO SETTLE
+        -- ── PHASE 3: WAIT FOR LOGS TO SETTLE ─────────────────────────
         task.wait(Settings.LogSettleDelay)
 
-        -- PHASE 4: TELEPORT NEW LOGS + RESIZE LOGIC
-        if LOT then
-            local newLogs = CollectNewInnerWood(treeClass)
+        -- ── PHASE 4: DELIVER NEW LOGS ─────────────────────────────────
+        local stumps     = CollectNewStumps(treeClass)
+        local currentHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 
-            if #newLogs > 0 then
-                local currentHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-
-                task.spawn(function()
-                    for i, iw in ipairs(newLogs) do
-                        -- Wait for LOT to finish the previous log before starting next
-                        if LOT.IsBusy() then
-                            repeat task.wait(0.1) until not LOT.IsBusy()
-                        end
-
-                        -- --- [ RESIZE START ] ---
-                        local originalSize = iw.Size
-                        iw.Size = Settings.ResizeTarget
-                        -- ------------------------
-
-                        local goalCF = currentHRP
-                            and (currentHRP.CFrame * CFrame.new((i - 1) * 5, 0, -Settings.LogDropDistance))
-                            or CFrame.new(iw.Position)
-
-                        LOT.TeleportObjectTo(iw, goalCF)
-
-                        -- --- [ RESET SIZE AFTER TP ] ---
-                        task.spawn(function()
-                            -- We wait until this specific TP action finishes
-                            repeat task.wait(0.1) until not LOT.IsBusy()
-                            iw.Size = originalSize
-                        end)
-                        -- -------------------------------
-                    end
-
-                    if onComplete then onComplete() end
-                end)
-            else
-                if onComplete then onComplete() end
-            end
-        else
-            if onComplete then onComplete() end
-        end
+        RunLOTBatch(LOT, stumps, function(i, _)
+            return currentHRP
+                and (currentHRP.CFrame * CFrame.new((i - 1) * 5, 0, -Settings.LogDropDistance))
+                or CFrame.new(0, 0, 0)
+        end, onComplete)
     end)
 end
 
 -- ==========================================
---              DYNXE UI INITIALIZATION
+--             DYNXE UI INITIALIZATION
 -- ==========================================
 function TreeModule.Init(Tab, LOT)
     Tab:CreateSection("Auto Chop Settings")
@@ -359,7 +451,7 @@ function TreeModule.Init(Tab, LOT)
 
     Tab:CreateDropdown("Target Wood Type", treeTypes, selectedTree, function(selected)
         selectedTree = selected
-    end):AddTooltip("Select the type of tree. Logs will be resized to 3x3x3 during TP for stability.")
+    end):AddTooltip("Select the type of tree to hunt and chop. Logs will be teleported back to you after the chop.")
 
     chopActionButton = Tab:CreateAction("Process Tree", "Start Chop", function()
         if isChopping then
@@ -381,6 +473,92 @@ function TreeModule.Init(Tab, LOT)
             end)
         end
     end)
+
+    if type(chopActionButton) == "table" and chopActionButton.AddTooltip then
+        chopActionButton:AddTooltip("Chops the target tree then teleports your logs back to you.")
+    end
+
+    -- ── LOG MANAGEMENT SECTION ────────────────────────────────────────
+    Tab:CreateSection("Log Management")
+
+    -- TP ALL LOGS TO PLAYER
+    local tpAllButton = Tab:CreateAction("Teleport Logs", "TP All My Logs", function()
+        if not LOT then
+            warn("[TreeModule] LOT not available.")
+            return
+        end
+        if LOT.IsBusy() then
+            warn("[TreeModule] LOT is busy — try again shortly.")
+            return
+        end
+
+        local stumps     = CollectAllOwnedStumps()
+        local currentHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+
+        if #stumps == 0 then
+            warn("[TreeModule] No owned logs found to teleport.")
+            return
+        end
+
+        if type(tpAllButton) == "table" and tpAllButton.SetText then
+            tpAllButton:SetText("Working...")
+        end
+
+        RunLOTBatch(LOT, stumps, function(i, _)
+            return currentHRP
+                and (currentHRP.CFrame * CFrame.new((i - 1) * 5, 0, -Settings.LogDropDistance))
+                or CFrame.new(0, 0, 0)
+        end, function()
+            if type(tpAllButton) == "table" and tpAllButton.SetText then
+                tpAllButton:SetText("TP All My Logs")
+            end
+        end)
+    end)
+
+    if type(tpAllButton) == "table" and tpAllButton.AddTooltip then
+        tpAllButton:AddTooltip("Teleports all logs you own in the world to your current position.")
+    end
+
+    -- SELL ALL LOGS
+    local sellButton = Tab:CreateAction("Sell Logs", "Sell All My Logs", function()
+        if not LOT then
+            warn("[TreeModule] LOT not available.")
+            return
+        end
+        if LOT.IsBusy() then
+            warn("[TreeModule] LOT is busy — try again shortly.")
+            return
+        end
+
+        local stumps = CollectAllOwnedStumps()
+
+        if #stumps == 0 then
+            warn("[TreeModule] No owned logs found to sell.")
+            return
+        end
+
+        if type(sellButton) == "table" and sellButton.SetText then
+            sellButton:SetText("Selling...")
+        end
+
+        -- Fan logs out around the sell point so they don't all stack
+        local sellPos = Settings.SellPosition
+        RunLOTBatch(LOT, stumps, function(i, _)
+            return CFrame.new(
+                sellPos.X + ((i - 1) * 5),
+                sellPos.Y,
+                sellPos.Z
+            )
+        end, function()
+            if type(sellButton) == "table" and sellButton.SetText then
+                sellButton:SetText("Sell All My Logs")
+            end
+        end)
+    end)
+
+    if type(sellButton) == "table" and sellButton.AddTooltip then
+        sellButton:AddTooltip("Teleports all logs you own to the sawmill sell point.")
+    end
 end
 
 return TreeModule
