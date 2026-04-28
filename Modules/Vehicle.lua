@@ -18,40 +18,74 @@ local function FlipVehicle()
     end
 end
 
--- ── Car pad interaction ───────────────────────────────────────
--- Walks up the instance tree looking for a ProximityPrompt or
--- ClickDetector, then fires it via executor helper functions.
+-- ── Walk up to root model ─────────────────────────────────────
+local function GetRootModel(instance)
+    local current = instance
+    while current and current.Parent and not current.Parent:IsA("Workspace") do
+        current = current.Parent
+    end
+    return current
+end
+
+-- ── Interact with LT2 car pad ─────────────────────────────────
+-- Known LT2 pad structure:
+--   Pickup1
+--   ├── ButtonRemote_SpawnButton (RemoteEvent)
+--   │   └── ButtonPrompt (ProximityPrompt)  ← primary target
+--   ├── SpawnButton (Model)
+--   │   └── Mesh                            ← firetouchinterest fallback
 local function InteractWithPad(instance)
     if not instance then return false end
 
-    local current = instance
-    for _ = 0, 6 do
-        -- ProximityPrompt (most common in modern LT2 pads)
-        local prompt = current:FindFirstChildWhichIsA("ProximityPrompt", true)
-        if prompt then
-            if fireproximityprompt then
-                fireproximityprompt(prompt)
+    local root = GetRootModel(instance)
+    if not root then return false end
+
+    -- Strategy 1: ButtonRemote_SpawnButton → ButtonPrompt (ProximityPrompt)
+    local buttonRemote = root:FindFirstChild("ButtonRemote_SpawnButton")
+    if buttonRemote then
+        local prompt = buttonRemote:FindFirstChildOfClass("ProximityPrompt")
+        if prompt and fireproximityprompt then
+            fireproximityprompt(prompt)
+            return true
+        end
+    end
+
+    -- Strategy 2: Any ProximityPrompt anywhere in the model
+    local anyPrompt = root:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if anyPrompt and fireproximityprompt then
+        fireproximityprompt(anyPrompt)
+        return true
+    end
+
+    -- Strategy 3: firetouchinterest on the SpawnButton mesh
+    local spawnButtonModel = root:FindFirstChild("SpawnButton")
+    if spawnButtonModel then
+        local part = spawnButtonModel:FindFirstChildOfClass("MeshPart")
+                  or spawnButtonModel:FindFirstChildOfClass("Part")
+                  or spawnButtonModel:FindFirstChildOfClass("UnionOperation")
+        if part and firetouchinterest then
+            local char = player.Character
+            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                firetouchinterest(hrp, part, 0)
+                task.wait(0.1)
+                firetouchinterest(hrp, part, 1)
                 return true
             end
         end
+    end
 
-        -- ClickDetector fallback
-        local cd = current:FindFirstChildOfClass("ClickDetector")
-        if cd then
-            if fireclickdetector then
-                fireclickdetector(cd)
-                return true
-            end
-        end
-
-        if current.Parent == nil or current.Parent == workspace then break end
-        current = current.Parent
+    -- Strategy 4: ClickDetector anywhere in the model
+    local cd = root:FindFirstChildWhichIsA("ClickDetector", true)
+    if cd and fireclickdetector then
+        fireclickdetector(cd)
+        return true
     end
 
     return false
 end
 
--- Raycast from the camera through the current mouse screen position
+-- ── Raycast from camera through mouse ─────────────────────────
 local function GetMouseTarget()
     local camera  = workspace.CurrentCamera
     local mouse   = UserInputService:GetMouseLocation()
@@ -63,7 +97,6 @@ end
 -- ── Init ─────────────────────────────────────────────────────
 function VehicleModule.Init(Tab)
 
-    -- ── Flip ─────────────────────────────────────────────────
     Tab:CreateSection("Vehicle Utilities")
 
     local FlipButton = Tab:CreateAction("Flip Vehicle", "Flip 180°", function()
@@ -73,28 +106,28 @@ function VehicleModule.Init(Tab)
     FlipButton:SetDisabled(true)
     FlipButton:SetText("No Vehicle")
 
-    -- ── Car spawner ───────────────────────────────────────────
     Tab:CreateSection("Car Spawner")
 
     local selectedPad    = nil
     local pickingMode    = false
     local pickConnection = nil
 
-    -- Spawn button — fires the saved pad, disabled until one is picked
     local SpawnButton = Tab:CreateAction("Spawn Car", "Spawn", function()
         if selectedPad and selectedPad.Parent then
             local ok = InteractWithPad(selectedPad)
             if not ok then
-                warn("[Vehicle] Could not interact with saved pad — try reselecting.")
+                warn("[Vehicle] Could not interact with pad — try reselecting.")
             end
         end
     end)
-    SpawnButton:AddTooltip("Spawns a car using the last selected car pad. Pick a pad first.")
+    SpawnButton:AddTooltip("Spawns a car at the selected pad. Use 'Select Car Pad' first.")
     SpawnButton:SetDisabled(true)
     SpawnButton:SetText("No Pad")
 
-    -- Select button — enters pick mode then waits for a world click
-    local SelectButton = Tab:CreateAction("Select Car Pad", "Pick", function()
+    -- Declared BEFORE assignment so the closure below captures the upvalue
+    -- slot correctly — SelectButton will be valid by the time the button fires.
+    local SelectButton
+    SelectButton = Tab:CreateAction("Select Car Pad", "Pick", function()
         if pickingMode then return end
 
         pickingMode = true
@@ -113,25 +146,26 @@ function VehicleModule.Init(Tab)
 
             if target then
                 selectedPad = target
-
                 SelectButton:SetText("Repick")
                 SelectButton:SetDisabled(false)
                 SpawnButton:SetDisabled(false)
                 SpawnButton:SetText("Spawn")
 
-                -- Interact immediately on first pick so the car spawns right away
-                InteractWithPad(selectedPad)
+                -- Immediately interact so the car spawns on first pick
+                local ok = InteractWithPad(selectedPad)
+                if not ok then
+                    warn("[Vehicle] Found part but couldn't interact — pad may not have a ProximityPrompt or ClickDetector.")
+                end
             else
-                -- Missed (clicked sky etc.) — reset without saving
                 SelectButton:SetText("Pick")
                 SelectButton:SetDisabled(false)
-                warn("[Vehicle] No target found. Click directly on the car pad spawn button.")
+                warn("[Vehicle] No target found. Click directly on the car pad.")
             end
         end)
     end)
-    SelectButton:AddTooltip("Click this, then left-click a car pad in the world. Simulates pressing E to spawn your vehicle instantly.")
+    SelectButton:AddTooltip("Click, then left-click a car pad in the world to select it and spawn your vehicle.")
 
-    -- ── Vehicle seat polling ──────────────────────────────────
+    -- Vehicle seat polling
     task.spawn(function()
         local lastState = nil
         while task.wait(0.5) do
