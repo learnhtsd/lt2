@@ -1,138 +1,1230 @@
--- Plot.lua
-local Plot = {}
+local User = "learnhtsd"
+local Repo = "lt2"
+local Branch = "main" 
+local Version = "v0.0.173"
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
+-- UI ENGINE START
+local Library = {}
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
-function Plot.Init(Tab, Library)
-    if not Tab then return warn("Plot Module: Tab was nil!") end
+for _, v in pairs(CoreGui:GetChildren()) do
+    if v.Name == "DynxeLT2Hub" then v:Destroy() end
+end
+
+getgenv().GetImage = function(folder, fileName)
+    -- Paths for the requested image
+    local localPath = "Dynxe/Images/" .. folder .. "/" .. fileName
+    local folderPath = "Dynxe/Images/" .. folder
     
-    local LocalPlayer = Players.LocalPlayer
-    local loadSaveRequests = ReplicatedStorage:FindFirstChild("LoadSaveRequests")
-    local propertyPurchasing = ReplicatedStorage:FindFirstChild("PropertyPurchasing")
-    local interaction = ReplicatedStorage:FindFirstChild("Interaction")
-    
-    -- ==========================================
-    -- SAVE & LOAD MANAGEMENT
-    -- ==========================================
-    Tab:CreateSection("Save Management")
+    -- Paths for your custom GitHub placeholder (Linked to your variables)
+    local placeholderLocal = "Dynxe/Images/Placeholder.png"
+    local placeholderUrl = string.format(
+        "https://raw.githubusercontent.com/%s/%s/%s/Images/Placeholder.png",
+        User, Repo, Branch
+    )
 
-    Tab:CreateAction("Save Slot", "Save", function()
-        local currentSlot = LocalPlayer:FindFirstChild("CurrentSaveSlot")
-        if loadSaveRequests and currentSlot and currentSlot.Value ~= -1 then
-            local RequestSaveRemote = loadSaveRequests:FindFirstChild("RequestSave")
-            if RequestSaveRemote then
-                if Library and Library.Notify then Library:Notify("SAVING", "Forcing save...", 3) end
-                local success = RequestSaveRemote:InvokeServer(currentSlot.Value)
-                if success and Library and Library.Notify then Library:Notify("SUCCESS", "Slot saved!", 5) end
-            end
+    -- 1. Create folders
+    if isfolder and not isfolder("Dynxe") then makefolder("Dynxe") end
+    if isfolder and not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
+    -- Check if we are in a subfolder before trying to create it
+    if folder ~= "" and isfolder and not isfolder(folderPath) then makefolder(folderPath) end
+
+    -- 2. Ensure your custom Placeholder.png exists locally
+    if not isfile(placeholderLocal) then
+        local pSuccess, pContent = pcall(function() return game:HttpGet(placeholderUrl) end)
+        if pSuccess and #pContent > 100 then
+            writefile(placeholderLocal, pContent)
+        end
+    end
+
+    -- 3. If requested image exists locally, return it
+    if isfile(localPath) then
+        return getcustomasset(localPath)
+    end
+
+    -- 4. Attempt to download the requested image (Linked to your variables)
+    local url = string.format(
+        "https://raw.githubusercontent.com/%s/%s/%s/Images/%s/%s",
+        User, Repo, Branch, folder, fileName
+    )
+    
+    local success, content = pcall(function() return game:HttpGet(url) end)
+
+    -- 5. Validation Logic
+    if success and content and not content:find("404: Not Found") and #content > 100 then
+        writefile(localPath, content)
+        return getcustomasset(localPath)
+    else
+        warn("Asset Missing: " .. fileName .. " (Using Placeholder from " .. User .. "/" .. Repo .. ")")
+        -- Return your custom placeholder if it exists, otherwise fall back to a hardcoded ID
+        return isfile(placeholderLocal) and getcustomasset(placeholderLocal) or "rbxassetid://6023426923"
+    end
+end
+
+function Library:CreateWindow()
+    local Window = {}
+    local CurrentTab = nil
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "DynxeLT2Hub"
+    ScreenGui.Parent = CoreGui
+
+    -- TOOLTIP GUI
+    local TooltipGui = Instance.new("TextLabel")
+    TooltipGui.Size = UDim2.new(0, 0, 0, 0)
+    TooltipGui.AutomaticSize = Enum.AutomaticSize.XY
+    TooltipGui.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    TooltipGui.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TooltipGui.Font = Enum.Font.GothamMedium
+    TooltipGui.TextSize = 11
+    TooltipGui.RichText = true
+    TooltipGui.Visible = false
+    TooltipGui.ZIndex = 100
+    TooltipGui.Parent = ScreenGui
+
+    local TooltipPadding = Instance.new("UIPadding", TooltipGui)
+    TooltipPadding.PaddingTop = UDim.new(0, 6)
+    TooltipPadding.PaddingBottom = UDim.new(0, 6)
+    TooltipPadding.PaddingLeft = UDim.new(0, 8)
+    TooltipPadding.PaddingRight = UDim.new(0, 8)
+    Instance.new("UICorner", TooltipGui).CornerRadius = UDim.new(0, 4)
+    local TooltipStroke = Instance.new("UIStroke", TooltipGui)
+    TooltipStroke.Color = Color3.fromRGB(150, 150, 150)
+    TooltipStroke.Thickness = 1
+
+    function Library.ShowTooltip(text)
+        TooltipGui.Text = text
+        TooltipGui.Visible = true
+    end
+
+    function Library.HideTooltip()
+        TooltipGui.Visible = false
+    end
+
+    UserInputService.InputChanged:Connect(function(input)
+        if TooltipGui.Visible and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local posX = math.round(input.Position.X + 12)
+            local posY = math.round(input.Position.Y + 12)
+            TooltipGui.Position = UDim2.new(0, posX, 0, posY)
         end
     end)
 
-    Tab:CreateSection("Load Management")
-    
-    local selectedSlotToLoad = 1
-    if Tab.CreateDropdown then
-        Tab:CreateDropdown("Select Slot to Load", {"1", "2", "3", "4", "5", "6"}, "1", function(value)
-            selectedSlotToLoad = tonumber(value)
+    -- ===========================
+    -- TOOLTIP ATTACHMENT HELPER
+    -- ===========================
+    local function AttachTooltip(TitleLabel, ElementTable)
+        function ElementTable:AddTooltip(text)
+            local InfoIcon = Instance.new("TextLabel")
+            InfoIcon.Size = UDim2.new(0, 16, 0, 16)
+            InfoIcon.AnchorPoint = Vector2.new(0, 0.5)
+            InfoIcon.BackgroundTransparency = 1
+            InfoIcon.Text = "(?)"
+            InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130)
+            InfoIcon.Font = Enum.Font.Gotham
+            InfoIcon.TextSize = 11
+            InfoIcon.Parent = TitleLabel
+            
+            local function updatePos()
+                InfoIcon.Position = UDim2.new(0, TitleLabel.TextBounds.X + 6, 0.5, 0)
+            end
+            TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(updatePos)
+            updatePos()
+
+            InfoIcon.MouseEnter:Connect(function()
+                InfoIcon.TextColor3 = Color3.fromRGB(74, 120, 255)
+                Library.ShowTooltip(text)
+            end)
+            InfoIcon.MouseLeave:Connect(function()
+                InfoIcon.TextColor3 = Color3.fromRGB(120, 120, 130)
+                Library.HideTooltip()
+            end)
+            
+            return ElementTable
+        end
+        return ElementTable
+    end
+
+
+    -- Set ZIndexBehavior so child ZIndex is relative to parent, not global.
+    -- This means MainFrame's children always render above ScreenGui-level siblings.
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 550, 0, 350)
+    MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    MainFrame.BackgroundTransparency = 0.15
+    MainFrame.BorderSizePixel = 0
+    MainFrame.ZIndex = 2
+    MainFrame.Parent = ScreenGui
+    Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
+
+    local Sidebar = Instance.new("Frame")
+    Sidebar.Size = UDim2.new(0, 50, 1, 0)
+    Sidebar.BackgroundColor3 = Color3.fromRGB(14, 14, 17)
+    Sidebar.BorderSizePixel = 0
+    Sidebar.Parent = MainFrame
+    Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 6)
+
+    local SideBlock = Instance.new("Frame")
+    SideBlock.Size = UDim2.new(0, 10, 1, 0)
+    SideBlock.Position = UDim2.new(1, -10, 0, 0)
+    SideBlock.BackgroundColor3 = Color3.fromRGB(14, 14, 17)
+    SideBlock.BorderSizePixel = 0
+    SideBlock.Parent = Sidebar
+
+    local HeaderTitle = Instance.new("TextLabel")
+    HeaderTitle.Size = UDim2.new(1, -75, 0, 30)
+    HeaderTitle.Position = UDim2.new(0, 65, 0, 10)
+    HeaderTitle.BackgroundTransparency = 1
+    HeaderTitle.Text = "<b>Dynxe</b> <font color=\"#4a78ff\">LT2</font> <font color=\"#555555\" size=\"12\">" .. Version .. "</font>"
+    HeaderTitle.RichText = true
+    HeaderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    HeaderTitle.Font = Enum.Font.GothamMedium
+    HeaderTitle.TextSize = 16
+    HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
+    HeaderTitle.Parent = MainFrame
+
+    local ActiveTabLabel = Instance.new("TextLabel")
+    ActiveTabLabel.Size = UDim2.new(0, 150, 0, 30)
+    ActiveTabLabel.Position = UDim2.new(1, -160, 0, 10)
+    ActiveTabLabel.BackgroundTransparency = 1
+    ActiveTabLabel.Text = ""
+    ActiveTabLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+    ActiveTabLabel.Font = Enum.Font.GothamMedium
+    ActiveTabLabel.TextSize = 12
+    ActiveTabLabel.TextXAlignment = Enum.TextXAlignment.Right
+    ActiveTabLabel.Parent = MainFrame
+
+    local TabContainer = Instance.new("ScrollingFrame")
+    TabContainer.Name = "TabContainer"
+    TabContainer.Size = UDim2.new(1, 0, 1, 0)
+    TabContainer.BackgroundTransparency = 1
+    TabContainer.ScrollBarThickness = 0
+    TabContainer.BorderSizePixel = 0
+    TabContainer.ScrollingDirection = Enum.ScrollingDirection.Y
+    TabContainer.Parent = Sidebar
+
+    local SidebarList = Instance.new("UIListLayout")
+    SidebarList.Parent = TabContainer
+    SidebarList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    SidebarList.VerticalAlignment = Enum.VerticalAlignment.Top
+    SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
+    SidebarList.Padding = UDim.new(0, 15)
+
+    local SidebarPadding = Instance.new("UIPadding")
+    SidebarPadding.Parent = TabContainer
+    SidebarPadding.PaddingTop = UDim.new(0, 20)
+
+    SidebarList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        TabContainer.CanvasSize = UDim2.new(0, 0, 0, SidebarList.AbsoluteContentSize.Y + 30)
+    end)
+
+    local ContentContainer = Instance.new("Frame")
+    ContentContainer.Size = UDim2.new(1, -80, 1, -60)
+    ContentContainer.Position = UDim2.new(0, 65, 0, 45)
+    ContentContainer.BackgroundTransparency = 1
+    ContentContainer.ClipsDescendants = true
+    ContentContainer.Parent = MainFrame
+
+    local NotificationContainer = Instance.new("Frame")
+    NotificationContainer.Name = "NotificationContainer"
+    NotificationContainer.Size = UDim2.new(0, 250, 1, -20)
+    NotificationContainer.Position = UDim2.new(1, -260, 0, 10)
+    NotificationContainer.BackgroundTransparency = 1
+    NotificationContainer.Parent = ScreenGui
+
+    local NotifList = Instance.new("UIListLayout")
+    NotifList.Parent = NotificationContainer
+    NotifList.VerticalAlignment = Enum.VerticalAlignment.Bottom
+    NotifList.SortOrder = Enum.SortOrder.LayoutOrder
+    NotifList.Padding = UDim.new(0, 8)
+
+    function Library:Notify(Title, Text, Duration)
+        Duration = Duration or 5
+
+        local NotifFrame = Instance.new("Frame")
+        NotifFrame.Size = UDim2.new(1, 0, 0, 0)
+        NotifFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+        NotifFrame.BorderSizePixel = 0
+        NotifFrame.ClipsDescendants = true
+        NotifFrame.Parent = NotificationContainer
+
+        local Corner = Instance.new("UICorner", NotifFrame)
+        Corner.CornerRadius = UDim.new(0, 6)
+
+        local Stroke = Instance.new("UIStroke")
+        Stroke.Parent = NotifFrame
+        Stroke.Color = Color3.fromRGB(74, 120, 255)
+        Stroke.Thickness = 1
+
+        local TitleLabel = Instance.new("TextLabel")
+        TitleLabel.Size = UDim2.new(1, -20, 0, 20)
+        TitleLabel.Position = UDim2.new(0, 10, 0, 5)
+        TitleLabel.BackgroundTransparency = 1
+        TitleLabel.Text = Title:upper()
+        TitleLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+        TitleLabel.Font = Enum.Font.GothamBold
+        TitleLabel.TextSize = 12
+        TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        TitleLabel.Parent = NotifFrame
+
+        local ContentLabel = Instance.new("TextLabel")
+        ContentLabel.Size = UDim2.new(1, -20, 0, 30)
+        ContentLabel.Position = UDim2.new(0, 10, 0, 22)
+        ContentLabel.BackgroundTransparency = 1
+        ContentLabel.Text = Text
+        ContentLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        ContentLabel.Font = Enum.Font.Gotham
+        ContentLabel.TextSize = 11
+        ContentLabel.TextWrapped = true
+        ContentLabel.TextXAlignment = Enum.TextXAlignment.Left
+        ContentLabel.Parent = NotifFrame
+
+        TweenService:Create(NotifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 60)}):Play()
+
+        task.delay(Duration, function()
+            local Tween = TweenService:Create(NotifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1})
+            Tween:Play()
+            Tween.Completed:Connect(function()
+                NotifFrame:Destroy()
+            end)
         end)
     end
 
-    Tab:CreateAction("Load Selected Slot", "Load", function()
-        local RequestLoadRemote = loadSaveRequests and loadSaveRequests:FindFirstChild("RequestLoad")
-        if RequestLoadRemote then
-            RequestLoadRemote:InvokeServer(selectedSlotToLoad)
-            if Library and Library.Notify then Library:Notify("SUCCESS", "Loading slot " .. selectedSlotToLoad, 5) end
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    
+    MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+        end
+    end)
+    
+    MainFrame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(
+                startPos.X.Scale, 
+                startPos.X.Offset + delta.X, 
+                startPos.Y.Scale, 
+                startPos.Y.Offset + delta.Y
+            )
         end
     end)
 
-    -- ==========================================
-    -- PROPERTY ACTIONS
-    -- ==========================================
-    Tab:CreateSection("Property Actions")
+    function Window:CreateTab(TabName)
+        local Tab = {}
 
-    Tab:CreateAction("Claim Free Land", "Claim", function()
-        local properties = Workspace:FindFirstChild("Properties")
-        if not properties or not propertyPurchasing then return end
-        local claimRemote = propertyPurchasing:FindFirstChild("ClientPurchasedProperty")
+        local TabBtn = Instance.new("ImageButton")
+        TabBtn.Name = TabName
+        TabBtn.Size = UDim2.new(0, 32, 0, 32)
+        TabBtn.Parent = TabContainer
+        TabBtn.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
+        TabBtn.BackgroundTransparency = 1
+        Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 8)
+
+        local FallbackText = Instance.new("TextLabel", TabBtn)
+        FallbackText.Size = UDim2.new(1, 0, 1, 0)
+        FallbackText.BackgroundTransparency = 1
+        FallbackText.Text = string.sub(TabName, 1, 1):upper()
+        FallbackText.TextColor3 = Color3.fromRGB(120, 120, 130)
+        FallbackText.Font = Enum.Font.GothamBold
+        FallbackText.TextSize = 14
+        FallbackText.Name = "TabIconText"
+
+        local folderName = "DynxeLT2"
+        local fileName = TabName .. "_" .. Version:gsub("%.", "") .. ".png"
+        local filePath = folderName .. "/" .. fileName
+        local finalAssetUrl = ""
+
+        if isfolder and makefolder and writefile and isfile and getcustomasset then
+            if not isfolder(folderName) then makefolder(folderName) end
+            if not isfile(filePath) then
+                local iconUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/Icons/%s.png?t=%s", User, Repo, Branch, TabName, tick())
+                local success, imgData = pcall(function() return game:HttpGet(iconUrl) end)
+                if success and imgData and not imgData:match("404: Not Found") then
+                    writefile(filePath, imgData)
+                end
+            end
+            if isfile(filePath) then finalAssetUrl = getcustomasset(filePath) end
+        end
+
+        local TabIcon = Instance.new("ImageLabel")
+        TabIcon.Size = UDim2.new(0, 20, 0, 20)
+        TabIcon.Position = UDim2.new(0.5, -10, 0.5, -10)
+        TabIcon.BackgroundTransparency = 1
+        TabIcon.Image = finalAssetUrl
+        TabIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        TabIcon.ScaleType = Enum.ScaleType.Fit
+        TabIcon.ImageTransparency = 0
+        TabIcon.Name = "TabIcon"
+        TabIcon.Parent = TabBtn
+
+        if finalAssetUrl ~= "" then FallbackText.Visible = false end
+
+        local TweenIn  = TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundTransparency = 0.85})
+        local TweenOut = TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundTransparency = 1})
+
+        local TabPage = Instance.new("ScrollingFrame")
+        TabPage.Size = UDim2.new(1, 0, 1, 0)
+        TabPage.BackgroundTransparency = 1
+        TabPage.ScrollBarThickness = 0
+        TabPage.BorderSizePixel = 0
+        TabPage.Visible = false
+        TabPage.Parent = ContentContainer
+        TabPage.ClipsDescendants = true
+        Tab.Container = TabPage
+
+        local PageLayout = Instance.new("UIListLayout")
+        PageLayout.Parent = TabPage
+        PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        PageLayout.Padding = UDim.new(0, 6)
+
+        local PagePadding = Instance.new("UIPadding")
+        PagePadding.Parent = TabPage
+        PagePadding.PaddingLeft = UDim.new(0, 2)
+        PagePadding.PaddingRight = UDim.new(0, 8)
+        PagePadding.PaddingTop = UDim.new(0, 2)
+        PagePadding.PaddingBottom = UDim.new(0, 20)
+
+        PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            TabPage.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 25)
+        end)
+
+        local function ActivateTab()
+            if CurrentTab then
+                CurrentTab.TweenOut:Play()
+                CurrentTab.Btn.TabIconText.TextColor3 = Color3.fromRGB(120, 120, 130)
+                local prevIcon = CurrentTab.Btn:FindFirstChild("TabIcon")
+                if prevIcon then prevIcon.ImageColor3 = Color3.fromRGB(120, 120, 130) end
+                CurrentTab.Page.Visible = false
+            end
+            TweenIn:Play()
+            FallbackText.TextColor3 = Color3.fromRGB(255, 255, 255)
+            TabIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+            TabPage.Visible = true
+            ActiveTabLabel.Text = TabName:upper()
+            CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
+        end
+
+        TabBtn.MouseButton1Click:Connect(ActivateTab)
+        if not CurrentTab then ActivateTab() end
+
+        local function AddDepthStroke(frame)
+            local Stroke = Instance.new("UIStroke")
+            Stroke.Parent = frame
+            Stroke.Color = Color3.fromRGB(40, 40, 48)
+            Stroke.Thickness = 1
+            Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        end
+
+        function Tab:CreateRow()
+            local Row = setmetatable({}, { __index = self })
+
+            local RowFrame = Instance.new("Frame")
+            RowFrame.Size = UDim2.new(1, 0, 0, 28)
+            RowFrame.BackgroundTransparency = 1
+            RowFrame.Parent = self.Container
+
+            local RowLayout = Instance.new("UIListLayout")
+            RowLayout.Parent = RowFrame
+            RowLayout.FillDirection = Enum.FillDirection.Horizontal
+            RowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            RowLayout.Padding = UDim.new(0, 6)
+
+            RowLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                RowFrame.Size = UDim2.new(1, 0, 0, RowLayout.AbsoluteContentSize.Y)
+            end)
+
+            RowFrame.ChildAdded:Connect(function()
+                task.defer(function()
+                    local elements = {}
+                    for _, v in pairs(RowFrame:GetChildren()) do
+                        if v:IsA("GuiObject") and not v:IsA("UIListLayout") then
+                            table.insert(elements, v)
+                        end
+                    end
+                    local count = #elements
+                    if count > 0 then
+                        local totalPadding = (count - 1) * 6
+                        for _, v in pairs(elements) do
+                            v.Size = UDim2.new(1/count, -totalPadding/count, 0, v.Size.Y.Offset)
+                        end
+                    end
+                end)
+            end)
+
+            Row.Container = RowFrame
+            return Row
+        end
+
+        function Tab:CreateSection(Name)
+            local SectionLabel = Instance.new("TextLabel")
+            SectionLabel.Size = UDim2.new(1, 0, 0, 20)
+            SectionLabel.BackgroundTransparency = 1
+            SectionLabel.Text = Name:upper()
+            SectionLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+            SectionLabel.Font = Enum.Font.GothamBold
+            SectionLabel.TextSize = 11
+            SectionLabel.TextXAlignment = Enum.TextXAlignment.Left
+            SectionLabel.Parent = self.Container
+        end
+
+        -- ===========================
+        -- IMPROVEMENT 3: CREATE ACTION (with optional Secure double-confirm)
+        --
+        -- Usage:
+        --   Tab:CreateAction("Title", "Run", callback)           -- normal
+        --   Tab:CreateAction("Title", "Wipe Data", callback, true) -- requires double-click confirm
+        --
+        -- Secure flow:
+        --   1st click  → button turns amber + shows "Confirm?" (auto-resets after 3s if not confirmed)
+        --   2nd click  → executes callback, button flashes green briefly, resets
+        -- ===========================
+        function Tab:CreateAction(Title, ButtonText, Callback, Secure)
+            local Element = {}
+            local ActionFrame = Instance.new("Frame")
+            ActionFrame.Size = UDim2.new(1, 0, 0, 28)
+            ActionFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+            ActionFrame.Parent = self.Container
+            Instance.new("UICorner", ActionFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(ActionFrame)
+
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(0.65, 0, 1, 0)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title
+            TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+            TitleLabel.Font = Enum.Font.GothamMedium
+            TitleLabel.TextSize = 12
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.Parent = ActionFrame
+
+            -- Secure mode: small lock badge next to the title
+            if Secure then
+                local LockBadge = Instance.new("TextLabel")
+                LockBadge.Size = UDim2.new(0, 22, 0, 14)
+                LockBadge.AnchorPoint = Vector2.new(0, 0.5)
+                LockBadge.BackgroundColor3 = Color3.fromRGB(180, 120, 20)
+                LockBadge.BackgroundTransparency = 0.3
+                LockBadge.Text = "🔒"
+                LockBadge.TextSize = 9
+                LockBadge.Font = Enum.Font.Gotham
+                LockBadge.TextColor3 = Color3.fromRGB(255, 220, 100)
+                LockBadge.Parent = TitleLabel
+                Instance.new("UICorner", LockBadge).CornerRadius = UDim.new(0, 3)
+
+                local function updateBadgePos()
+                    LockBadge.Position = UDim2.new(0, TitleLabel.TextBounds.X + 8, 0.5, 0)
+                end
+                TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(updateBadgePos)
+                updateBadgePos()
+            end
+
+            local ActionBtn = Instance.new("TextButton")
+            ActionBtn.Size = UDim2.new(0, 70, 0, 20)
+            ActionBtn.AnchorPoint = Vector2.new(1, 0.5)
+            ActionBtn.Position = UDim2.new(1, -8, 0.5, 0)
+            ActionBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+            ActionBtn.Text = ButtonText
+            ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            ActionBtn.Font = Enum.Font.GothamBold
+            ActionBtn.TextSize = 11
+            ActionBtn.Parent = ActionFrame
+            Instance.new("UICorner", ActionBtn).CornerRadius = UDim.new(0, 4)
+            AddDepthStroke(ActionBtn)
+
+            if Secure then
+                -- Colours used across the confirm flow
+                local COL_IDLE    = Color3.fromRGB(35,  35,  42)   -- default grey
+                local COL_WARN    = Color3.fromRGB(190, 120, 15)   -- amber → "Confirm?"
+                local COL_SUCCESS = Color3.fromRGB(45,  160, 75)   -- green → executed
+
+                local awaitingConfirm = false
+                local resetThread = nil
+
+                local function resetBtn()
+                    awaitingConfirm = false
+                    TweenService:Create(ActionBtn, TweenInfo.new(0.25), {BackgroundColor3 = COL_IDLE}):Play()
+                    ActionBtn.Text = ButtonText
+                    ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+
+                ActionBtn.MouseButton1Click:Connect(function()
+                    if not awaitingConfirm then
+                        -- ── FIRST CLICK: enter confirm state ──
+                        awaitingConfirm = true
+                        TweenService:Create(ActionBtn, TweenInfo.new(0.2), {BackgroundColor3 = COL_WARN}):Play()
+                        ActionBtn.Text = "Confirm?"
+                        ActionBtn.TextColor3 = Color3.fromRGB(255, 240, 180)
+
+                        -- Auto-cancel if the user doesn't confirm within 3 seconds
+                        if resetThread then task.cancel(resetThread) end
+                        resetThread = task.delay(3, resetBtn)
+                    else
+                        -- ── SECOND CLICK: execute ──
+                        if resetThread then task.cancel(resetThread) end
+                        awaitingConfirm = false
+
+                        -- Brief green flash to confirm execution
+                        TweenService:Create(ActionBtn, TweenInfo.new(0.15), {BackgroundColor3 = COL_SUCCESS}):Play()
+                        ActionBtn.Text = "✓ Done"
+                        ActionBtn.TextColor3 = Color3.fromRGB(200, 255, 210)
+
+                        Callback()
+
+                        task.delay(1.2, resetBtn)
+                    end
+                end)
+            else
+                -- Normal (non-secure) action
+                ActionBtn.MouseButton1Click:Connect(Callback)
+            end
+
+            return AttachTooltip(TitleLabel, Element)
+        end
+
+        function Tab:CreateToggle(Title, Default, Callback)
+            local Element = {}
+            local Toggled = Default
+            local ToggleFrame = Instance.new("Frame")
+            ToggleFrame.Size = UDim2.new(1, 0, 0, 28)
+            ToggleFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+            ToggleFrame.Parent = self.Container
+            Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(ToggleFrame)
+
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(0.65, 0, 1, 0)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title
+            TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+            TitleLabel.Font = Enum.Font.GothamMedium
+            TitleLabel.TextSize = 12
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.Parent = ToggleFrame
+
+            local ToggleBG = Instance.new("TextButton")
+            ToggleBG.Size = UDim2.new(0, 34, 0, 18)
+            ToggleBG.AnchorPoint = Vector2.new(1, 0.5)
+            ToggleBG.Position = UDim2.new(1, -8, 0.5, 0)
+            ToggleBG.BackgroundColor3 = Toggled and Color3.fromRGB(74, 120, 255) or Color3.fromRGB(35, 35, 42)
+            ToggleBG.Text = ""
+            ToggleBG.Parent = ToggleFrame
+            Instance.new("UICorner", ToggleBG).CornerRadius = UDim.new(1, 0)
+            AddDepthStroke(ToggleBG)
+
+            local ToggleDot = Instance.new("Frame")
+            ToggleDot.Size = UDim2.new(0, 12, 0, 12)
+            ToggleDot.Position = Toggled and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
+            ToggleDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            ToggleDot.Parent = ToggleBG
+            Instance.new("UICorner", ToggleDot).CornerRadius = UDim.new(1, 0)
+
+            ToggleBG.MouseButton1Click:Connect(function()
+                Toggled = not Toggled
+                local targetPos = Toggled and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
+                local targetCol = Toggled and Color3.fromRGB(74, 120, 255) or Color3.fromRGB(35, 35, 42)
+                TweenService:Create(ToggleDot, TweenInfo.new(0.2), {Position = targetPos}):Play()
+                TweenService:Create(ToggleBG, TweenInfo.new(0.2), {BackgroundColor3 = targetCol}):Play()
+                Callback(Toggled)
+            end)
+
+            return AttachTooltip(TitleLabel, Element)
+        end
+
+        -- ===========================
+        -- IMPROVEMENT 1: SLIDER
+        --
+        -- Changes:
+        --  • The entire SliderFrame acts as the grab target, not just the thin bar.
+        --    This means the user can click anywhere on the element and drag.
+        --  • The current value is displayed as a blue label on the right side of the
+        --    title row, separate from the title text. The title stays clean.
+        -- ===========================
+        function Tab:CreateSlider(Title, Min, Max, Default, Callback)
+            local Element = {}
+
+            local SliderFrame = Instance.new("Frame")
+            SliderFrame.Size = UDim2.new(1, 0, 0, 38)
+            SliderFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+            SliderFrame.Parent = self.Container
+            Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(SliderFrame)
+
+            -- Title text (left side, does NOT include the value)
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(1, -70, 0, 20)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 4)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title
+            TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+            TitleLabel.Font = Enum.Font.GothamMedium
+            TitleLabel.TextSize = 12
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.Parent = SliderFrame
+
+            -- Blue value readout (right side of the title row)
+            local ValueLabel = Instance.new("TextLabel")
+            ValueLabel.Size = UDim2.new(0, 55, 0, 20)
+            ValueLabel.AnchorPoint = Vector2.new(1, 0)
+            ValueLabel.Position = UDim2.new(1, -8, 0, 4)
+            ValueLabel.BackgroundTransparency = 1
+            ValueLabel.Text = tostring(Default)
+            ValueLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+            ValueLabel.Font = Enum.Font.GothamBold
+            ValueLabel.TextSize = 12
+            ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+            ValueLabel.Parent = SliderFrame
+
+            -- Track background
+            local SliderBG = Instance.new("Frame")
+            SliderBG.Size = UDim2.new(1, -20, 0, 4)
+            SliderBG.Position = UDim2.new(0, 10, 0, 28)
+            SliderBG.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+            SliderBG.Parent = SliderFrame
+            Instance.new("UICorner", SliderBG)
+
+            -- Filled portion of track
+            local SliderFill = Instance.new("Frame")
+            SliderFill.Size = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
+            SliderFill.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
+            SliderFill.BorderSizePixel = 0
+            SliderFill.Parent = SliderBG
+            Instance.new("UICorner", SliderFill)
+
+            -- Invisible grab button covers the ENTIRE SliderFrame so the user
+            -- can click anywhere on the element (not just the thin 4px bar).
+            local SliderBtn = Instance.new("TextButton")
+            SliderBtn.Size = UDim2.new(1, 0, 1, 0)
+            SliderBtn.BackgroundTransparency = 1
+            SliderBtn.Text = ""
+            SliderBtn.ZIndex = SliderFrame.ZIndex + 5  -- sits above all children
+            SliderBtn.Parent = SliderFrame
+
+            local function UpdateSlider()
+                local mousePos  = UserInputService:GetMouseLocation().X
+                local barPos    = SliderBG.AbsolutePosition.X
+                local barWidth  = SliderBG.AbsoluteSize.X
+                local pct       = math.clamp((mousePos - barPos) / barWidth, 0, 1)
+                local value     = math.floor(Min + (Max - Min) * pct)
+                SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+                ValueLabel.Text = tostring(value)
+                Callback(value)
+            end
+
+            local sliding = false
+
+            SliderBtn.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    sliding = true
+                    UpdateSlider()  -- snap immediately on click
+                end
+            end)
+
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    sliding = false
+                end
+            end)
+            UserInputService.InputChanged:Connect(function(input)
+                if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    UpdateSlider()
+                end
+            end)
+
+            return AttachTooltip(TitleLabel, Element)
+        end
+
+        function Tab:CreateKeybind(Title, Default, Callback)
+            local Element = {}
+            local KeyName = (typeof(Default) == "EnumItem") and Default.Name or Default.UserInputType.Name
+            local KeybindFrame = Instance.new("Frame")
+            KeybindFrame.Size = UDim2.new(1, 0, 0, 28)
+            KeybindFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+            KeybindFrame.Parent = self.Container
+            Instance.new("UICorner", KeybindFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(KeybindFrame)
+
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(0.65, 0, 1, 0)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title
+            TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+            TitleLabel.Font = Enum.Font.GothamMedium
+            TitleLabel.TextSize = 12
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.Parent = KeybindFrame
+
+            local BindBtn = Instance.new("TextButton")
+            BindBtn.Size = UDim2.new(0, 70, 0, 20)
+            BindBtn.AnchorPoint = Vector2.new(1, 0.5)
+            BindBtn.Position = UDim2.new(1, -8, 0.5, 0)
+            BindBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+            BindBtn.Text = KeyName
+            BindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            BindBtn.Font = Enum.Font.GothamBold
+            BindBtn.TextSize = 11
+            BindBtn.Parent = KeybindFrame
+            Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 4)
+            AddDepthStroke(BindBtn)
+
+            BindBtn.MouseButton1Click:Connect(function()
+                BindBtn.Text = "..."
+                local connection
+                connection = UserInputService.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.Keyboard then
+                        KeyName = input.KeyCode.Name
+                        BindBtn.Text = KeyName
+                        connection:Disconnect()
+                    elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
+                        KeyName = input.UserInputType.Name
+                        BindBtn.Text = KeyName
+                        connection:Disconnect()
+                    end
+                end)
+            end)
+
+            UserInputService.InputBegan:Connect(function(input, processed)
+                if not processed then
+                    if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode.Name == KeyName then
+                        Callback()
+                    elseif input.UserInputType.Name == KeyName then
+                        Callback()
+                    end
+                end
+            end)
+
+            return AttachTooltip(TitleLabel, Element)
+        end
+
+        function Tab:CreateInfoBox(Title, Description)
+            local InfoBox = {}
+
+            local InfoFrame = Instance.new("Frame")
+            InfoFrame.Size = UDim2.new(1, 0, 0, 0)
+            InfoFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+            InfoFrame.AutomaticSize = Enum.AutomaticSize.Y
+            InfoFrame.Parent = self.Container
+            Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 6)
+            if AddDepthStroke then AddDepthStroke(InfoFrame) end
+
+            local Accent = Instance.new("Frame")
+            Accent.Size = UDim2.new(0, 2, 1, 0)
+            Accent.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
+            Accent.BorderSizePixel = 0
+            Accent.Parent = InfoFrame
+            Instance.new("UICorner", Accent).CornerRadius = UDim.new(0, 2)
+
+            local TextContainer = Instance.new("Frame")
+            TextContainer.BackgroundTransparency = 1
+            TextContainer.Position = UDim2.new(0, 12, 0, 0)
+            TextContainer.Size = UDim2.new(1, -12, 0, 0)
+            TextContainer.AutomaticSize = Enum.AutomaticSize.Y
+            TextContainer.Parent = InfoFrame
+
+            local InfoLayout = Instance.new("UIListLayout")
+            InfoLayout.Parent = TextContainer
+            InfoLayout.Padding = UDim.new(0, 4)
+            InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+            local InfoPadding = Instance.new("UIPadding")
+            InfoPadding.Parent = TextContainer
+            InfoPadding.PaddingTop = UDim.new(0, 8)
+            InfoPadding.PaddingBottom = UDim.new(0, 8)
+            InfoPadding.PaddingRight = UDim.new(0, 10)
+
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(1, 0, 0, 18)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title or ""
+            TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            TitleLabel.Font = Enum.Font.GothamBold
+            TitleLabel.TextSize = 13
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.LayoutOrder = 1
+            TitleLabel.Visible = (Title ~= "" and Title ~= nil)
+            TitleLabel.Parent = TextContainer
+
+            local DescLabel = Instance.new("TextLabel")
+            DescLabel.Size = UDim2.new(1, 0, 0, 0)
+            DescLabel.BackgroundTransparency = 1
+            DescLabel.Text = Description
+            DescLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+            DescLabel.Font = Enum.Font.Gotham
+            DescLabel.TextSize = 12
+            DescLabel.TextWrapped = true
+            DescLabel.RichText = true
+            DescLabel.TextXAlignment = Enum.TextXAlignment.Left
+            DescLabel.AutomaticSize = Enum.AutomaticSize.Y
+            DescLabel.LayoutOrder = 2
+            DescLabel.Parent = TextContainer
+
+            function InfoBox:SetTitle(newTitle)
+                TitleLabel.Text = newTitle
+                TitleLabel.Visible = (newTitle ~= "")
+            end
+
+            function InfoBox:SetDescription(newDesc)
+                DescLabel.Text = newDesc
+            end
+
+            return InfoBox
+        end
+                
+        function Tab:CreateImageSelector(Title, Config, Callback)
+            local Element = {Selected = {}}
+            
+            -- Config defaults
+            Config = Config or {}
+            local Multi = Config.MultiSelect or false
+            local Rows = Config.Rows or 1
+            local SlotSize = Config.SlotSize or UDim2.new(0, 70, 0, 70)
+            
+            -- Calculate height dynamically based on row count and slot size
+            local TopPadding = 35
+            local BottomPadding = 10
+            local CellPaddingY = 8
+            local ScrollHeight = (SlotSize.Y.Offset * Rows) + (CellPaddingY * (Rows - 1)) + 6
+            local TotalHeight = TopPadding + ScrollHeight + BottomPadding
         
-        for _, plot in pairs(properties:GetChildren()) do
-            local owner = plot:FindFirstChild("Owner")
-            local origin = plot:FindFirstChild("OriginSquare")
-            if owner and origin and owner.Value == nil then
-                claimRemote:FireServer(plot, origin.OriginCFrame.Value.p + Vector3.new(0, 3, 0))
-                if Library and Library.Notify then Library:Notify("PROPERTY", "Claimed!", 3) end
-                task.wait(0.5)
-                if LocalPlayer.Character then LocalPlayer.Character:MoveTo(origin.Position) end
-                break 
-            end
-        end
-    end)
-
-    Tab:CreateAction("Max Land (Full Expand)", "Expand", function()
-        local properties = Workspace:FindFirstChild("Properties")
-        if not properties or not propertyPurchasing then return end
-        local expandRemote = propertyPurchasing:FindFirstChild("ClientExpandedProperty")
+            -- Container
+            local SelectorFrame = Instance.new("Frame")
+            SelectorFrame.Name = Title .. "_ImageSelector"
+            SelectorFrame.Size = UDim2.new(1, 0, 0, TotalHeight) 
+            SelectorFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+            SelectorFrame.BackgroundTransparency = 0 
+            SelectorFrame.Parent = self.Container
+            Instance.new("UICorner", SelectorFrame).CornerRadius = UDim.new(0, 6)
         
-        local playerPlot = nil
-        for _, plot in pairs(properties:GetChildren()) do
-            if plot.Owner.Value == LocalPlayer then playerPlot = plot break end
-        end
-
-        if playerPlot and playerPlot:FindFirstChild("OriginSquare") then
-            local spos = playerPlot.OriginSquare.Position
-            local offsets = {
-                {0, 40}, {0, -40}, {40, 0}, {-40, 0},
-                {40, 40}, {40, -40}, {-40, 40}, {-40, -40},
-                {80, 0}, {-80, 0}, {0, 80}, {0, -80},
-                {80, 80}, {80, -80}, {-80, 80}, {-80, -80},
-                {40, 80}, {-40, 80}, {80, 40}, {80, -40},
-                {-80, 40}, {-80, -40}, {40, -80}, {-40, -80}
-            }
-
-            for _, offset in ipairs(offsets) do
-                expandRemote:FireServer(playerPlot, CFrame.new(spos.X + offset[1], spos.Y, spos.Z + offset[2]))
-                task.wait(0.05) 
+            local FrameStroke = Instance.new("UIStroke")
+            FrameStroke.Color = Color3.fromRGB(35, 35, 42)
+            FrameStroke.Thickness = 1
+            FrameStroke.Parent = SelectorFrame
+        
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(1, -20, 0, 20)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 8)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title
+            TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+            TitleLabel.Font = Enum.Font.GothamMedium -- Less aggressive than Bold to match standards
+            TitleLabel.TextSize = 13
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.Parent = SelectorFrame
+        
+            -- Horizontal Scrolling Frame
+            local Scroll = Instance.new("ScrollingFrame")
+            Scroll.Size = UDim2.new(1, -20, 0, ScrollHeight)
+            Scroll.Position = UDim2.new(0, 10, 0, TopPadding)
+            Scroll.BackgroundTransparency = 1
+            Scroll.BorderSizePixel = 0
+            Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+            Scroll.ScrollBarThickness = 2
+            Scroll.ScrollBarImageColor3 = Color3.fromRGB(74, 120, 255)
+            Scroll.ScrollingDirection = Enum.ScrollingDirection.X
+            Scroll.Parent = SelectorFrame
+        
+            -- Switched to UIGridLayout to support Row wrapping
+            local Layout = Instance.new("UIGridLayout", Scroll)
+            Layout.CellSize = SlotSize
+            Layout.CellPadding = UDim2.new(0, 8, 0, CellPaddingY)
+            Layout.SortOrder = Enum.SortOrder.LayoutOrder
+            Layout.FillDirection = Enum.FillDirection.Vertical -- Fills top-to-bottom, then overflows horizontally
+            
+            local Padding = Instance.new("UIPadding", Scroll)
+            Padding.PaddingLeft = UDim.new(0, 2)
+            Padding.PaddingTop = UDim.new(0, 3) 
+            Padding.PaddingBottom = UDim.new(0, 3)
+        
+            -- Function to Add Slots
+            function Element:AddSlot(ID, SlotTitle, SlotSubText)
+                local Slot = Instance.new("TextButton")
+                Slot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                Slot.Text = ""
+                Slot.Parent = Scroll
+                Instance.new("UICorner", Slot).CornerRadius = UDim.new(0, 6)
+        
+                local Stroke = Instance.new("UIStroke")
+                Stroke.Color = Color3.fromRGB(50, 50, 55)
+                Stroke.Thickness = 1.2
+                Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                Stroke.Parent = Slot
+        
+                local Image = Instance.new("ImageLabel")
+                Image.Size = UDim2.new(0.4, 0, 0.4, 0) 
+                Image.Position = UDim2.new(0.5, 0, 0.35, 0) 
+                Image.AnchorPoint = Vector2.new(0.5, 0.5)
+                Image.BackgroundTransparency = 1
+                Image.Image = ID
+                Image.Parent = Slot
+        
+                -- Primary Text (Name)
+                if SlotTitle then
+                    local Txt = Instance.new("TextLabel")
+                    Txt.Size = UDim2.new(1, 0, 0, 12)
+                    Txt.Position = UDim2.new(0, 0, 0.62, 0)
+                    Txt.BackgroundTransparency = 1
+                    Txt.Text = SlotTitle
+                    Txt.TextColor3 = Color3.fromRGB(220, 220, 220)
+                    Txt.Font = Enum.Font.GothamMedium
+                    Txt.TextSize = 10
+                    Txt.Parent = Slot
+                end
+        
+                -- Secondary Text (Price)
+                if SlotSubText then
+                    local SubTxt = Instance.new("TextLabel")
+                    SubTxt.Size = UDim2.new(1, 0, 0, 12)
+                    SubTxt.Position = UDim2.new(0, 0, 0.78, 0) 
+                    SubTxt.BackgroundTransparency = 1
+                    SubTxt.Text = SlotSubText
+                    SubTxt.TextColor3 = Color3.fromRGB(120, 230, 120) 
+                    SubTxt.Font = Enum.Font.GothamBold
+                    SubTxt.TextSize = 10
+                    SubTxt.Parent = Slot
+                end
+        
+                -- Selection Logic
+                Slot.MouseButton1Click:Connect(function()
+                    local isSelected = (Slot.BackgroundColor3 == Color3.fromRGB(74, 120, 255))
+                    
+                    if not Multi then
+                        -- Reset all other slots if single-select
+                        for _, child in pairs(Scroll:GetChildren()) do
+                            if child:IsA("TextButton") then
+                                TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 20, 24)}):Play()
+                                child:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(50, 50, 55)
+                            end
+                        end
+                        Element.Selected = {SlotTitle or ID}
+                    else
+                        if isSelected then
+                            for i, v in ipairs(Element.Selected) do
+                                if v == (SlotTitle or ID) then table.remove(Element.Selected, i) break end
+                            end
+                        else
+                            table.insert(Element.Selected, SlotTitle or ID)
+                        end
+                    end
+        
+                    -- Update Visuals
+                    local targetColor = isSelected and Color3.fromRGB(20, 20, 24) or Color3.fromRGB(74, 120, 255)
+                    local strokeColor = isSelected and Color3.fromRGB(50, 50, 55) or Color3.white
+                    
+                    TweenService:Create(Slot, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
+                    Stroke.Color = strokeColor
+                    
+                    Callback(Multi and Element.Selected or Element.Selected[1])
+                end)
+        
+                -- Update scroll canvas size based on Grid Layout bounds
+                Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                    Scroll.CanvasSize = UDim2.new(0, Layout.AbsoluteContentSize.X + 10, 0, 0)
+                end)
+                
+                return Slot
             end
-            if Library and Library.Notify then Library:Notify("SUCCESS", "Plot fully expanded!", 3) end
+        
+            return Element
         end
-    end)
+                
+        function Tab:CreateDropdown(Title, Options, Default, Callback)
+            local Element = {}
+            local Dropdown = { Open = false, Selected = Default or "Select..." }
 
-    -- ==========================================
-    -- NEW: BASE MANAGEMENT (From Screenshots)
-    -- ==========================================
-    Tab:CreateSection("Base Management")
+            local DropdownFrame = Instance.new("Frame")
+            DropdownFrame.Size = UDim2.new(1, 0, 0, 28)
+            DropdownFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
+            DropdownFrame.ClipsDescendants = true
+            DropdownFrame.Parent = self.Container
+            Instance.new("UICorner", DropdownFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(DropdownFrame)
 
-    Tab:CreateAction("Clear Entire Base", "Wipe", function()
-        local playerModels = Workspace:FindFirstChild("PlayerModels")
-        local destroyRemote = interaction and interaction:FindFirstChild("DestroyStructure")
+            local Header = Instance.new("TextButton")
+            Header.Size = UDim2.new(1, 0, 0, 28)
+            Header.BackgroundTransparency = 1
+            Header.Text = ""
+            Header.Parent = DropdownFrame
 
-        if not playerModels or not destroyRemote then
-            if Library and Library.Notify then Library:Notify("ERROR", "Wipe system unavailable", 3) end
-            return
-        end
+            local TitleLabel = Instance.new("TextLabel")
+            TitleLabel.Size = UDim2.new(0.6, 0, 1, 0)
+            TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+            TitleLabel.BackgroundTransparency = 1
+            TitleLabel.Text = Title
+            TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+            TitleLabel.Font = Enum.Font.GothamMedium
+            TitleLabel.TextSize = 12
+            TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            TitleLabel.Parent = Header
 
-        if Library and Library.Notify then 
-            Library:Notify("WIPE", "Clearing your base... this may take a moment.", 4) 
-        end
+            local SelectedLabel = Instance.new("TextLabel")
+            SelectedLabel.Size = UDim2.new(0.4, -25, 1, 0)
+            SelectedLabel.Position = UDim2.new(1, -10, 0, 0)
+            SelectedLabel.AnchorPoint = Vector2.new(1, 0)
+            SelectedLabel.BackgroundTransparency = 1
+            SelectedLabel.Text = Dropdown.Selected
+            SelectedLabel.TextColor3 = Color3.fromRGB(74, 120, 255)
+            SelectedLabel.Font = Enum.Font.GothamBold
+            SelectedLabel.TextSize = 11
+            SelectedLabel.TextXAlignment = Enum.TextXAlignment.Right
+            SelectedLabel.Parent = Header
 
-        local count = 0
-        for _, model in pairs(playerModels:GetChildren()) do
-            local owner = model:FindFirstChild("Owner")
-            -- Verify you are the owner before firing
-            if owner and owner.Value == LocalPlayer then
-                destroyRemote:FireServer(model)
-                count = count + 1
-                -- Wait every 20 items to prevent the server from lagging out
-                if count % 20 == 0 then task.wait(0.1) end
+            local OptionHolder = Instance.new("Frame")
+            OptionHolder.Size = UDim2.new(1, -10, 0, 0)
+            OptionHolder.Position = UDim2.new(0, 5, 0, 30)
+            OptionHolder.BackgroundTransparency = 1
+            OptionHolder.Parent = DropdownFrame
+
+            local Layout = Instance.new("UIListLayout", OptionHolder)
+            Layout.Padding = UDim.new(0, 3)
+
+            local function Refresh()
+                for _, child in pairs(OptionHolder:GetChildren()) do
+                    if child:IsA("TextButton") then child:Destroy() end
+                end
+                for _, opt in pairs(Options) do
+                    local OptBtn = Instance.new("TextButton")
+                    OptBtn.Size = UDim2.new(1, 0, 0, 22)
+                    OptBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+                    OptBtn.Text = opt
+                    OptBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+                    OptBtn.Font = Enum.Font.Gotham
+                    OptBtn.TextSize = 11
+                    OptBtn.Parent = OptionHolder
+                    Instance.new("UICorner", OptBtn).CornerRadius = UDim.new(0, 4)
+
+                    OptBtn.MouseButton1Click:Connect(function()
+                        Dropdown.Selected = opt
+                        SelectedLabel.Text = opt
+                        Dropdown.Open = false
+                        TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, 28)}):Play()
+                        Callback(opt)
+                    end)
+                end
             end
+
+            Header.MouseButton1Click:Connect(function()
+                Dropdown.Open = not Dropdown.Open
+                local targetHeight = Dropdown.Open and (Layout.AbsoluteContentSize.Y + 35) or 28
+                TweenService:Create(DropdownFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
+            end)
+
+            Refresh()
+            return AttachTooltip(TitleLabel, Element)
         end
 
-        if Library and Library.Notify then 
-            Library:Notify("SUCCESS", "Base wipe complete!", 3) 
-        end
-    end)
+        return Tab
+    end
+
+    return Window
 end
 
-return Plot
+-- SCRIPT EXECUTION
+local HubWindow = Library:CreateWindow()
+
+local HomeTab       = HubWindow:CreateTab("Home")
+local PlayerTab     = HubWindow:CreateTab("Player")
+local WorldTab      = HubWindow:CreateTab("World")
+local TeleportTab   = HubWindow:CreateTab("Teleport")
+local WoodTab       = HubWindow:CreateTab("Wood")
+local PlotTab       = HubWindow:CreateTab("Plot")
+local ShopTab       = HubWindow:CreateTab("Shop")
+local BuildTab      = HubWindow:CreateTab("Build")
+local ToolTab       = HubWindow:CreateTab("Tool")
+local ProtectionTab = HubWindow:CreateTab("Protection")
+local SettingsTab   = HubWindow:CreateTab("Settings")
+
+local function LoadModule(ModuleName)
+    local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s",
+        User, Repo, Branch, ModuleName, tick())
+    local success, code = pcall(function() return game:HttpGet(URL) end)
+    if success and code then
+        local func = loadstring(code)
+        if func then return func() end
+    end
+    warn("Failed to load module: " .. ModuleName)
+end
+
+local HomeModule = LoadModule("Home")
+if HomeModule and HomeModule.Init then
+    HomeModule.Init(HomeTab, Library)
+end
+
+local MovementModule = LoadModule("PlayerMovement")
+if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end
+local FlashlightModule = LoadModule("FlashLight")
+if FlashlightModule and FlashlightModule.Init then FlashlightModule.Init(PlayerTab) end
+
+local TeleportModule = LoadModule("Teleport")
+if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) end
+
+local GhostModule = LoadModule("GhostSuite")
+if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
+
+local WorldModule = LoadModule("World")
+if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end
+
+local SettingsModule = LoadModule("Settings")
+if SettingsModule and SettingsModule.Init then
+    SettingsModule.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch})
+end
+
+local DraggerModule = LoadModule("HardDragger")
+if DraggerModule and DraggerModule.Init then DraggerModule.Init(ToolTab) end
+
+local WatchDogModule = LoadModule("WatchDog")
+if WatchDogModule and WatchDogModule.Init then WatchDogModule.Init(ProtectionTab) end
+local AntiFlingModule = LoadModule("AntiFling")
+if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(ProtectionTab) end
+local AntiVoidModule = LoadModule("AntiVoid")
+if AntiVoidModule and AntiVoidModule.Init then AntiVoidModule.Init(ProtectionTab) end
+local AntiRagdollModule = LoadModule("AntiRagdoll")
+if AntiRagdollModule and AntiRagdollModule.Init then AntiRagdollModule.Init(ProtectionTab) end
+local AntiAFKModule = LoadModule("AntiAFK")
+if AntiAFKModule and AntiAFKModule.Init then AntiAFKModule.Init(ProtectionTab) end
+
+local LooseObjectTeleportModule = LoadModule("LooseObjectTeleport")
+if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(ToolTab, Library) end
+
+local PlayPositionNotifyModule = LoadModule("PlayPositionNotify")
+if PlayPositionNotifyModule and PlayPositionNotifyModule.Init then PlayPositionNotifyModule.Init(ToolTab, Library) end
+
+local TreeCamModule = LoadModule("TreeCam")
+if TreeCamModule and TreeCamModule.Init then TreeCamModule.Init(WoodTab) end
+
+local SaveGameModule = LoadModule("SaveGame")
+if SaveGameModule and SaveGameModule.Init then SaveGameModule.Init(PlotTab, Library) end
+
+local PlotModule = LoadModule("Plot")
+if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
+
+local AxeDupeModule = LoadModule("AxeDupe")
+if AxeDupeModule and AxeDupeModule.Init then AxeDupeModule.Init(PlotTab) end
+
+local TreeModule = LoadModule("Tree")
+if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, LooseObjectTeleportModule) end
+
+local ShopScript = LoadModule("Shop")
+if ShopScript and ShopScript.Init then
+    ShopScript.Init(ShopTab, LooseObjectTeleportModule)
+end
+
+local Theme = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
+))()
