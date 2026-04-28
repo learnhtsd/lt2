@@ -18,7 +18,7 @@ local Settings = {
         ["GoldSwampy"]  = "AxeSwamp",
         ["GreenSwampy"] = "AxeSwamp",
         ["Walnut"]      = "GingerbreadAxe",
-        ["Koa"]         = "GingerbreadAxe",
+        ["Koa"]          = "GingerbreadAxe",
         ["CaveCrawler"] = "CaveAxe",
         ["LoneCave"]    = "EndTimesAxe",
     },
@@ -37,11 +37,9 @@ local Settings = {
     RandomVariation = 0.02,
 
     -- [ LOT Settings ]
-    -- How long to wait after chop completes for logs to physically settle
-    -- before LOT tries to grab them.
     LogSettleDelay  = 1.5,
-    -- Drop offset in front of the player when logs are delivered.
     LogDropDistance = 6,
+    ResizeTarget    = Vector3.new(3, 3, 3), -- The size logs become during TP
 }
 
 -- ==========================================
@@ -57,11 +55,10 @@ local camera  = Workspace.CurrentCamera
 
 local isChopping          = false
 local currentTargetWood   = nil
-local preChopCFrame       = nil
+local preChopCFrame        = nil
 local preChopCameraCFrame = nil
 local lockConn            = nil
 
--- Snapshot of LogModels BEFORE chopping so we only deliver NEW logs
 local preChopLogModels    = {}
 
 local groundObject         = Workspace:FindFirstChild("Baseplate")
@@ -120,13 +117,13 @@ local function FindPriorityWood(treeClass)
                 and model.TreeClass.Value == treeClass then
                     local sectionCount   = 0
                     local tempLowestPart = nil
-                    local lowestY        = math.huge
+                    local lowestY         = math.huge
 
                     for _, part in ipairs(model:GetChildren()) do
                         if part.Name == "WoodSection" then
                             sectionCount = sectionCount + 1
                             if part.Position.Y < lowestY then
-                                lowestY        = part.Position.Y
+                                lowestY         = part.Position.Y
                                 tempLowestPart = part
                             end
                         end
@@ -164,8 +161,6 @@ local function ScanForTreeTypes()
     return #foundTypes > 0 and foundTypes or {"None Found"}
 end
 
--- Records every model currently in LogModels so we can
--- ignore them later and only deliver logs from THIS chop.
 local function SnapshotLogModels()
     preChopLogModels = {}
     local logModels = Workspace:FindFirstChild("LogModels")
@@ -175,18 +170,12 @@ local function SnapshotLogModels()
     end
 end
 
--- Only returns InnerWood parts from models that did NOT exist
--- before this chop started, matching the correct TreeClass.
 local function CollectNewInnerWood(treeClass)
     local results   = {}
     local logModels = Workspace:FindFirstChild("LogModels")
-    if not logModels then
-        warn("[TreeModule] workspace.LogModels not found.")
-        return results
-    end
+    if not logModels then return results end
 
     for _, model in ipairs(logModels:GetChildren()) do
-        -- Skip anything that existed before we started chopping
         if preChopLogModels[model] then continue end
 
         if model:IsA("Model") then
@@ -199,11 +188,6 @@ local function CollectNewInnerWood(treeClass)
             end
         end
     end
-
-    if #results == 0 then
-        warn("[TreeModule] No new InnerWood found after chop for TreeClass:", treeClass)
-    end
-
     return results
 end
 
@@ -238,12 +222,11 @@ local function CleanupState()
 end
 
 -- ==========================================
---             CHOP + DELIVER
+--              CHOP + DELIVER
 -- ==========================================
 local function StartChopping(treeClass, LOT, onComplete)
     if isChopping then return end
 
-    -- Snapshot BEFORE anything changes so we know which logs are new
     SnapshotLogModels()
 
     local targetWood = FindPriorityWood(treeClass)
@@ -256,7 +239,7 @@ local function StartChopping(treeClass, LOT, onComplete)
     local equippedTool = DetermineAndEquipAxe(treeClass)
     if not equippedTool then return end
 
-    preChopCFrame       = hrp.CFrame
+    preChopCFrame        = hrp.CFrame
     preChopCameraCFrame = camera.CFrame
 
     isChopping        = true
@@ -299,15 +282,13 @@ local function StartChopping(treeClass, LOT, onComplete)
         local center = camera.ViewportSize / 2
         local rng    = Random.new()
 
-        -- ── PHASE 1: CHOP ─────────────────────────────────────────────
+        -- PHASE 1: CHOP
         while isChopping
         and currentTargetWood.Parent
         and currentTargetWood:IsDescendantOf(Workspace) do
-
             if math.abs(currentTargetWood.Size.Y - originalSizeY) > 0.4 then
                 break
             end
-
             VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true,  game, 1)
             task.wait(Settings.SwingHoldTime)
             VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
@@ -315,41 +296,48 @@ local function StartChopping(treeClass, LOT, onComplete)
                      + rng:NextNumber(-Settings.RandomVariation, Settings.RandomVariation))
         end
 
-        -- ── PHASE 2: RETURN PLAYER HOME ───────────────────────────────
+        -- PHASE 2: RETURN PLAYER HOME
         CleanupState()
 
-        -- ── PHASE 3: WAIT FOR LOGS TO SETTLE ─────────────────────────
+        -- PHASE 3: WAIT FOR LOGS TO SETTLE
         task.wait(Settings.LogSettleDelay)
 
-        -- ── PHASE 4: TELEPORT NEW LOGS TO PLAYER VIA LOT ─────────────
+        -- PHASE 4: TELEPORT NEW LOGS + RESIZE LOGIC
         if LOT then
             local newLogs = CollectNewInnerWood(treeClass)
 
             if #newLogs > 0 then
-                if not LOT.IsBusy() then
-                    local currentHRP = player.Character
-                                   and player.Character:FindFirstChild("HumanoidRootPart")
+                local currentHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 
-                    task.spawn(function()
-                        for i, iw in ipairs(newLogs) do
-                            if LOT.IsBusy() then
-                                -- Wait for LOT to finish the previous log before queuing next
-                                repeat task.wait(0.1) until not LOT.IsBusy()
-                            end
-
-                            local goalCF = currentHRP
-                                and (currentHRP.CFrame * CFrame.new((i - 1) * 5, 0, -Settings.LogDropDistance))
-                                or CFrame.new(iw.Position)
-
-                            LOT.TeleportObjectTo(iw, goalCF)
+                task.spawn(function()
+                    for i, iw in ipairs(newLogs) do
+                        -- Wait for LOT to finish the previous log before starting next
+                        if LOT.IsBusy() then
+                            repeat task.wait(0.1) until not LOT.IsBusy()
                         end
 
-                        if onComplete then onComplete() end
-                    end)
-                else
-                    warn("[TreeModule] LOT is busy — skipping log delivery.")
+                        -- --- [ RESIZE START ] ---
+                        local originalSize = iw.Size
+                        iw.Size = Settings.ResizeTarget
+                        -- ------------------------
+
+                        local goalCF = currentHRP
+                            and (currentHRP.CFrame * CFrame.new((i - 1) * 5, 0, -Settings.LogDropDistance))
+                            or CFrame.new(iw.Position)
+
+                        LOT.TeleportObjectTo(iw, goalCF)
+
+                        -- --- [ RESET SIZE AFTER TP ] ---
+                        task.spawn(function()
+                            -- We wait until this specific TP action finishes
+                            repeat task.wait(0.1) until not LOT.IsBusy()
+                            iw.Size = originalSize
+                        end)
+                        -- -------------------------------
+                    end
+
                     if onComplete then onComplete() end
-                end
+                end)
             else
                 if onComplete then onComplete() end
             end
@@ -360,7 +348,7 @@ local function StartChopping(treeClass, LOT, onComplete)
 end
 
 -- ==========================================
---             DYNXE UI INITIALIZATION
+--              DYNXE UI INITIALIZATION
 -- ==========================================
 function TreeModule.Init(Tab, LOT)
     Tab:CreateSection("Auto Chop Settings")
@@ -371,7 +359,7 @@ function TreeModule.Init(Tab, LOT)
 
     Tab:CreateDropdown("Target Wood Type", treeTypes, selectedTree, function(selected)
         selectedTree = selected
-    end):AddTooltip("Select the type of tree to hunt and chop. Logs will be teleported back to you after the chop.")
+    end):AddTooltip("Select the type of tree. Logs will be resized to 3x3x3 during TP for stability.")
 
     chopActionButton = Tab:CreateAction("Process Tree", "Start Chop", function()
         if isChopping then
@@ -393,10 +381,6 @@ function TreeModule.Init(Tab, LOT)
             end)
         end
     end)
-
-    if type(chopActionButton) == "table" and chopActionButton.AddTooltip then
-        chopActionButton:AddTooltip("Chops the target tree, then teleports the logs back to you. Click again to cancel.")
-    end
 end
 
 return TreeModule
