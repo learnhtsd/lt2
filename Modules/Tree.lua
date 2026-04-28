@@ -352,29 +352,48 @@ local function StartChopping(treeClass, LOT, onComplete)
 
         -- ── PHASE 4: TELEPORT LOGS TO PLAYER VIA LOT ──────────────────
         if LOT then
-            local logParts = CollectLooseLogs(treeClass)
-
-            if #logParts > 0 then
-                -- Guard: don't stack calls if LOT is already busy
-                -- (e.g. called from another module simultaneously).
+            local logModels = Workspace:FindFirstChild("LogModels")
+            local innerWood = nil
+        
+            if logModels then
+                for _, model in ipairs(logModels:GetChildren()) do
+                    if model:IsA("Model") then
+                        local tc = model:FindFirstChild("TreeClass")
+                        if tc and tc.Value == treeClass then
+                            local iw = model:FindFirstChild("InnerWood")
+                            if iw and iw:IsA("BasePart") then
+                                innerWood = iw
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        
+            if innerWood then
                 if not LOT.IsBusy() then
-                    local jobs = BuildLOTJobs(logParts)
-                    -- Run in its own thread so onComplete fires after delivery.
+                    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                    local goalCF = hrp
+                        and (hrp.CFrame * CFrame.new(0, 0, -Settings.LogDropDistance))
+                        or CFrame.new(innerWood.Position) -- fallback
+        
                     task.spawn(function()
-                        LOT.TeleportMany(jobs)
+                        LOT.TeleportObjectTo(innerWood, goalCF)
+                        currentTreeModel = nil
                         if onComplete then onComplete() end
                     end)
                 else
-                    -- LOT is busy — skip delivery and fire completion anyway.
-                    warn("[TreeModule] LOT is busy; skipping log delivery.")
+                    warn("[TreeModule] LOT is busy — skipping log delivery.")
+                    currentTreeModel = nil
                     if onComplete then onComplete() end
                 end
             else
-                -- No loose logs found (tree may still be standing).
+                warn("[TreeModule] InnerWood not found in LogModels for TreeClass:", treeClass)
+                currentTreeModel = nil
                 if onComplete then onComplete() end
             end
         else
-            -- No LOT reference provided; just signal done.
+            currentTreeModel = nil
             if onComplete then onComplete() end
         end
     end)
