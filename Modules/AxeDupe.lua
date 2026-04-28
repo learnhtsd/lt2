@@ -1,5 +1,8 @@
 -- RespawnLoad.lua
--- Kills the player then reloads their currently active save slot.
+-- Reloads the current save slot in the correct LT2 sequence:
+--   1. Invoke RequestLoad  → unloads plot, starts preview phase
+--   2. Wait for server     → let the preview phase settle
+--   3. Kill character      → respawns the player fresh on the new plot
 
 local RespawnLoad = {}
 
@@ -23,8 +26,8 @@ function RespawnLoad.Init(Tab, Library)
     -- ================================================================
     --  CORE LOGIC
     -- ================================================================
-    local function KillAndReload()
-        -- 1. Grab the current slot BEFORE we die (character may be wiped)
+    local function ReloadCurrentSlot()
+        -- 1. Read the active slot FIRST — still valid before anything changes
         local slotObj = LocalPlayer:FindFirstChild("CurrentSaveSlot")
         if not slotObj or slotObj.Value == -1 then
             Notify("ERROR", "No save slot is currently loaded.", 5)
@@ -32,7 +35,7 @@ function RespawnLoad.Init(Tab, Library)
         end
         local slot = slotObj.Value
 
-        -- 2. Verify the remotes exist
+        -- 2. Validate remotes
         if not loadSaveRequests then
             Notify("ERROR", "LoadSaveRequests folder not found.", 5)
             return
@@ -43,36 +46,42 @@ function RespawnLoad.Init(Tab, Library)
             return
         end
 
-        -- 3. Kill the character via Humanoid
-        local char     = LocalPlayer.Character
-        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-        if not humanoid or humanoid.Health <= 0 then
-            Notify("ERROR", "Character not found or already dead.", 5)
-            return
-        end
+        -- 3. Invoke RequestLoad FIRST
+        --    This is what tells the server to unload the current plot
+        --    and enter the load-preview / plot-selection phase.
+        Notify("LOADING", "Unloading plot and starting reload for slot " .. slot .. "…", 4)
 
-        Notify("RESPAWNING", "Killing character to reload slot " .. slot .. "…", 3)
-        humanoid.Health = 0
-
-        -- 4. Wait for the NEW character to fully load in
-        --    CharacterAdded fires on the new spawn, then we wait for the
-        --    HumanoidRootPart so the server has fully initialised the character.
-        local newChar = LocalPlayer.CharacterAdded:Wait()
-        newChar:WaitForChild("HumanoidRootPart", 10)
-
-        -- Small buffer so the server finishes its own spawn logic
-        task.wait(1.5)
-
-        -- 5. Re-invoke the load for the same slot
-        Notify("LOADING", "Reloading slot " .. slot .. "…", 3)
         local ok, err = pcall(function()
             RequestLoadRemote:InvokeServer(slot)
         end)
 
-        if ok then
-            Notify("SUCCESS", "Slot " .. slot .. " reloaded successfully!", 5)
+        if not ok then
+            Notify("FAILED", "RequestLoad failed: " .. tostring(err), 6)
+            return
+        end
+
+        -- 4. Give the server time to fully process the unload/preview phase
+        --    before we wipe the character.
+        task.wait(2)
+
+        -- 5. NOW kill the character so the player respawns cleanly
+        --    onto the freshly loaded plot.
+        local char     = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+
+        if humanoid and humanoid.Health > 0 then
+            Notify("RESPAWNING", "Respawning onto loaded plot…", 3)
+            humanoid.Health = 0
+
+            -- Wait for the new character to be fully ready
+            local newChar = LocalPlayer.CharacterAdded:Wait()
+            newChar:WaitForChild("HumanoidRootPart", 10)
+
+            Notify("SUCCESS", "Slot " .. slot .. " reloaded and respawned!", 5)
         else
-            Notify("FAILED", "Load invoke failed: " .. tostring(err), 6)
+            -- Character already dead or missing — still counts as success
+            -- since RequestLoad already went through
+            Notify("SUCCESS", "Slot " .. slot .. " load request sent!", 5)
         end
     end
 
@@ -81,9 +90,8 @@ function RespawnLoad.Init(Tab, Library)
     -- ================================================================
     Tab:CreateSection("Respawn & Reload")
 
-    Tab:CreateAction("Respawn & Reload Slot", "Respawn", function()
-        -- Run in a separate thread so the UI button returns immediately
-        task.spawn(KillAndReload)
+    Tab:CreateAction("Reload Current Slot", "Reload", function()
+        task.spawn(ReloadCurrentSlot)
     end)
 end
 
