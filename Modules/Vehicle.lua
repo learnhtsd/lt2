@@ -4,7 +4,6 @@ local Players          = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local player           = Players.LocalPlayer
 
--- ── Flip ─────────────────────────────────────────────────────
 local function FlipVehicle()
     local character = player.Character
     local humanoid  = character and character:FindFirstChildOfClass("Humanoid")
@@ -18,7 +17,6 @@ local function FlipVehicle()
     end
 end
 
--- ── Walk up to root model ─────────────────────────────────────
 local function GetRootModel(instance)
     local current = instance
     while current and current.Parent and not current.Parent:IsA("Workspace") do
@@ -27,42 +25,45 @@ local function GetRootModel(instance)
     return current
 end
 
--- ── Interact with LT2 car pad ─────────────────────────────────
--- Known LT2 pad structure:
---   Pickup1
---   ├── ButtonRemote_SpawnButton (RemoteEvent)
---   │   └── ButtonPrompt (ProximityPrompt)  ← primary target
---   ├── SpawnButton (Model)
---   │   └── Mesh                            ← firetouchinterest fallback
+-- LT2 pads use a RemoteEvent called ButtonRemote_SpawnButton.
+-- FireServer() is all that is needed.
 local function InteractWithPad(instance)
     if not instance then return false end
 
     local root = GetRootModel(instance)
     if not root then return false end
 
-    -- Strategy 1: ButtonRemote_SpawnButton → ButtonPrompt (ProximityPrompt)
-    local buttonRemote = root:FindFirstChild("ButtonRemote_SpawnButton")
-    if buttonRemote then
-        local prompt = buttonRemote:FindFirstChildOfClass("ProximityPrompt")
-        if prompt and fireproximityprompt then
-            fireproximityprompt(prompt)
-            return true
-        end
-    end
-
-    -- Strategy 2: Any ProximityPrompt anywhere in the model
-    local anyPrompt = root:FindFirstChildWhichIsA("ProximityPrompt", true)
-    if anyPrompt and fireproximityprompt then
-        fireproximityprompt(anyPrompt)
+    -- Strategy 1: ButtonRemote_SpawnButton (primary LT2 method)
+    local remote = root:FindFirstChild("ButtonRemote_SpawnButton")
+    if remote and remote:IsA("RemoteEvent") then
+        remote:FireServer()
         return true
     end
 
-    -- Strategy 3: firetouchinterest on the SpawnButton mesh
-    local spawnButtonModel = root:FindFirstChild("SpawnButton")
-    if spawnButtonModel then
-        local part = spawnButtonModel:FindFirstChildOfClass("MeshPart")
-                  or spawnButtonModel:FindFirstChildOfClass("Part")
-                  or spawnButtonModel:FindFirstChildOfClass("UnionOperation")
+    -- Strategy 2: Any RemoteEvent with spawn/button in the name
+    for _, child in ipairs(root:GetDescendants()) do
+        if child:IsA("RemoteEvent") then
+            local n = child.Name:lower()
+            if n:find("spawn") or n:find("button") then
+                child:FireServer()
+                return true
+            end
+        end
+    end
+
+    -- Strategy 3: ProximityPrompt
+    local prompt = root:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if prompt and fireproximityprompt then
+        fireproximityprompt(prompt)
+        return true
+    end
+
+    -- Strategy 4: firetouchinterest on SpawnButton mesh
+    local spawnModel = root:FindFirstChild("SpawnButton")
+    if spawnModel then
+        local part = spawnModel:FindFirstChildOfClass("MeshPart")
+                  or spawnModel:FindFirstChildOfClass("Part")
+                  or spawnModel:FindFirstChildOfClass("UnionOperation")
         if part and firetouchinterest then
             local char = player.Character
             local hrp  = char and char:FindFirstChild("HumanoidRootPart")
@@ -75,7 +76,7 @@ local function InteractWithPad(instance)
         end
     end
 
-    -- Strategy 4: ClickDetector anywhere in the model
+    -- Strategy 5: ClickDetector
     local cd = root:FindFirstChildWhichIsA("ClickDetector", true)
     if cd and fireclickdetector then
         fireclickdetector(cd)
@@ -85,7 +86,6 @@ local function InteractWithPad(instance)
     return false
 end
 
--- ── Raycast from camera through mouse ─────────────────────────
 local function GetMouseTarget()
     local camera  = workspace.CurrentCamera
     local mouse   = UserInputService:GetMouseLocation()
@@ -94,7 +94,6 @@ local function GetMouseTarget()
     return result and result.Instance or nil
 end
 
--- ── Init ─────────────────────────────────────────────────────
 function VehicleModule.Init(Tab)
 
     Tab:CreateSection("Vehicle Utilities")
@@ -102,7 +101,7 @@ function VehicleModule.Init(Tab)
     local FlipButton = Tab:CreateAction("Flip Vehicle", "Flip 180°", function()
         FlipVehicle()
     end)
-    FlipButton:AddTooltip("Flips your current vehicle right-side up. Only active when seated in a vehicle.")
+    FlipButton:AddTooltip("Flips your current vehicle right-side up. Only active when seated.")
     FlipButton:SetDisabled(true)
     FlipButton:SetText("No Vehicle")
 
@@ -120,12 +119,10 @@ function VehicleModule.Init(Tab)
             end
         end
     end)
-    SpawnButton:AddTooltip("Spawns a car at the selected pad. Use 'Select Car Pad' first.")
+    SpawnButton:AddTooltip("Spawns a car at the selected pad. Use Select Car Pad first.")
     SpawnButton:SetDisabled(true)
     SpawnButton:SetText("No Pad")
 
-    -- Declared BEFORE assignment so the closure below captures the upvalue
-    -- slot correctly — SelectButton will be valid by the time the button fires.
     local SelectButton
     SelectButton = Tab:CreateAction("Select Car Pad", "Pick", function()
         if pickingMode then return end
@@ -150,12 +147,7 @@ function VehicleModule.Init(Tab)
                 SelectButton:SetDisabled(false)
                 SpawnButton:SetDisabled(false)
                 SpawnButton:SetText("Spawn")
-
-                -- Immediately interact so the car spawns on first pick
-                local ok = InteractWithPad(selectedPad)
-                if not ok then
-                    warn("[Vehicle] Found part but couldn't interact — pad may not have a ProximityPrompt or ClickDetector.")
-                end
+                InteractWithPad(selectedPad)
             else
                 SelectButton:SetText("Pick")
                 SelectButton:SetDisabled(false)
@@ -163,9 +155,8 @@ function VehicleModule.Init(Tab)
             end
         end)
     end)
-    SelectButton:AddTooltip("Click, then left-click a car pad in the world to select it and spawn your vehicle.")
+    SelectButton:AddTooltip("Click, then left-click a car pad in the world to select and spawn your vehicle.")
 
-    -- Vehicle seat polling
     task.spawn(function()
         local lastState = nil
         while task.wait(0.5) do
