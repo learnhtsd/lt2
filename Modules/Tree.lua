@@ -213,16 +213,18 @@ local function CollectLooseLogs(treeClass)
         if model:IsA("Model") then
             local tc = model:FindFirstChild("TreeClass")
             if tc and tc.Value == treeClass then
-                local main = model:FindFirstChild("Main")
-                if main and main:IsA("BasePart") then
-                    table.insert(parts, main)
+                -- No "Main" part — WoodSections are direct children
+                for _, part in ipairs(model:GetChildren()) do
+                    if part.Name == "WoodSection" and part:IsA("BasePart") then
+                        table.insert(parts, part)
+                    end
                 end
             end
         end
     end
 
     if #parts == 0 then
-        warn("[TreeModule] No logs found in workspace.LogModels for TreeClass:", treeClass)
+        warn("[TreeModule] No WoodSection parts found in LogModels for TreeClass:", treeClass)
     end
 
     return parts
