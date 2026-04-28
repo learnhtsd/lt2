@@ -14,7 +14,7 @@ function PlayerMovement.Init(Tab)
     -- ===========================
     _G.WalkSpeed = 16
     _G.SprintEnabled = false
-    _G.SprintSpeed = 64
+    _G.SprintSpeed = 32
     _G.IsSprinting = false
 
     _G.JumpHeight = 50
@@ -23,7 +23,7 @@ function PlayerMovement.Init(Tab)
     -- Flight States
     _G.FlyMasterSwitch = true
     _G.IsFlying = false
-    _G.FlySpeed = 250
+    _G.FlySpeed = 100
 
     _G.Noclip = false
     _G.WaterWalk = false
@@ -109,10 +109,10 @@ function PlayerMovement.Init(Tab)
 
     -- MOVEMENT SECTION
     Tab:CreateSection("Movement")
-    Tab:CreateSlider("Walk Speed", 16, 400, 16, function(v) _G.WalkSpeed = v end)
+    Tab:CreateSlider("Walk Speed", 16, 500, 16, function(v) _G.WalkSpeed = v end)
     Tab:CreateSlider("Jump Height", 50, 800, 50, function(v) _G.JumpHeight = v end)
-    Tab:CreateSlider("Sprint Speed", 32, 800, 64, function(v) _G.SprintSpeed = v end)
-    Tab:CreateSlider("Fly Speed", 32, 1600, 250, function(v) _G.FlySpeed = v end)
+    Tab:CreateSlider("Sprint Speed", 32, 1000, 32, function(v) _G.SprintSpeed = v end)
+    Tab:CreateSlider("Fly Speed", 32, 1000, 100, function(v) _G.FlySpeed = v end)
 
     -- SPRINT ROW (Toggle + Keybind)
     local SprintRow = Tab:CreateRow()
@@ -123,7 +123,7 @@ function PlayerMovement.Init(Tab)
 
     -- FLY ROW (Toggle + Keybind)
     local FlyRow = Tab:CreateRow()
-    FlyRow:CreateToggle("Fly Master", true, function(s) 
+    FlyRow:CreateToggle("Fly", true, function(s) 
         _G.FlyMasterSwitch = s 
         if not s and _G.IsFlying then
             _G.IsFlying = false
@@ -140,7 +140,7 @@ function PlayerMovement.Init(Tab)
     -- CAMERA SECTION
     Tab:CreateSection("Camera Settings")
     Tab:CreateSlider("Field of View", 60, 120, 70, function(v) Camera.FieldOfView = v end)
-    Tab:CreateToggle("Infinite Zoom", false, function(s)
+    Tab:CreateToggle("Zoom", false, function(s)
         LocalPlayer.CameraMaxZoomDistance = s and 10000 or 128
         LocalPlayer.CameraMinZoomDistance = 0.5
     end):AddTooltip("Disable fog in Lighting settings for the best results. At extreme distances, fog can block your view.")
