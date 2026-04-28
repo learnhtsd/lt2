@@ -1361,7 +1361,7 @@ if SettingsModule and SettingsModule.Init then
 end
 
 local DraggerModule = LoadModule("HardDragger")
-if DraggerModule and DraggerModule.Init then DraggerModule.Init(ToolTab) end
+if DraggerModule and DraggerModule.Init then DraggerModule.Init(PlayerTab) end
 
 local WatchDogModule = LoadModule("WatchDog")
 if WatchDogModule and WatchDogModule.Init then WatchDogModule.Init(ProtectionTab) end
