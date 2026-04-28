@@ -217,31 +217,21 @@ local function CollectNewStumps(treeClass)
         if model:IsA("Model") then
             local tc = model:FindFirstChild("TreeClass")
             if tc and tc.Value == treeClass then
-                for _, part in ipairs(model:GetChildren()) do
-                    if part.Name == "WoodSection" and part:IsA("BasePart") then
-                        local id = part:FindFirstChild("ID")
-                        if id and id.Value == 1 then
-                            table.insert(results, part)
-                            break
-                        end
-                    end
+                local iw = model:FindFirstChild("InnerWood")
+                if iw and iw:IsA("BasePart") then
+                    table.insert(results, iw)
                 end
             end
         end
     end
 
     if #results == 0 then
-        warn("[TreeModule] No stump (WoodSection ID=1) found after chop for TreeClass:", treeClass)
+        warn("[TreeModule] No InnerWood found after chop for TreeClass:", treeClass)
     end
 
     return results
 end
 
--- ==========================================
---   COLLECT ALL OWNED STUMPS
---   Scans ALL of LogModels for logs owned
---   by the local player regardless of chop.
--- ==========================================
 local function CollectAllOwnedStumps()
     local results   = {}
     local logModels = Workspace:FindFirstChild("LogModels")
@@ -254,20 +244,14 @@ local function CollectAllOwnedStumps()
         if not model:IsA("Model") then continue end
         if not IsOwnedByLocalPlayer(model) then continue end
 
-        -- Grab the WoodSection with ID == 1 (stump) as the grab handle
-        for _, part in ipairs(model:GetChildren()) do
-            if part.Name == "WoodSection" and part:IsA("BasePart") then
-                local id = part:FindFirstChild("ID")
-                if id and id.Value == 1 then
-                    table.insert(results, part)
-                    break
-                end
-            end
+        local iw = model:FindFirstChild("InnerWood")
+        if iw and iw:IsA("BasePart") then
+            table.insert(results, iw)
         end
     end
 
     if #results == 0 then
-        warn("[TreeModule] No owned logs found in workspace.LogModels.")
+        warn("[TreeModule] No owned InnerWood found in workspace.LogModels.")
     end
 
     return results
