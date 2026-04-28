@@ -12,7 +12,7 @@ function HardDragger.Init(Tab, Library)
     local Config = {
         Enabled       = false,
         Snappiness    = 150,
-        MaxDragRadius = 10,
+        MaxDragRadius = 8,
         MaxThrowSpeed = 300,
     }
 
@@ -200,27 +200,9 @@ function HardDragger.Init(Tab, Library)
     end)
 
     -- UI
-    Tab:CreateSection("Hard Dragger (3rd Person Fix)")
-
     Tab:CreateToggle("Enable Dragger", false, function(state)
         Config.Enabled = state
         if not state then stopPhysics() end
-    end)
-
-    Tab:CreateSlider("Snappiness",  50, 200, 150, function(v)
-        Config.Snappiness = v
-        -- Apply live to active constraints if currently dragging
-        if physicsFolder then
-            for _, c in ipairs(physicsFolder:GetChildren()) do
-                if c:IsA("AlignPosition") or c:IsA("AlignOrientation") then
-                    c.Responsiveness = v
-                end
-            end
-        end
-    end)
-
-    Tab:CreateSlider("Max Radius", 5, 100, 10, function(v)
-        Config.MaxDragRadius = v
     end)
 end
 
