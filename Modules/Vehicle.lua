@@ -23,21 +23,44 @@ local customSettings = {
 local function GetVehicleConfig()
     local char = player.Character
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum or not hum.SeatPart then return nil end
+    if not hum or not hum.SeatPart then
+        print("[Vehicle] GetVehicleConfig: No seat found")
+        return nil
+    end
 
     local playerModels = workspace:FindFirstChild("PlayerModels")
-    if not playerModels then return nil end
+    if not playerModels then
+        print("[Vehicle] GetVehicleConfig: PlayerModels not found in workspace")
+        return nil
+    end
 
-    -- Walk up from the seat until we find the Model sitting directly under PlayerModels
+    -- Walk up from the seat until we find the Model directly under PlayerModels
     local part = hum.SeatPart
+    print("[Vehicle] Starting walk from:", part.Name, part.ClassName)
     while part and part.Parent ~= playerModels do
+        print("[Vehicle]   walking up:", part.Name, "-> parent:", part.Parent and part.Parent.Name or "nil")
         part = part.Parent
     end
 
     if part and part:IsA("Model") then
+        print("[Vehicle] Landed on model:", part.Name)
         local config = part:FindFirstChild("Configuration")
-        return config
+        if config then
+            print("[Vehicle] Found Configuration, values:")
+            for _, v in ipairs(config:GetChildren()) do
+                print("  >>", v.Name, v.ClassName, v.Value)
+            end
+            return config
+        else
+            print("[Vehicle] Configuration NOT found. Model children:")
+            for _, v in ipairs(part:GetChildren()) do
+                print("  >>", v.Name, v.ClassName)
+            end
+        end
+    else
+        print("[Vehicle] Walk failed — part:", part and part.Name or "nil")
     end
+
     return nil
 end
 
@@ -47,6 +70,7 @@ local function ReadConfigValue(config, name)
     if setting and (setting:IsA("NumberValue") or setting:IsA("IntValue")) then
         return setting.Value
     end
+    print("[Vehicle] ReadConfigValue: '" .. name .. "' not found or wrong type")
     return nil
 end
 
@@ -86,16 +110,6 @@ end
 function VehicleModule.Init(Tab, Library)
 
     Tab:CreateSection("Vehicle Customization")
-
-    --[[
-        Real LT2 Configuration ranges:
-            MaxSpeed      — 0.1  to 2.0   (2 decimal places)
-            SteerAngle    — 0.1  to 2.0   (2 decimal places)
-            SteerVelocity — 0.01 to 0.05  (3 decimal places)
-
-        Default is set to the minimum so the fill bar starts at 0%
-        and SetValue() syncs the real value when entering a vehicle.
-    --]]
 
     local SpeedSlider = Tab:CreateSlider("Max Speed", 0.1, 2.0, 0.1, function(val)
         ApplyCustomization("MaxSpeed", val)
@@ -232,33 +246,47 @@ function VehicleModule.Init(Tab, Library)
             local char        = player.Character
             local hum         = char and char:FindFirstChildOfClass("Humanoid")
             local currentSeat = hum and hum.SeatPart
-    
+
             if currentSeat ~= lastSeat then
                 lastSeat = currentSeat
-    
+
                 if currentSeat and currentSeat:IsA("VehicleSeat") then
+                    print("[Vehicle] Seat detected:", currentSeat.Name, "| parent:", currentSeat.Parent and currentSeat.Parent.Name or "nil")
+
                     FlipButton:SetDisabled(false)
                     FlipButton:SetText("Flip 180°")
                     SpeedSlider:SetDisabled(false)
                     SteerAngleSlider:SetDisabled(false)
                     SteerVelocitySlider:SetDisabled(false)
-    
-                    -- Wait for the server to finish populating the config values
-                    task.wait(0.6)
-    
+
+                    -- Wait for server replication
+                    task.wait(0.8)
+
                     local config = GetVehicleConfig()
                     if config then
                         local speed    = ReadConfigValue(config, "MaxSpeed")
                         local angle    = ReadConfigValue(config, "SteerAngle")
                         local velocity = ReadConfigValue(config, "SteerVelocity")
-    
-                        -- Sync sliders to live vehicle values
-                        if speed    then SpeedSlider:SetValue(math.clamp(speed, 0.1, 2.0))              end
-                        if angle    then SteerAngleSlider:SetValue(math.clamp(angle, 0.1, 2.0))          end
-                        if velocity then SteerVelocitySlider:SetValue(math.clamp(velocity, 0.01, 0.05))  end
-    
-                        -- Only re-apply custom settings that were explicitly changed by the player
-                        -- (i.e. non-zero AND different from the live value so we don't stomp the read)
+
+                        print("[Vehicle] Raw read — MaxSpeed:", speed, "| SteerAngle:", angle, "| SteerVelocity:", velocity)
+
+                        if speed ~= nil then
+                            local clamped = math.clamp(speed, 0.1, 2.0)
+                            print("[Vehicle] SetValue SpeedSlider ->", clamped)
+                            SpeedSlider:SetValue(clamped)
+                        end
+                        if angle ~= nil then
+                            local clamped = math.clamp(angle, 0.1, 2.0)
+                            print("[Vehicle] SetValue SteerAngleSlider ->", clamped)
+                            SteerAngleSlider:SetValue(clamped)
+                        end
+                        if velocity ~= nil then
+                            local clamped = math.clamp(velocity, 0.01, 0.05)
+                            print("[Vehicle] SetValue SteerVelocitySlider ->", clamped)
+                            SteerVelocitySlider:SetValue(clamped)
+                        end
+
+                        -- Re-apply player customisations only if explicitly changed
                         if customSettings.MaxSpeed > 0 and customSettings.MaxSpeed ~= speed then
                             ApplyCustomization("MaxSpeed", customSettings.MaxSpeed)
                         end
@@ -268,6 +296,8 @@ function VehicleModule.Init(Tab, Library)
                         if customSettings.SteerVelocity > 0 and customSettings.SteerVelocity ~= velocity then
                             ApplyCustomization("SteerVelocity", customSettings.SteerVelocity)
                         end
+                    else
+                        print("[Vehicle] Config was nil after wait — sliders not synced")
                     end
                 else
                     FlipButton:SetDisabled(true)
