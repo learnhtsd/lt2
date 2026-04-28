@@ -1144,6 +1144,7 @@ local WorldTab      = HubWindow:CreateTab("World")
 local TeleportTab   = HubWindow:CreateTab("Teleport")
 local WoodTab       = HubWindow:CreateTab("Wood")
 local PlotTab       = HubWindow:CreateTab("Plot")
+local DuplicatetTab = HubWindow:CreateTab("Duplicate")
 local ShopTab       = HubWindow:CreateTab("Shop")
 local VehicleTab    = HubWindow:CreateTab("Vehicle")
 local BuildTab      = HubWindow:CreateTab("Build")
@@ -1219,7 +1220,7 @@ local PlotModule = LoadModule("Plot")
 if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
 
 local AxeDupeModule = LoadModule("AxeDupe")
-if AxeDupeModule and AxeDupeModule.Init then AxeDupeModule.Init(PlotTab) end
+if AxeDupeModule and AxeDupeModule.Init then AxeDupeModule.Init(Duplicate) end
 
 local TreeModule = LoadModule("Tree")
 if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, LooseObjectTeleportModule) end
