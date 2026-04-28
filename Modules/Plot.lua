@@ -16,8 +16,20 @@ function Plot.Init(Tab, Library)
     -- ==========================================
     -- SAVE & LOAD MANAGEMENT
     -- ==========================================
-    Tab:CreateSection("Save Management")
-
+    Tab:CreateSection("Management")
+    local selectedSlotToLoad = 1
+    if Tab.CreateDropdown then
+        Tab:CreateDropdown("Select Slot to Load", {"1", "2", "3", "4", "5", "6"}, "1", function(value)
+            selectedSlotToLoad = tonumber(value)
+        end)
+    end
+    Tab:CreateAction("Load Selected Slot", "Load", function()
+        local RequestLoadRemote = loadSaveRequests and loadSaveRequests:FindFirstChild("RequestLoad")
+        if RequestLoadRemote then
+            RequestLoadRemote:InvokeServer(selectedSlotToLoad)
+            if Library and Library.Notify then Library:Notify("SUCCESS", "Loading slot " .. selectedSlotToLoad, 5) end
+        end
+    end)
     Tab:CreateAction("Save Slot", "Save", function()
         local currentSlot = LocalPlayer:FindFirstChild("CurrentSaveSlot")
         if loadSaveRequests and currentSlot and currentSlot.Value ~= -1 then
@@ -29,29 +41,6 @@ function Plot.Init(Tab, Library)
             end
         end
     end)
-
-    Tab:CreateSection("Load Management")
-    
-    local selectedSlotToLoad = 1
-    if Tab.CreateDropdown then
-        Tab:CreateDropdown("Select Slot to Load", {"1", "2", "3", "4", "5", "6"}, "1", function(value)
-            selectedSlotToLoad = tonumber(value)
-        end)
-    end
-
-    Tab:CreateAction("Load Selected Slot", "Load", function()
-        local RequestLoadRemote = loadSaveRequests and loadSaveRequests:FindFirstChild("RequestLoad")
-        if RequestLoadRemote then
-            RequestLoadRemote:InvokeServer(selectedSlotToLoad)
-            if Library and Library.Notify then Library:Notify("SUCCESS", "Loading slot " .. selectedSlotToLoad, 5) end
-        end
-    end)
-
-    -- ==========================================
-    -- PROPERTY ACTIONS
-    -- ==========================================
-    Tab:CreateSection("Property Actions")
-
     Tab:CreateAction("Claim Free Land", "Claim", function()
         local properties = Workspace:FindFirstChild("Properties")
         if not properties or not propertyPurchasing then return end
@@ -69,7 +58,6 @@ function Plot.Init(Tab, Library)
             end
         end
     end)
-
     Tab:CreateAction("Max Land (Full Expand)", "Expand", function()
         local properties = Workspace:FindFirstChild("Properties")
         if not properties or not propertyPurchasing then return end
@@ -98,12 +86,6 @@ function Plot.Init(Tab, Library)
             if Library and Library.Notify then Library:Notify("SUCCESS", "Plot fully expanded!", 3) end
         end
     end)
-
-    -- ==========================================
-    -- NEW: BASE MANAGEMENT (From Screenshots)
-    -- ==========================================
-    Tab:CreateSection("Base Management")
-
     Tab:CreateAction("Clear Entire Base", "Wipe", function()
         local playerModels = Workspace:FindFirstChild("PlayerModels")
         local destroyRemote = interaction and interaction:FindFirstChild("DestroyStructure")
