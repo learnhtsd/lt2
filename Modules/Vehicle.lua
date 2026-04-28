@@ -23,51 +23,34 @@ local customSettings = {
 local function GetVehicleConfig()
     local char = player.Character
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum or not hum.SeatPart then
-        print("[Vehicle] GetVehicleConfig: No seat found")
-        return nil
+    local seat = hum and hum.SeatPart
+
+    if not seat then 
+        return nil 
     end
 
-    local playerModels = workspace:FindFirstChild("PlayerModels")
-    if not playerModels then
-        print("[Vehicle] GetVehicleConfig: PlayerModels not found in workspace")
-        return nil
-    end
-
-    -- Walk up from the seat until we find the Model directly under PlayerModels
-    local part = hum.SeatPart
-    print("[Vehicle] Starting walk from:", part.Name, part.ClassName)
-    while part and part.Parent ~= playerModels do
-        print("[Vehicle]   walking up:", part.Name, "-> parent:", part.Parent and part.Parent.Name or "nil")
-        part = part.Parent
-    end
-
-    if part and part:IsA("Model") then
-        print("[Vehicle] Landed on model:", part.Name)
-        local config = part:FindFirstChild("Configuration")
-        if config then
-            print("[Vehicle] Found Configuration, values:")
-            for _, v in ipairs(config:GetChildren()) do
-                print("  >>", v.Name, v.ClassName, v.Value)
-            end
+    -- Dynamically walk up the hierarchy from the seat looking for the Configuration folder
+    local current = seat
+    while current and current ~= workspace do
+        local config = current:FindFirstChild("Configuration")
+        
+        -- Verify it's the correct config by checking for one of the expected vehicle values
+        if config and config:FindFirstChild("MaxSpeed") then
             return config
-        else
-            print("[Vehicle] Configuration NOT found. Model children:")
-            for _, v in ipairs(part:GetChildren()) do
-                print("  >>", v.Name, v.ClassName)
-            end
         end
-    else
-        print("[Vehicle] Walk failed — part:", part and part.Name or "nil")
+        current = current.Parent
     end
 
+    print("[Vehicle] GetVehicleConfig: Configuration folder not found in vehicle hierarchy.")
     return nil
 end
 
 local function ReadConfigValue(config, name)
     if not config then return nil end
     local setting = config:FindFirstChild(name)
-    if setting and (setting:IsA("NumberValue") or setting:IsA("IntValue")) then
+    
+    -- Broadened check to ValueBase to catch NumberValue, IntValue, DoubleConstrainedValue, etc.
+    if setting and setting:IsA("ValueBase") then
         return setting.Value
     end
     print("[Vehicle] ReadConfigValue: '" .. name .. "' not found or wrong type")
@@ -79,7 +62,7 @@ local function ApplyCustomization(name, value)
     local config = GetVehicleConfig()
     if config then
         local setting = config:FindFirstChild(name)
-        if setting and (setting:IsA("NumberValue") or setting:IsA("IntValue")) then
+        if setting and setting:IsA("ValueBase") then
             setting.Value = value
         end
     end
@@ -250,7 +233,8 @@ function VehicleModule.Init(Tab, Library)
             if currentSeat ~= lastSeat then
                 lastSeat = currentSeat
 
-                if currentSeat and currentSeat:IsA("VehicleSeat") then
+                -- We just check if currentSeat exists. LT2 uses regular "Seat" objects, not VehicleSeats.
+                if currentSeat then
                     print("[Vehicle] Seat detected:", currentSeat.Name, "| parent:", currentSeat.Parent and currentSeat.Parent.Name or "nil")
 
                     FlipButton:SetDisabled(false)
@@ -272,17 +256,14 @@ function VehicleModule.Init(Tab, Library)
 
                         if speed ~= nil then
                             local clamped = math.clamp(speed, 0.1, 2.0)
-                            print("[Vehicle] SetValue SpeedSlider ->", clamped)
                             SpeedSlider:SetValue(clamped)
                         end
                         if angle ~= nil then
                             local clamped = math.clamp(angle, 0.1, 2.0)
-                            print("[Vehicle] SetValue SteerAngleSlider ->", clamped)
                             SteerAngleSlider:SetValue(clamped)
                         end
                         if velocity ~= nil then
                             local clamped = math.clamp(velocity, 0.01, 0.05)
-                            print("[Vehicle] SetValue SteerVelocitySlider ->", clamped)
                             SteerVelocitySlider:SetValue(clamped)
                         end
 
