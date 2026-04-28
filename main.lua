@@ -819,6 +819,7 @@ function Library:CreateWindow()
 
             local sliding = false
             SliderBtn.InputBegan:Connect(function(input)
+                if sliderDisabled then return end
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     sliding = true; UpdateSlider()
                 end
@@ -827,9 +828,27 @@ function Library:CreateWindow()
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end
             end)
             UserInputService.InputChanged:Connect(function(input)
-                if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then UpdateSlider() end
+                if sliding and not sliderDisabled and input.UserInputType == Enum.UserInputType.MouseMovement then UpdateSlider() end
             end)
 
+            local sliderDisabled = false
+            
+            function Element:SetDisabled(state)
+                sliderDisabled = state
+                TweenService:Create(SliderFill, TweenInfo.new(0.2), {
+                    BackgroundColor3 = state and T.TextSecondary or T.Accent
+                }):Play()
+                TweenService:Create(SliderBG, TweenInfo.new(0.2), {
+                    BackgroundTransparency = state and 0.5 or 0
+                }):Play()
+                TweenService:Create(SliderBtn, TweenInfo.new(0.2), {
+                    BackgroundTransparency = 1  -- always invisible, just blocks input
+                }):Play()
+                ValueLabel.TextColor3  = state and T.TextSecondary or T.Accent
+                TitleLabel.TextColor3  = state and T.TextSecondary or T.TextPrimary
+                SliderBtn.Active       = not state
+            end
+            
             return AttachTooltip(TitleLabel, Element)
         end
 
