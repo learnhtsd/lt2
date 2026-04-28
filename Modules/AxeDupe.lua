@@ -1,8 +1,6 @@
 -- RespawnLoad.lua
--- Reloads the current save slot in the correct LT2 sequence:
---   1. Invoke RequestLoad  → unloads plot, starts preview phase
---   2. Wait for server     → let the preview phase settle
---   3. Kill character      → respawns the player fresh on the new plot
+-- Fires RequestLoad and kills the character in parallel so the respawn
+-- lands on the freshly loaded plot without either step racing the other.
 
 local RespawnLoad = {}
 
@@ -26,8 +24,14 @@ function RespawnLoad.Init(Tab, Library)
     -- ================================================================
     --  CORE LOGIC
     -- ================================================================
+
+    -- How long to wait after firing RequestLoad before killing the character.
+    -- Increase if the plot hasn't unloaded yet when you respawn.
+    -- Decrease if you're spawning before the new plot is ready.
+    local KILL_DELAY = 0.2 -- seconds
+
     local function ReloadCurrentSlot()
-        -- 1. Read the active slot FIRST — still valid before anything changes
+        -- 1. Read active slot
         local slotObj = LocalPlayer:FindFirstChild("CurrentSaveSlot")
         if not slotObj or slotObj.Value == -1 then
             Notify("ERROR", "No save slot is currently loaded.", 5)
@@ -46,43 +50,42 @@ function RespawnLoad.Init(Tab, Library)
             return
         end
 
-        -- 3. Invoke RequestLoad FIRST
-        --    This is what tells the server to unload the current plot
-        --    and enter the load-preview / plot-selection phase.
-        Notify("LOADING", "Unloading plot and starting reload for slot " .. slot .. "…", 4)
-
-        local ok, err = pcall(function()
-            RequestLoadRemote:InvokeServer(slot)
-        end)
-
-        if not ok then
-            Notify("FAILED", "RequestLoad failed: " .. tostring(err), 6)
+        local char     = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then
+            Notify("ERROR", "Character not found or already dead.", 5)
             return
         end
 
-        -- 4. Give the server time to fully process the unload/preview phase
-        --    before we wipe the character.
-        task.wait(2)
+        Notify("RELOADING", "Reloading slot " .. slot .. "…", 4)
 
-        -- 5. NOW kill the character so the player respawns cleanly
-        --    onto the freshly loaded plot.
-        local char     = LocalPlayer.Character
-        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        -- 3. Fire RequestLoad and kill in parallel.
+        --    RequestLoad goes first, then KILL_DELAY later the character
+        --    dies — giving the server just enough time to start the unload
+        --    before the respawn begins.
+        task.spawn(function()
+            local ok, err = pcall(function()
+                RequestLoadRemote:InvokeServer(slot)
+            end)
+            if not ok then
+                Notify("FAILED", "RequestLoad failed: " .. tostring(err), 6)
+            end
+        end)
 
-        if humanoid and humanoid.Health > 0 then
-            Notify("RESPAWNING", "Respawning onto loaded plot…", 3)
-            humanoid.Health = 0
+        task.delay(KILL_DELAY, function()
+            -- Re-fetch in case the reference changed
+            local c = LocalPlayer.Character
+            local h = c and c:FindFirstChildOfClass("Humanoid")
+            if h and h.Health > 0 then
+                h.Health = 0
+            end
+        end)
 
-            -- Wait for the new character to be fully ready
-            local newChar = LocalPlayer.CharacterAdded:Wait()
-            newChar:WaitForChild("HumanoidRootPart", 10)
+        -- 4. Wait for the fresh character then confirm
+        local newChar = LocalPlayer.CharacterAdded:Wait()
+        newChar:WaitForChild("HumanoidRootPart", 10)
 
-            Notify("SUCCESS", "Slot " .. slot .. " reloaded and respawned!", 5)
-        else
-            -- Character already dead or missing — still counts as success
-            -- since RequestLoad already went through
-            Notify("SUCCESS", "Slot " .. slot .. " load request sent!", 5)
-        end
+        Notify("SUCCESS", "Slot " .. slot .. " reloaded!", 5)
     end
 
     -- ================================================================
