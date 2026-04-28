@@ -351,6 +351,15 @@ local function StartChopping(treeClass, LOT, onComplete)
         task.wait(Settings.LogSettleDelay)
 
         -- ── PHASE 4: TELEPORT LOGS TO PLAYER VIA LOT ──────────────────
+        -- Temporarily add this right before the LOT block in Phase 4
+        print("[TreeModule] LOT value:", LOT)
+        if LOT then
+            print("[TreeModule] LOT functions:")
+            for k, v in pairs(LOT) do
+                print("  ", k, type(v))
+            end
+        end
+            
         if LOT then
             local logModels = Workspace:FindFirstChild("LogModels")
             local innerWood = nil
