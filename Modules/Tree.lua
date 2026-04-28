@@ -181,11 +181,9 @@ end
 local function IsOwnedByLocalPlayer(model)
     local ownerObj = model:FindFirstChild("Owner")
     if ownerObj then
-        -- ObjectValue pointing directly to the Player instance
         if ownerObj:IsA("ObjectValue") and ownerObj.Value == player then
             return true
         end
-        -- StringValue holding the player's name
         if ownerObj:IsA("StringValue") and ownerObj.Value == player.Name then
             return true
         end
@@ -317,7 +315,6 @@ local function RunLOTBatch(LOT, stumps, goalCFBuilder, onComplete)
 
             LOT.TeleportObjectTo(stump, goalCF)
 
-            -- Reset size after this specific TP finishes
             task.spawn(function()
                 repeat task.wait(0.1) until not LOT.IsBusy()
                 if stump and stump.Parent then
@@ -328,6 +325,75 @@ local function RunLOTBatch(LOT, stumps, goalCFBuilder, onComplete)
 
         if onComplete then onComplete() end
     end)
+end
+
+-- ==========================================
+--   WAIT FOR LOGS TO SETTLE
+--   Polls the AssemblyLinearVelocity of each
+--   new InnerWood until it stops moving,
+--   with a max timeout so we never hang.
+--
+--   *** MUST remain above StartChopping ***
+-- ==========================================
+local function WaitForLogsToSettle(treeClass)
+    local VELOCITY_THRESHOLD = 0.5   -- studs/s — below this = "still"
+    local STABLE_DURATION    = 0.3   -- must stay still for this many seconds
+    local TIMEOUT            = 10    -- give up after this many seconds regardless
+    local POLL_RATE          = 0.05  -- how often to check (seconds)
+
+    local logModels = Workspace:FindFirstChild("LogModels")
+    if not logModels then
+        task.wait(Settings.LogSettleDelay)
+        return
+    end
+
+    local innerWoods = {}
+    for _, model in ipairs(logModels:GetChildren()) do
+        if preChopLogModels[model] then continue end
+        if model:IsA("Model") then
+            local tc = model:FindFirstChild("TreeClass")
+            if tc and tc.Value == treeClass then
+                local iw = model:FindFirstChild("InnerWood")
+                if iw and iw:IsA("BasePart") then
+                    table.insert(innerWoods, iw)
+                end
+            end
+        end
+    end
+
+    if #innerWoods == 0 then
+        task.wait(Settings.LogSettleDelay)
+        return
+    end
+
+    local deadline   = tick() + TIMEOUT
+    local stableFrom = nil
+
+    while tick() < deadline do
+        local allStill = true
+
+        for _, iw in ipairs(innerWoods) do
+            if not iw or not iw.Parent then continue end
+            if iw.AssemblyLinearVelocity.Magnitude > VELOCITY_THRESHOLD then
+                allStill = false
+                break
+            end
+        end
+
+        if allStill then
+            if not stableFrom then
+                stableFrom = tick()
+            elseif tick() - stableFrom >= STABLE_DURATION then
+                return
+            end
+        else
+            stableFrom = nil
+        end
+
+        task.wait(POLL_RATE)
+    end
+
+    warn("[TreeModule] WaitForLogsToSettle timed out after", TIMEOUT, "seconds — proceeding anyway.")
 end
 
 -- ==========================================
@@ -409,8 +475,7 @@ local function StartChopping(treeClass, LOT, onComplete)
         CleanupState()
 
         -- ── PHASE 3: WAIT FOR LOGS TO SETTLE ─────────────────────────
-        -- Old: task.wait(Settings.LogSettleDelay)
-        WaitForLogsToSettle(treeClass)  -- ← dynamic velocity-based wait
+        WaitForLogsToSettle(treeClass)
 
         -- ── PHASE 4: DELIVER NEW LOGS ─────────────────────────────────
         local stumps     = CollectNewStumps(treeClass)
@@ -422,76 +487,6 @@ local function StartChopping(treeClass, LOT, onComplete)
                 or CFrame.new(0, 0, 0)
         end, onComplete)
     end)
-end
-
--- ==========================================
---   WAIT FOR LOG TO SETTLE
---   Polls the AssemblyLinearVelocity of each
---   new InnerWood until it stops moving,
---   with a max timeout so we never hang.
--- ==========================================
-local function WaitForLogsToSettle(treeClass)
-    local VELOCITY_THRESHOLD = 0.5   -- studs/s — below this = "still"
-    local STABLE_DURATION    = 0.3   -- must stay still for this many seconds
-    local TIMEOUT            = 10    -- give up after this many seconds regardless
-    local POLL_RATE          = 0.05  -- how often to check (seconds)
-
-    local logModels = Workspace:FindFirstChild("LogModels")
-    if not logModels then
-        task.wait(Settings.LogSettleDelay)
-        return
-    end
-
-    -- Collect the InnerWood parts from NEW models only
-    local innerWoods = {}
-    for _, model in ipairs(logModels:GetChildren()) do
-        if preChopLogModels[model] then continue end
-        if model:IsA("Model") then
-            local tc = model:FindFirstChild("TreeClass")
-            if tc and tc.Value == treeClass then
-                local iw = model:FindFirstChild("InnerWood")
-                if iw and iw:IsA("BasePart") then
-                    table.insert(innerWoods, iw)
-                end
-            end
-        end
-    end
-
-    if #innerWoods == 0 then
-        task.wait(Settings.LogSettleDelay)
-        return
-    end
-
-    local deadline   = tick() + TIMEOUT
-    local stableFrom = nil
-
-    while tick() < deadline do
-        local allStill = true
-
-        for _, iw in ipairs(innerWoods) do
-            if not iw or not iw.Parent then continue end
-            if iw.AssemblyLinearVelocity.Magnitude > VELOCITY_THRESHOLD then
-                allStill = false
-                break
-            end
-        end
-
-        if allStill then
-            if not stableFrom then
-                stableFrom = tick()
-            elseif tick() - stableFrom >= STABLE_DURATION then
-                -- Been still long enough — good to go
-                return
-            end
-        else
-            -- Still moving — reset the stable timer
-            stableFrom = nil
-        end
-
-        task.wait(POLL_RATE)
-    end
-
-    warn("[TreeModule] WaitForLogsToSettle timed out after", TIMEOUT, "seconds — proceeding anyway.")
 end
 
 -- ==========================================
@@ -596,7 +591,6 @@ function TreeModule.Init(Tab, LOT)
             sellButton:SetText("Selling...")
         end
 
-        -- Fan logs out around the sell point so they don't all stack
         local sellPos = Settings.SellPosition
         RunLOTBatch(LOT, stumps, function(i, _)
             return CFrame.new(
