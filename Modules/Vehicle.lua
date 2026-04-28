@@ -1,25 +1,3 @@
--- ============================================================
--- PASTE THIS BLOCK inside Tab:CreateAction(), just before the
--- final:  return AttachTooltip(TitleLabel, Element)
--- It exposes SetDisabled() and SetText() on the returned element.
--- ============================================================
-
-    function Element:SetDisabled(disabled)
-        ActionBtn.AutoButtonColor = not disabled
-        ActionBtn.TextColor3      = disabled and Color3.fromRGB(80, 80, 90) or T.TextWhite
-        TweenService:Create(ActionBtn, TweenInfo.new(0.2), {
-            BackgroundColor3 = disabled and Color3.fromRGB(28, 28, 33) or T.SurfaceDeep
-        }):Play()
-    end
-
-    function Element:SetText(text)
-        ActionBtn.Text = text
-    end
-
--- ============================================================
--- Vehicle.lua  (all original bugs fixed)
--- ============================================================
-
 local VehicleModule = {}
 
 local Players = game:GetService("Players")
@@ -35,7 +13,7 @@ local function FlipVehicle()
 
         if targetPart then
             local flipCF = targetPart.CFrame * CFrame.Angles(0, 0, math.pi)
-            targetPart.CFrame = flipCF + Vector3.new(0, 2, 0)  -- nudge up to prevent clipping
+            targetPart.CFrame = flipCF + Vector3.new(0, 2, 0)
         end
     end
 end
@@ -49,11 +27,10 @@ function VehicleModule.Init(Tab)
 
     FlipButton:AddTooltip("Flips your current vehicle right-side up. Only active when seated in a vehicle.")
 
-    -- Start disabled — player isn't in a vehicle yet
+    -- Disabled by default until a vehicle is detected
     FlipButton:SetDisabled(true)
     FlipButton:SetText("No Vehicle")
 
-    -- Poll seat state and update button accordingly
     task.spawn(function()
         local lastState = nil
 
@@ -64,14 +41,8 @@ function VehicleModule.Init(Tab)
 
             if isInVehicle ~= lastState then
                 lastState = isInVehicle
-
-                if isInVehicle then
-                    FlipButton:SetDisabled(false)
-                    FlipButton:SetText("Flip 180°")
-                else
-                    FlipButton:SetDisabled(true)
-                    FlipButton:SetText("No Vehicle")
-                end
+                FlipButton:SetDisabled(not isInVehicle)
+                FlipButton:SetText(isInVehicle and "Flip 180°" or "No Vehicle")
             end
         end
     end)
