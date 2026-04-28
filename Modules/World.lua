@@ -17,12 +17,14 @@ function World.Init(Tab, Lib)
     _G.BouldersRemoved = false 
     _G.VolcanoBouldersRemoved = false
     _G.PostProcessing = true
+    _G.EnhancedGraphics = false -- New State
 
     local waterParts = {}
     local boulderParts = {} 
     local effectCache = {}
+    local originalLightingSettings = {} -- To restore visuals
 
-    -- IMPROVED: Incremental Scan to prevent freezing
+    -- IMPROVED: Incremental Scan
     local function ScanWorld()
         waterParts = {}
         boulderParts = {}
@@ -32,21 +34,13 @@ function World.Init(Tab, Lib)
         
         for _, obj in pairs(descendants) do
             count = count + 1
-            
-            -- Yield every 500 objects so the game doesn't hang
-            if count % 500 == 0 then 
-                task.wait() 
-            end
+            if count % 500 == 0 then task.wait() end
 
             if obj:IsA("BasePart") then
-                -- Cache Water
                 if obj.Name == "Water" then
                     table.insert(waterParts, {Instance = obj, OriginalTransparency = obj.Transparency})
                 end
-                
-                -- Cache Boulders
                 if obj.Name == "Boulder" or obj.Name == "SmallBoulder" then
-                    -- Filter out the "Dynamic" boulders (the ones with fire) to keep them separate
                     if not (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
                         table.insert(boulderParts, {Instance = obj, OriginalTransparency = obj.Transparency})
                     end
@@ -65,12 +59,53 @@ function World.Init(Tab, Lib)
         end
     end
 
-    -- Run initial scan in a separate thread so it doesn't block the UI loading
     task.spawn(ScanWorld)
 
     -- ===========================
-    -- TOGGLE LOGIC
+    -- ENHANCED VISUALS LOGIC
     -- ===========================
+    local function ToggleEnhanced(state)
+        if state then
+            -- Save original settings before changing
+            originalLightingSettings.Brightness = Lighting.Brightness
+            originalLightingSettings.OutdoorAmbient = Lighting.OutdoorAmbient
+            originalLightingSettings.ExposureCompensation = Lighting.ExposureCompensation
+            
+            -- Apply "High End" Visuals
+            Lighting.Brightness = 3
+            Lighting.ExposureCompensation = 0.5
+            
+            -- Create/Adjust Effects
+            local bloom = Lighting:FindFirstChild("EnhancedBloom") or Instance.new("BloomEffect", Lighting)
+            bloom.Name = "EnhancedBloom"
+            bloom.Intensity = 1
+            bloom.Size = 24
+            bloom.Threshold = 2
+            bloom.Enabled = true
+
+            local cc = Lighting:FindFirstChild("EnhancedCC") or Instance.new("ColorCorrectionEffect", Lighting)
+            cc.Name = "EnhancedCC"
+            cc.Contrast = 0.1
+            cc.Saturation = 0.15
+            cc.TintColor = Color3.fromRGB(255, 253, 245)
+            cc.Enabled = true
+
+            local sunrays = Lighting:FindFirstChild("EnhancedRays") or Instance.new("SunRaysEffect", Lighting)
+            sunrays.Name = "EnhancedRays"
+            sunrays.Intensity = 0.1
+            sunrays.Spread = 1
+            sunrays.Enabled = true
+        else
+            -- Restore original settings
+            Lighting.Brightness = originalLightingSettings.Brightness or 2
+            Lighting.ExposureCompensation = originalLightingSettings.ExposureCompensation or 0
+            
+            if Lighting:FindFirstChild("EnhancedBloom") then Lighting.EnhancedBloom.Enabled = false end
+            if Lighting:FindFirstChild("EnhancedCC") then Lighting.EnhancedCC.Enabled = false end
+            if Lighting:FindFirstChild("EnhancedRays") then Lighting.EnhancedRays.Enabled = false end
+        end
+    end
+
     local function ToggleWater(state)
         for _, data in pairs(waterParts) do
             local part = data.Instance
@@ -118,6 +153,13 @@ function World.Init(Tab, Lib)
 
     Tab:CreateSection("Environment")
 
+    -- THE NEW ENHANCED TOGGLE
+    Tab:CreateToggle("Enhanced Visuals", false, function(s)
+        _G.EnhancedGraphics = s
+        ToggleEnhanced(s)
+        if Lib and Lib.Notify then Lib:Notify("Graphics", s and "Visuals Enhanced!" or "Visuals reset.", 3) end
+    end)
+
     Tab:CreateToggle("Post-Processing", true, function(s)
         _G.PostProcessing = s
         for effect, originalState in pairs(effectCache) do
@@ -135,16 +177,14 @@ function World.Init(Tab, Lib)
     Tab:CreateToggle("Toggle Tundra Boulders", false, function(s)
         _G.BouldersRemoved = s
         ToggleBoulders(s)
-        if Lib and Lib.Notify then Lib:Notify("Environment", s and "Boulders cleared!" or "Boulders restored.", 3) end
     end)
 
     Tab:CreateToggle("Toggle Volcano Boulders", false, function(s)
         _G.VolcanoBouldersRemoved = s
-        if Lib and Lib.Notify then Lib:Notify("Environment", s and "Volcano bypass active!" or "Volcano restored.", 3) end
     end)
 
     -- ===========================
-    -- MASTER LOOP (Optimized)
+    -- MASTER LOOP
     -- ===========================
     RunService.RenderStepped:Connect(function()
         if _G.TimeLock then Lighting.ClockTime = _G.TimeOfDay end
@@ -172,7 +212,6 @@ function World.Init(Tab, Lib)
                     if obj:IsA("BasePart") and obj.CanCollide == true then
                         obj.CanCollide = false
                         obj.Transparency = 1
-                        -- Move them far away so they don't hit the player
                         obj.CFrame = obj.CFrame * CFrame.new(0, -1000, 0) 
                     end
                 end
