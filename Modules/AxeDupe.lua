@@ -21,9 +21,6 @@ function RespawnLoad.Init(Tab, Library)
     -- ================================================================
     --  CORE LOGIC
     -- ================================================================
-    -- How long to wait after firing RequestLoad before killing the character.
-    -- Increase if the plot hasn't unloaded yet when you respawn.
-    -- Decrease if you're spawning before the new plot is ready.
     local KILL_DELAY = 0.2 -- seconds
 
     local function ReloadCurrentSlot()
@@ -56,9 +53,6 @@ function RespawnLoad.Init(Tab, Library)
         Notify("RELOADING", "Reloading slot " .. slot .. "…", 4)
 
         -- 3. Fire RequestLoad and kill in parallel.
-        --    RequestLoad goes first, then KILL_DELAY later the character
-        --    is sent to the void — giving the server just enough time to
-        --    start the unload before the respawn begins.
         task.spawn(function()
             local ok, err = pcall(function()
                 RequestLoadRemote:InvokeServer(slot)
@@ -69,20 +63,10 @@ function RespawnLoad.Init(Tab, Library)
         end)
 
         task.delay(KILL_DELAY, function()
-            -- Re-fetch in case the reference changed
             local c   = LocalPlayer.Character
             local hrp = c and c:FindFirstChild("HumanoidRootPart")
-            local h   = c and c:FindFirstChildOfClass("Humanoid")
-            if hrp and h and h.Health > 0 then
-                -- Teleport into the void to trigger a natural death
+            if hrp then
                 hrp.CFrame = CFrame.new(0, -5000, 0)
-                -- Fallback: if the void doesn't kill fast enough, zero health directly
-                task.delay(1.5, function()
-                    local h2 = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if h2 and h2.Health > 0 then
-                        h2.Health = 0
-                    end
-                end)
             end
         end)
 
