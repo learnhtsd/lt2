@@ -10,10 +10,6 @@ local Player            = Players.LocalPlayer
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                     PURCHASE COORDINATES                        │
--- │                                                                 │
--- │  ITEM_DROP_CF   — where LOT places the shop box before buying  │
--- │  PLAYER_BUY_CF  — where the player is teleported to trigger    │
--- │                   the NPC purchase range                        │
 -- └─────────────────────────────────────────────────────────────────┘
 local ITEM_DROP_CF  = CFrame.new(268.5, 5.2,  67.4)
 local PLAYER_BUY_CF = CFrame.new(262.1, 3.2,  64.8)
@@ -29,9 +25,6 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                     NPC / REMOTE SETUP                          │
--- │                                                                 │
--- │  Mirrors the buyer script's NPC table and remote references.    │
--- │  IDs are fetched once on the first purchase attempt.            │
 -- └─────────────────────────────────────────────────────────────────┘
 local NPCs = {
     Thom    = workspace.Stores.WoodRUs.Thom,
@@ -46,8 +39,29 @@ local Remote      = ReplicatedStorage.NPCDialog.PlayerChatted
 local PromptChat  = ReplicatedStorage.NPCDialog.PromptChat
 local SetChatting = ReplicatedStorage.NPCDialog.SetChattingValue
 
--- IDs are populated once by FetchNPCIDs() below
-local NPCIDs    = {}
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                       FUNDS REMOTE                              │
+-- │                                                                 │
+-- │  GetFunds:InvokeServer() → number (player's current balance)   │
+-- └─────────────────────────────────────────────────────────────────┘
+local GetFundsRemote = ReplicatedStorage:WaitForChild("GetFunds")
+
+-- Returns the player's current balance as a number, or nil on failure.
+local function FetchFunds()
+    local ok, result = pcall(function()
+        return GetFundsRemote:InvokeServer()
+    end)
+    if ok and type(result) == "number" then
+        return result
+    end
+    warn("[ShopModule] GetFunds remote failed: " .. tostring(result))
+    return nil
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                      NPC ID FETCHING                            │
+-- └─────────────────────────────────────────────────────────────────┘
+local NPCIDs     = {}
 local IDsFetched = false
 
 local function Notify(title, text, duration)
@@ -58,13 +72,10 @@ local function Notify(title, text, duration)
     })
 end
 
--- Fetches dialog IDs for every NPC — called once before the first purchase.
--- Blocks the calling coroutine while it runs (uses task.wait internally).
 local function FetchNPCIDs()
     if IDsFetched then return end
 
     Notify("Shop", "Fetching NPC IDs, please wait…", 5)
-
     SetChatting:InvokeServer(true)
 
     local lastData
@@ -94,7 +105,6 @@ local function FetchNPCIDs()
     Notify("Shop", "NPC IDs ready.", 3)
 end
 
--- Returns the NPC arg table for the NPC closest to the given BasePart.
 local function GetNearestNPCArg(mainPart)
     if not mainPart then return nil end
 
@@ -128,17 +138,36 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                       PURCHASE SEQUENCE                         │
--- │                                                                 │
--- │  Full flow for a single part:                                   │
--- │    1. LOT teleports the box to ITEM_DROP_CF                     │
--- │    2. WaitForBatch confirms the TP completed                    │
--- │    3. Player is teleported to PLAYER_BUY_CF                     │
--- │    4. Remotes are spammed until the box's parent becomes        │
--- │       "PlayerModels" (or a timeout/vanish is detected)          │
 -- └─────────────────────────────────────────────────────────────────┘
-local SPAM_INTERVAL    = 0.1   -- seconds between each remote fire
-local SPAM_TIMEOUT     = 30    -- seconds before giving up
-local SPAM_NOTIFY_FREQ = 50    -- notify every N fires
+local SPAM_INTERVAL    = 0.1
+local SPAM_TIMEOUT     = 30
+local SPAM_NOTIFY_FREQ = 50
+
+--
+-- Returns true if the given parent means the item was successfully
+-- purchased and handed to the player.
+--
+-- The server may route the item to:
+--   • workspace.PlayerModels        (most common — LT2-style plots)
+--   • Player.Backpack               (tool given directly)
+--   • Player.Character              (auto-equipped)
+--   • any ancestor named PlayerModels (nested model hierarchy)
+--
+-- Anything still inside workspace.Stores is NOT a success.
+--
+local function IsSuccessParent(parent)
+    if not parent then return false end
+    if parent.Name == "PlayerModels"  then return true end
+    if parent == Player.Backpack      then return true end
+    if parent == Player.Character     then return true end
+    -- Walk ancestors for deeply nested PlayerModels containers
+    local current = parent
+    while current do
+        if current.Name == "PlayerModels" then return true end
+        current = current.Parent
+    end
+    return false
+end
 
 local function SpamPurchase(mainPart, npcArg, itemName)
     local fireCount = 0
@@ -147,16 +176,35 @@ local function SpamPurchase(mainPart, npcArg, itemName)
     Notify("Shop", ("Buying '%s' from %s…"):format(itemName, npcArg.Name), 4)
 
     while tick() < deadline do
-        -- ── Success ──────────────────────────────────────────────
-        if mainPart.Parent and mainPart.Parent.Name == "PlayerModels" then
+        local parent = mainPart and mainPart.Parent
+
+        -- ── Success ───────────────────────────────────────────────
+        if IsSuccessParent(parent) then
             Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
             return true
         end
 
-        -- ── Item vanished unexpectedly ────────────────────────────
-        if not mainPart or not mainPart.Parent then
-            Notify("⚠️ Item Gone", "Object disappeared before purchase.", 4)
-            return false
+        -- ── Parent is nil: could be a mid-transition re-parent ────
+        --
+        -- Roblox briefly sets Parent = nil when moving an instance between
+        -- containers. Rather than treating nil as immediate failure, we
+        -- wait one frame and re-check. Only give up if still nil after
+        -- that extra tick, which means the instance is truly gone.
+        --
+        if parent == nil then
+            task.wait()
+            local newParent = mainPart and mainPart.Parent
+            if IsSuccessParent(newParent) then
+                Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
+                return true
+            end
+            if newParent == nil then
+                -- Genuinely destroyed — not a purchase, instance removed server-side
+                Notify("⚠️ Item Gone", ("'%s' was removed before purchase completed."):format(itemName), 4)
+                return false
+            end
+            -- Parent is non-nil but not a success location — server likely
+            -- reset the item. Fall through and keep spamming.
         end
 
         -- ── Fire the three-step purchase sequence ─────────────────
@@ -179,15 +227,12 @@ local function SpamPurchase(mainPart, npcArg, itemName)
     return false
 end
 
--- Runs the full TP → wait → player warp → spam sequence for one part.
 local function PurchasePart(mainPart, itemName)
-    -- Step 1: Build a single-item job and hand it to LOT
-    local job = { target = mainPart, goalCF = ITEM_DROP_CF }
+    -- Step 1: TP the box to the drop zone via LOT
+    local success = _LOT.TeleportMany({ { target = mainPart, goalCF = ITEM_DROP_CF } })
 
-    local success = _LOT.TeleportMany({ job })
-
-    -- Step 2: TeleportMany is synchronous — it already returned — but use
-    -- WaitForBatch as a safety net in case another batch is still winding down.
+    -- Step 2: Safety-net wait — TeleportMany is synchronous but guard for
+    -- any lingering batch activity before touching the character.
     if _LOT.IsBusy() then
         Notify("Shop", "Waiting for TP to settle…", 2)
         success = _LOT.WaitForBatch()
@@ -198,7 +243,7 @@ local function PurchasePart(mainPart, itemName)
         return false
     end
 
-    -- Step 3: Warp the player into purchase range
+    -- Step 3: Warp player into purchase range
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then
@@ -207,11 +252,9 @@ local function PurchasePart(mainPart, itemName)
     end
 
     root.CFrame = PLAYER_BUY_CF
+    task.wait(0.1)  -- let the server register the new position
 
-    -- One frame so the server can register our new position
-    task.wait(0.1)
-
-    -- Step 4: Identify the nearest NPC and spam the remotes
+    -- Step 4: Find the nearest NPC and spam remotes until purchased
     local npcArg = GetNearestNPCArg(mainPart)
     if not npcArg or not npcArg.ID then
         Notify("❌ No NPC", ("Could not find NPC for '%s'."):format(itemName), 4)
@@ -228,7 +271,7 @@ local ShopItems = {
     {
         Name        = "Basic Hatchet",
         Image       = "BasicHatchet.png",
-        Price       = 500,
+        Price       = 12,
         BoxItemName = "BasicHatchet",
     },
     -- {
@@ -298,7 +341,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     local SelectedItem = ShopItems[1]
     local Quantity     = 1
 
-    -- ── UI construction ───────────────────────────────────────────
     Tab:CreateSection("Hardware Store")
 
     local Catalog = Tab:CreateImageSelector("Select Item", {
@@ -338,30 +380,58 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
             return
         end
 
+        -- ── Funds check ───────────────────────────────────────────
+        -- Reject before doing anything if the player can't afford it.
+        local totalCost = SelectedItem.Price * Quantity
+        local funds     = FetchFunds()
+
+        if funds == nil then
+            Notify("❌ Funds Error", "Could not retrieve your balance. Try again.", 4)
+            return
+        end
+
+        if funds < totalCost then
+            Notify(
+                "❌ Insufficient Funds",
+                ("Need $%d  •  You have $%d  •  Short $%d"):format(
+                    totalCost, funds, totalCost - funds
+                ),
+                5
+            )
+            return
+        end
+
         local parts = ResolveItemParts(SelectedItem, Quantity)
         if #parts == 0 then return end
 
-        -- Run the full purchase sequence in a background thread so the UI
-        -- doesn't freeze. Items are bought one at a time so each TP → spam
-        -- cycle completes cleanly before the next one starts.
+        -- Run everything in a background thread so the UI stays responsive.
+        -- Items are processed one at a time: each TP → spam cycle must finish
+        -- before the next begins, preventing LOT batch collisions.
         task.spawn(function()
-            -- Fetch NPC IDs on the very first purchase (no-op on repeats)
-            FetchNPCIDs()
+            FetchNPCIDs()  -- no-op after first call
 
-            local bought   = 0
-            local failed   = 0
-            local itemName = SelectedItem.Name
+            local bought    = 0
+            local failed    = 0
+            local itemName  = SelectedItem.Name
+            -- Re-fetch balance now in case it changed between button press
+            -- and the thread actually executing (FetchNPCIDs can take time)
+            local liveFunds = FetchFunds() or funds
 
-            Notify("Shop", ("Starting purchase of %d × %s…"):format(#parts, itemName), 4)
+            Notify(
+                "Shop",
+                ("Purchasing %d × %s  ($%d)\nBalance: $%d"):format(
+                    #parts, itemName, totalCost, liveFunds
+                ),
+                4
+            )
 
             for _, mainPart in ipairs(parts) do
-                -- Skip if part already vanished between the resolve and now
                 if not mainPart or not mainPart.Parent then
                     failed += 1
                     continue
                 end
 
-                -- Guard: don't queue while another LOT batch is still alive
+                -- If somehow a previous iteration left LOT busy, wait it out
                 if _LOT.IsBusy() then
                     _LOT.WaitForBatch()
                 end
