@@ -493,46 +493,46 @@ end
 --             DYNXE UI INITIALIZATION
 -- ==========================================
 function TreeModule.Init(Tab, LOT)
-    Tab:CreateSection("Auto Chop Settings")
+    Tab:CreateSection("Auto-Tree Configuration")
 
     local treeTypes    = ScanForTreeTypes()
-    local selectedTree = treeTypes[1] or "None Found"
+    local selectedTree = treeTypes[1] or "Error"
     local chopActionButton
 
-    Tab:CreateDropdown("Target Wood Type", treeTypes, selectedTree, function(selected)
+    Tab:CreateDropdown("Target Tree Type", treeTypes, selectedTree, function(selected)
         selectedTree = selected
-    end):AddTooltip("Select the type of tree to hunt and chop. Logs will be teleported back to you after the chop.")
+    end)
 
-    chopActionButton = Tab:CreateAction("Process Tree", "Start Chop", function()
+    chopActionButton = Tab:CreateAction("Get Tree", "Start", function()
         if isChopping then
             isChopping = false
             if type(chopActionButton) == "table" and chopActionButton.SetText then
-                chopActionButton:SetText("Start Chop")
+                chopActionButton:SetText("Start")
             end
         else
             if selectedTree == "None Found" then return end
 
             if type(chopActionButton) == "table" and chopActionButton.SetText then
-                chopActionButton:SetText("Cancel")
+                chopActionButton:SetText("Stop")
             end
 
             StartChopping(selectedTree, LOT, function()
                 if type(chopActionButton) == "table" and chopActionButton.SetText then
-                    chopActionButton:SetText("Start Chop")
+                    chopActionButton:SetText("Start")
                 end
             end)
         end
     end)
 
     if type(chopActionButton) == "table" and chopActionButton.AddTooltip then
-        chopActionButton:AddTooltip("Chops the target tree then teleports your logs back to you.")
+        chopActionButton
     end
 
     -- ── LOG MANAGEMENT SECTION ────────────────────────────────────────
     Tab:CreateSection("Log Management")
 
     -- TP ALL LOGS TO PLAYER
-    local tpAllButton = Tab:CreateAction("Teleport Logs", "TP All My Logs", function()
+    local tpAllButton = Tab:CreateAction("Teleport All Logs To Me", "TP", function()
         if not LOT then
             warn("[TreeModule] LOT not available.")
             return
@@ -564,13 +564,8 @@ function TreeModule.Init(Tab, LOT)
             end
         end)
     end)
-
-    if type(tpAllButton) == "table" and tpAllButton.AddTooltip then
-        tpAllButton:AddTooltip("Teleports all logs you own in the world to your current position.")
-    end
-
     -- SELL ALL LOGS
-    local sellButton = Tab:CreateAction("Sell Logs", "Sell All My Logs", function()
+    local sellButton = Tab:CreateAction("Sell All Logs", "Sell", function()
         if not LOT then
             warn("[TreeModule] LOT not available.")
             return
@@ -604,10 +599,6 @@ function TreeModule.Init(Tab, LOT)
             end
         end)
     end)
-
-    if type(sellButton) == "table" and sellButton.AddTooltip then
-        sellButton:AddTooltip("Teleports all logs you own to the sawmill sell point.")
-    end
 end
 
 return TreeModule
