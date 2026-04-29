@@ -10,6 +10,18 @@ function PlayerMovement.Init(Tab)
     local Camera           = Workspace.CurrentCamera
 
     -- ===========================
+    -- CONNECTION CLEANUP (THE FIX)
+    -- ===========================
+    if _G.PM_Connections then
+        for _, conn in pairs(_G.PM_Connections) do
+            if typeof(conn) == "RBXScriptConnection" then
+                conn:Disconnect()
+            end
+        end
+    end
+    _G.PM_Connections = {}
+
+    -- ===========================
     -- STATE VARIABLES
     -- ===========================
     _G.WalkSpeed     = 16
@@ -34,9 +46,6 @@ function PlayerMovement.Init(Tab)
 
     -- ===========================
     -- CLEANUP ORPHANED OBJECTS
-    -- Runs on every reload to undo whatever the previous session left behind.
-    -- The main cause of the frozen/glitched state after a reload is that
-    -- PlatformStand was left as true by the previous fly session.
     -- ===========================
     local function CleanupOrphanedFlyObjects()
         local char = LocalPlayer.Character
@@ -56,7 +65,7 @@ function PlayerMovement.Init(Tab)
             pcall(function() hrp.RotVelocity = Vector3.new(0, 0, 0) end)
         end
 
-        -- Reset PlatformStand — this is the root cause of the frozen state on reload
+        -- Reset PlatformStand
         if hum then
             hum.PlatformStand = false
             task.defer(function()
@@ -74,11 +83,11 @@ function PlayerMovement.Init(Tab)
 
     CleanupOrphanedFlyObjects()
 
-    -- Also clean up if the character respawns mid-session
-    LocalPlayer.CharacterAdded:Connect(function()
+    -- Track the CharacterAdded connection
+    table.insert(_G.PM_Connections, LocalPlayer.CharacterAdded:Connect(function()
         task.wait(0.1)
         CleanupOrphanedFlyObjects()
-    end)
+    end))
 
     -- ===========================
     -- PHYSICS & UTILS
@@ -119,7 +128,8 @@ function PlayerMovement.Init(Tab)
     -- ===========================
     -- INPUT CONNECTIONS
     -- ===========================
-    UserInputService.InputBegan:Connect(function(input, processed)
+    -- Track InputBegan connection
+    table.insert(_G.PM_Connections, UserInputService.InputBegan:Connect(function(input, processed)
         if not processed and _G.ClickTP
             and input.UserInputType == Enum.UserInputType.MouseButton1
             and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
@@ -128,14 +138,15 @@ function PlayerMovement.Init(Tab)
                 char.HumanoidRootPart.CFrame = CFrame.new(Mouse.Hit.Position + Vector3.new(0, 3, 0))
             end
         end
-    end)
+    end))
 
-    UserInputService.JumpRequest:Connect(function()
+    -- Track JumpRequest connection
+    table.insert(_G.PM_Connections, UserInputService.JumpRequest:Connect(function()
         if _G.InfJump then
             local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if hum then hum:ChangeState("Jumping") end
         end
-    end)
+    end))
 
     -- ===========================
     -- UI SECTIONS
@@ -187,7 +198,8 @@ function PlayerMovement.Init(Tab)
     -- ===========================
     -- MASTER LOOP
     -- ===========================
-    RunService.Stepped:Connect(function()
+    -- Track Stepped connection
+    table.insert(_G.PM_Connections, RunService.Stepped:Connect(function()
         local char = LocalPlayer.Character
         if not char then return end
 
@@ -248,7 +260,7 @@ function PlayerMovement.Init(Tab)
                 flyGyro.CFrame       = Camera.CFrame
             end
         end
-    end)
+    end))
 end
 
 return PlayerMovement
