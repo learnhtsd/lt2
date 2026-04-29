@@ -400,7 +400,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     local Catalog = Tab:CreateImageSelector("Select Item", {
         MultiSelect = false,
         Rows        = 1,
-        SlotSize    = UDim2.new(0, 75, 0, 75),
+        SlotSize    = UDim2.new(0, 60, 0, 60),
     }, function(name)
         for _, item in pairs(ShopItems) do
             if item.Name == name then
