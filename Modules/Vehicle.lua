@@ -16,10 +16,41 @@ local customSettings = {
     SteerVelocity = 0,
 }
 
-local vehicleDefaults = {}   -- snapshot of values when player sat down (may already be modified)
-local trueDefaults    = {}   -- permanent first-seen values per vehicle name, never overwritten
-local cachedConfig    = nil  -- held while seated so exit block can reach it after SeatPart clears
-local cachedVehicleKey = nil -- name key into trueDefaults for the current vehicle
+local vehicleDefaults  = {}
+local trueDefaults     = {}
+local cachedConfig     = nil
+local cachedVehicle    = nil
+
+--------------------------------------------------------------------
+-- VEHICLE COLOR PALETTE
+-- Add / remove entries freely.
+-- Color  = the swatch shown in the dropdown (visual only)
+-- Code   = the BrickColor number used by the game
+--------------------------------------------------------------------
+local VehicleColors = {
+    { Name = "White",          Color = Color3.fromRGB(242, 243, 242), Code = 1   },
+    { Name = "Black",          Color = Color3.fromRGB(27,  42,  52),  Code = 26  },
+    { Name = "Bright Red",     Color = Color3.fromRGB(196, 40,  28),  Code = 21  },
+    { Name = "Bright Blue",    Color = Color3.fromRGB(13,  105, 172), Code = 23  },
+    { Name = "Bright Yellow",  Color = Color3.fromRGB(245, 205, 48),  Code = 24  },
+    { Name = "Bright Green",   Color = Color3.fromRGB(75,  151, 74),  Code = 37  },
+    { Name = "Bright Orange",  Color = Color3.fromRGB(218, 133, 65),  Code = 106 },
+    { Name = "Lime Green",     Color = Color3.fromRGB(187, 233, 11),  Code = 119 },
+    { Name = "Dark Red",       Color = Color3.fromRGB(114, 14,  15),  Code = 154 },
+    { Name = "Dark Orange",    Color = Color3.fromRGB(160, 95,  52),  Code = 68  },
+    { Name = "Dark Green",     Color = Color3.fromRGB(40,  127, 71),  Code = 28  },
+    { Name = "Sand Blue",      Color = Color3.fromRGB(112, 142, 152), Code = 135 },
+    { Name = "Sand Green",     Color = Color3.fromRGB(160, 188, 172), Code = 151 },
+    { Name = "Metal",          Color = Color3.fromRGB(159, 163, 162), Code = 148 },
+    { Name = "Reddish Brown",  Color = Color3.fromRGB(105, 64,  40),  Code = 192 },
+    { Name = "Earth Green",    Color = Color3.fromRGB(39,  70,  44),  Code = 141 },
+}
+
+-- Quick lookup: Name → Code (used in the dropdown callback)
+local ColorCodeMap = {}
+for _, entry in ipairs(VehicleColors) do
+    ColorCodeMap[entry.Name] = entry.Code
+end
 
 --------------------------------------------------------------------
 -- HELPERS
@@ -29,7 +60,7 @@ local function GetVehicleConfig()
     local char = player.Character
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
     local seat = hum and hum.SeatPart
-    if not seat then return nil end
+    if not seat then return nil, nil end
 
     local vehicle = seat
     while vehicle.Parent and vehicle.Parent ~= workspace and vehicle.Parent.Name ~= "PlayerModels" do
@@ -39,7 +70,7 @@ local function GetVehicleConfig()
     if vehicle and vehicle:IsA("Model") then
         local config = vehicle:FindFirstChild("Configuration", true)
         if config and config:FindFirstChild("MaxSpeed") then
-            return config, vehicle.Name
+            return config, vehicle
         end
     end
 
@@ -133,16 +164,12 @@ function VehicleModule.Init(Tab, Library)
     FlipButton:SetDisabled(true)
 
     local ResetButton = Tab:CreateAction("Reset Vehicle Stats", "Reset", function()
-        -- Always prefer the permanent true defaults over the sit-snapshot
-        local defaults = (cachedVehicleKey and trueDefaults[cachedVehicleKey]) or vehicleDefaults
+        local defaults = (cachedVehicle and trueDefaults[cachedVehicle]) or vehicleDefaults
         if not defaults or not defaults.MaxSpeed then return end
-
         WriteConfigValues(cachedConfig, defaults)
-
         customSettings.MaxSpeed      = 0
         customSettings.SteerAngle    = 0
         customSettings.SteerVelocity = 0
-
         SafeUpdateSlider(SpeedSlider,         math.clamp(defaults.MaxSpeed,      0.1, 10.0))
         SafeUpdateSlider(SteerAngleSlider,    math.clamp(defaults.SteerAngle,    0.1, 2.0))
         SafeUpdateSlider(SteerVelocitySlider, math.clamp(defaults.SteerVelocity, 0.01, 0.03))
@@ -156,9 +183,16 @@ function VehicleModule.Init(Tab, Library)
 
     Tab:CreateSection("Vehicle Pad Spawner")
 
-    Tab:CreateInput("Target Color ID", "148", function(val)
-        targetColorCode = tonumber(val) or 148
-    end):AddTooltip("The BrickColor number ID you want to roll for.")
+    -- Color picker dropdown — each swatch maps to a BrickColor code
+    Tab:CreateDropdown("Target Color", VehicleColors, VehicleColors[14], function(color, name)
+        local code = ColorCodeMap[name]
+        if code then
+            targetColorCode = code
+            if Library then
+                Library:Notify("Auto-Roll", "Target set to " .. name .. " (Code: " .. code .. ")", 3)
+            end
+        end
+    end):AddTooltip("The vehicle color you want Auto-Roll to stop on.")
 
     local SpawnButton
     local AutoToggle
@@ -284,81 +318,62 @@ function VehicleModule.Init(Tab, Library)
                     SteerAngleSlider:SetDisabled(false)
                     SteerVelocitySlider:SetDisabled(false)
 
-                    cachedConfig     = nil
-                    cachedVehicleKey = nil
+                    cachedConfig  = nil
+                    cachedVehicle = nil
 
                     for _ = 1, 6 do
-                        local config, vehicleName = GetVehicleConfig()
-                        if config then
-                            cachedConfig     = config
-                            cachedVehicleKey = vehicleName
+                        local config, vehicle = GetVehicleConfig()
+                        if config and vehicle then
+                            cachedConfig  = config
+                            cachedVehicle = vehicle
                             break
                         end
                         task.wait(0.5)
                     end
 
-                    if cachedConfig and cachedVehicleKey then
-                        -- First time seeing this vehicle? Record its true factory defaults
-                        if not trueDefaults[cachedVehicleKey] then
-                            trueDefaults[cachedVehicleKey] = {
+                    if cachedConfig and cachedVehicle then
+                        if not trueDefaults[cachedVehicle] then
+                            trueDefaults[cachedVehicle] = {
                                 MaxSpeed      = ReadConfigValue(cachedConfig, "MaxSpeed"),
                                 SteerAngle    = ReadConfigValue(cachedConfig, "SteerAngle"),
                                 SteerVelocity = ReadConfigValue(cachedConfig, "SteerVelocity"),
                             }
-                            print("[Vehicle] Recorded true defaults for:", cachedVehicleKey)
                         end
 
-                        -- If resetOnExit is on, restore factory defaults now before snapshotting
-                        if resetOnExit then
-                            WriteConfigValues(cachedConfig, trueDefaults[cachedVehicleKey])
-                        end
-
-                        -- Snapshot what's in the config right now (post-restore if applicable)
                         vehicleDefaults = {
                             MaxSpeed      = ReadConfigValue(cachedConfig, "MaxSpeed"),
                             SteerAngle    = ReadConfigValue(cachedConfig, "SteerAngle"),
                             SteerVelocity = ReadConfigValue(cachedConfig, "SteerVelocity"),
                         }
 
-                        -- Update sliders to reflect current config
                         SafeUpdateSlider(SpeedSlider,         math.clamp(vehicleDefaults.MaxSpeed,      0.1, 10.0))
                         SafeUpdateSlider(SteerAngleSlider,    math.clamp(vehicleDefaults.SteerAngle,    0.1, 2.0))
                         SafeUpdateSlider(SteerVelocitySlider, math.clamp(vehicleDefaults.SteerVelocity, 0.01, 0.05))
 
-                        -- Re-apply any lingering custom values
                         if customSettings.MaxSpeed      > 0 then ApplyCustomization("MaxSpeed",      customSettings.MaxSpeed)      end
                         if customSettings.SteerAngle    > 0 then ApplyCustomization("SteerAngle",    customSettings.SteerAngle)    end
                         if customSettings.SteerVelocity > 0 then ApplyCustomization("SteerVelocity", customSettings.SteerVelocity) end
                     end
                 else
                     -- PLAYER EXITED VEHICLE
-                    print("[Vehicle] Player exited vehicle.")
-
-                    -- Restore factory defaults if toggle is on (use cachedConfig, SeatPart is nil now)
-                    if resetOnExit and cachedConfig and cachedVehicleKey and trueDefaults[cachedVehicleKey] then
-                        WriteConfigValues(cachedConfig, trueDefaults[cachedVehicleKey])
+                    if resetOnExit and cachedConfig and cachedVehicle and trueDefaults[cachedVehicle] then
+                        WriteConfigValues(cachedConfig, trueDefaults[cachedVehicle])
                     end
 
-                    -- Clear session state
                     cachedConfig         = nil
-                    cachedVehicleKey     = nil
+                    cachedVehicle        = nil
                     vehicleDefaults      = {}
                     customSettings.MaxSpeed      = 0
                     customSettings.SteerAngle    = 0
                     customSettings.SteerVelocity = 0
 
-                    -- Reset UI
                     FlipButton:SetDisabled(true)
                     FlipButton:SetText("No Vehicle")
-
                     ResetButton:SetDisabled(true)
-
                     SpeedSlider:SetDisabled(true)
                     SafeUpdateSlider(SpeedSlider, 0.1)
-
                     SteerAngleSlider:SetDisabled(true)
                     SafeUpdateSlider(SteerAngleSlider, 0.1)
-
                     SteerVelocitySlider:SetDisabled(true)
                     SafeUpdateSlider(SteerVelocitySlider, 0.01)
                 end
