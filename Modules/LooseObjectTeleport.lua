@@ -14,6 +14,44 @@ local StarterGui   = game:GetService("StarterGui")
 local Mouse        = Player:GetMouse()
 
 -- ┌─────────────────────────────────────────────────────────────────┐
+-- │                        SIGNAL UTILITY                           │
+-- │                                                                 │
+-- │  Lightweight signal — no BindableEvent, no Instance overhead.   │
+-- │  Supports :Connect(), :Disconnect(), and :Wait() (yields).      │
+-- └─────────────────────────────────────────────────────────────────┘
+local function NewSignal()
+    local sig = { _listeners = {} }
+
+    -- Connect a callback.  Returns a connection object with :Disconnect().
+    function sig:Connect(fn)
+        local id = {}
+        self._listeners[id] = fn
+        return { Disconnect = function() self._listeners[id] = nil end }
+    end
+
+    -- Yield the calling coroutine until the signal fires once.
+    -- Returns whatever arguments the signal was fired with.
+    function sig:Wait()
+        local co = coroutine.running()
+        local conn
+        conn = self:Connect(function(...)
+            conn:Disconnect()
+            task.spawn(co, ...)
+        end)
+        return coroutine.yield()
+    end
+
+    -- Internal: fire all listeners with the given arguments.
+    function sig:_Fire(...)
+        for _, fn in pairs(self._listeners) do
+            task.spawn(fn, ...)
+        end
+    end
+
+    return sig
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
 -- │                     CONFIGURATION & STATE                       │
 -- └─────────────────────────────────────────────────────────────────┘
 local Settings = {
@@ -38,7 +76,7 @@ local Settings = {
     StackZ                 = 1,
     StackPadding           = 0.05,
 
-    -- NEW: Keep teleported items selected after a batch finishes (default off)
+    -- Keep teleported items selected after a batch finishes (default off)
     KeepSelected           = false,
 }
 
@@ -73,6 +111,10 @@ local State = {
     StackRotation     = CFrame.new(),
 
     Library           = nil,
+
+    -- Signal: fires (success: boolean, jobCount: number) when any RunBatch ends.
+    -- External modules subscribe here for completion callbacks or :Wait() yields.
+    BatchCompleted    = NewSignal(),
 }
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -457,22 +499,30 @@ end
 -- │              *** SHARED INTERNAL BATCH RUNNER ***               │
 -- │                                                                 │
 -- │  jobs  — array of { target = BasePart, goalCF = CFrame }       │
+-- │                                                                 │
+-- │  Fires State.BatchCompleted(success, jobCount) before return.   │
 -- └─────────────────────────────────────────────────────────────────┘
 local function RunBatch(jobs)
     if #jobs == 0 then
         Notify("Batch", "No jobs supplied.", 2)
-        return
+        -- Fire the signal even on a no-op so any :Wait() call doesn't hang
+        State.BatchCompleted:_Fire(true, 0)
+        return true
     end
     if not Player.Character then
         Notify("Batch", "Character missing.", 2)
-        return
+        State.BatchCompleted:_Fire(false, 0)
+        return false
     end
 
     local char = Player.Character
     local root = char:FindFirstChild("HumanoidRootPart")
     local hum  = char:FindFirstChildOfClass("Humanoid")
     local head = char:FindFirstChild("Head")
-    if not root or not head or not hum then return end
+    if not root or not head or not hum then
+        State.BatchCompleted:_Fire(false, 0)
+        return false
+    end
 
     -- Raise busy flag — blocks all UI selection clicks while running
     State.IsBusy         = true
@@ -558,7 +608,13 @@ local function RunBatch(jobs)
 
     State.IsBusy = false
 
-    return not State.BatchCancelled -- true = all succeeded, false = cancelled
+    local success = not State.BatchCancelled
+
+    -- Fire the completion signal so any waiting module can proceed.
+    -- Passes (success: boolean, jobCount: number) to all listeners.
+    State.BatchCompleted:_Fire(success, #jobs)
+
+    return success
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -773,7 +829,6 @@ local function PerformStackExecute(hitPos)
 
     local success = RunBatch(jobs)
 
-    -- NEW: Only clear the queue if KeepSelected is off
     if not Settings.KeepSelected then
         State.SelectedObjects = {}
     end
@@ -872,7 +927,6 @@ local function PerformExecute()
 
     local success = RunBatch(jobs)
 
-    -- NEW: Only clear the queue if KeepSelected is off
     if not Settings.KeepSelected then
         State.SelectedObjects = {}
     end
@@ -895,6 +949,12 @@ end
 -- │        { target = partA, goalCF = CFrame.new(10, 0, 10) },     │
 -- │        { target = partB, goalCF = CFrame.new(20, 0, 10) },     │
 -- │    })                                                           │
+-- │                                                                 │
+-- │  Completion signal:                                             │
+-- │    LOT.BatchCompleted:Connect(function(ok, n) … end)           │
+-- │    local ok, n = LOT.BatchCompleted:Wait()  -- yields          │
+-- │    LOT.WaitForBatch()  -- yield helper (returns immediately    │
+-- │                           if no batch is running)              │
 -- └─────────────────────────────────────────────────────────────────┘
 
 -- Add a BasePart to the selection queue.
@@ -976,6 +1036,32 @@ function LooseObjectTeleport.TeleportMany(jobs)
     return RunBatch(jobs)
 end
 
+-- ── Completion signal ──────────────────────────────────────────────
+--
+-- Fires (success: boolean, jobCount: number) at the end of every
+-- RunBatch call, regardless of which code path triggered it.
+--
+-- Usage:
+--   -- Non-blocking callback:
+--   LOT.BatchCompleted:Connect(function(ok, n)
+--       print(("Batch done — success=%s, items=%d"):format(tostring(ok), n))
+--   end)
+--
+--   -- Yield until the next batch finishes:
+--   local ok, n = LOT.BatchCompleted:Wait()
+--
+-- NOTE: assigned to State.BatchCompleted during Init so the same
+-- signal object is shared between internal code and external callers.
+LooseObjectTeleport.BatchCompleted = nil  -- populated in Init
+
+-- Yield helper — blocks the calling coroutine until the active batch
+-- finishes, then returns (success: boolean, jobCount: number).
+-- If no batch is currently running it returns immediately (true, 0).
+function LooseObjectTeleport.WaitForBatch()
+    if not State.IsBusy then return true, 0 end
+    return State.BatchCompleted:Wait()
+end
+
 -- Read-only helpers.
 function LooseObjectTeleport.IsBusy()
     return State.IsBusy
@@ -991,6 +1077,10 @@ end
 
 function LooseObjectTeleport.Init(Tab, LibraryInstance)
     State.Library = LibraryInstance
+
+    -- Expose the signal on the public table so external modules can
+    -- subscribe before any batch runs.
+    LooseObjectTeleport.BatchCompleted = State.BatchCompleted
 
     for _, conn in ipairs(State.Connections) do conn:Disconnect() end
     State.Connections = {}
@@ -1013,9 +1103,6 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
         end
     end)
 
-    -- NEW TOGGLE: Keep selected objects highlighted after a teleport finishes.
-    -- When ON, the queue is preserved so you can TP the same set again or inspect
-    -- which items were moved. When OFF (default), the queue clears as before.
     Tab:CreateToggle("Keep Selection After TP", false, function(val)
         Settings.KeepSelected = val
     end)
