@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.224"
+local Version = "v0.0.225"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -13,12 +13,12 @@ local Version = "v0.0.224"
 
 local Config = {
     Window = { -- Menu Scale
-        Width  = 500,
-        Height = 300,
-        SidebarWidth = 35,
+        Width  = 350,
+        Height = 500,
+        SidebarWidth = 40,
     },
     Elements = { -- UI Element Scale
-        Scale = 0.75,
+        Scale = 0.80,
     },
     Theme = { -- Theme Color Pallet
         Accent          = Color3.fromRGB(74,  120, 255),  -- blue highlights / active
