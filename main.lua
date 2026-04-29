@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.251"
+local Version = "v0.0.252"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1205,26 +1205,30 @@ function Library:CreateWindow()
             local Multi    = Config2.MultiSelect or false
             local Rows     = Config2.Rows or 1
             local SlotSize = Config2.SlotSize or UDim2.new(0, ES(70), 0, ES(70))
-        
+
             local TopPadding    = ES(35)
             local BottomPadding = ES(10)
             local CellPaddingY  = ES(8)
             local ScrollHeight  = (SlotSize.Y.Offset * Rows) + (CellPaddingY * (Rows - 1)) + 6
             local TotalHeight   = TopPadding + ScrollHeight + BottomPadding
-        
+
+            -- Tracks every slot so the search bar can show/hide them
+            local SlotRegistry = {}  -- { slot = Frame, title = string }
+
             local SelectorFrame = Instance.new("Frame")
             SelectorFrame.Name             = Title .. "_ImageSelector"
             SelectorFrame.Size             = UDim2.new(1, 0, 0, TotalHeight)
             SelectorFrame.BackgroundColor3 = T.Surface
             SelectorFrame.Parent           = self.Container
             Instance.new("UICorner", SelectorFrame).CornerRadius = UDim.new(0, 6)
-            
+
             local FrameStroke = Instance.new("UIStroke", SelectorFrame)
             FrameStroke.Color     = T.Stroke
             FrameStroke.Thickness = 1
-        
+
+            -- ── Header: title on left, search box on right ────────
             local TitleLabel = Instance.new("TextLabel")
-            TitleLabel.Size            = UDim2.new(1, -20, 0, ES(20))
+            TitleLabel.Size            = UDim2.new(0.5, 0, 0, ES(20))
             TitleLabel.Position        = UDim2.new(0, ES(10), 0, ES(8))
             TitleLabel.BackgroundTransparency = 1
             TitleLabel.Text            = Title
@@ -1233,116 +1237,226 @@ function Library:CreateWindow()
             TitleLabel.TextSize        = FS(13)
             TitleLabel.TextXAlignment  = Enum.TextXAlignment.Left
             TitleLabel.Parent          = SelectorFrame
-        
+
+            -- Search box container (gives it a pill background)
+            local SearchBox = Instance.new("TextBox")
+            SearchBox.Name             = "SearchBox"
+            SearchBox.Size             = UDim2.new(0, ES(90), 0, ES(20))
+            SearchBox.AnchorPoint      = Vector2.new(1, 0)
+            SearchBox.Position         = UDim2.new(1, -ES(10), 0, ES(8))
+            SearchBox.BackgroundColor3 = T.SurfaceDeep
+            SearchBox.PlaceholderText  = "Search…"
+            SearchBox.PlaceholderColor3 = T.TextSecondary
+            SearchBox.Text             = ""
+            SearchBox.TextColor3       = T.TextPrimary
+            SearchBox.Font             = Enum.Font.Gotham
+            SearchBox.TextSize         = FS(11)
+            SearchBox.ClearTextOnFocus = false
+            SearchBox.ClipsDescendants = true
+            SearchBox.Parent           = SelectorFrame
+            Instance.new("UICorner", SearchBox).CornerRadius = UDim.new(0, 4)
+
+            local SearchStroke = Instance.new("UIStroke", SearchBox)
+            SearchStroke.Color     = T.Stroke
+            SearchStroke.Thickness = 1
+
+            -- Padding inside the search box so text doesn't hug the edge
+            local SearchPad = Instance.new("UIPadding", SearchBox)
+            SearchPad.PaddingLeft  = UDim.new(0, ES(6))
+            SearchPad.PaddingRight = UDim.new(0, ES(6))
+
+            -- Highlight the search box border on focus
+            SearchBox.Focused:Connect(function()
+                TweenService:Create(SearchStroke, TweenInfo.new(0.2), {Color = T.Accent}):Play()
+            end)
+            SearchBox.FocusLost:Connect(function()
+                TweenService:Create(SearchStroke, TweenInfo.new(0.2), {Color = T.Stroke}):Play()
+            end)
+
+            -- ── Scroll area ───────────────────────────────────────
             local Scroll = Instance.new("ScrollingFrame")
-            Scroll.Size                  = UDim2.new(1, -ES(20), 0, ScrollHeight)
-            Scroll.Position              = UDim2.new(0, ES(10), 0, TopPadding)
+            Scroll.Size                   = UDim2.new(1, -ES(20), 0, ScrollHeight)
+            Scroll.Position               = UDim2.new(0, ES(10), 0, TopPadding)
             Scroll.BackgroundTransparency = 1
-            Scroll.BorderSizePixel       = 0
-            Scroll.CanvasSize            = UDim2.new(0, 0, 0, 0)
-            Scroll.ScrollBarThickness    = 2
-            Scroll.ScrollBarImageColor3  = T.Accent
-            Scroll.ScrollingDirection    = Enum.ScrollingDirection.X
-            Scroll.Parent                = SelectorFrame
-        
+            Scroll.BorderSizePixel        = 0
+            Scroll.CanvasSize             = UDim2.new(0, 0, 0, 0)
+            Scroll.ScrollBarThickness     = 2
+            Scroll.ScrollBarImageColor3   = T.Accent
+            Scroll.ScrollingDirection     = Enum.ScrollingDirection.X
+            Scroll.ClipsDescendants       = true
+            Scroll.Parent                 = SelectorFrame
+
             local Layout = Instance.new("UIGridLayout", Scroll)
             Layout.CellSize      = SlotSize
             Layout.CellPadding   = UDim2.new(0, ES(8), 0, CellPaddingY)
             Layout.SortOrder     = Enum.SortOrder.LayoutOrder
             Layout.FillDirection = Enum.FillDirection.Vertical
-        
+
             local Padding = Instance.new("UIPadding", Scroll)
             Padding.PaddingLeft   = UDim.new(0, 2)
             Padding.PaddingTop    = UDim.new(0, ES(3))
             Padding.PaddingBottom = UDim.new(0, ES(3))
-        
+
+            -- ── Edge-fade overlays ────────────────────────────────
+            -- Two gradient frames sit on top of the scroll area.
+            -- They blend from T.Surface (opaque) → transparent, making
+            -- slots look like they dissolve as they slide under the edge.
+            local FADE_W = ES(28)  -- width of the fade band in pixels
+
+            local function MakeFade(anchorX, posX, rotated)
+                local Fade = Instance.new("Frame")
+                Fade.Size                  = UDim2.new(0, FADE_W, 1, 0)
+                Fade.AnchorPoint           = Vector2.new(anchorX, 0)
+                Fade.Position              = UDim2.new(posX, 0, 0, 0)
+                Fade.BackgroundColor3      = T.Surface
+                Fade.BackgroundTransparency = 0
+                Fade.BorderSizePixel       = 0
+                Fade.ZIndex                = 5   -- above slots (default ZIndex 1)
+                Fade.Parent                = Scroll
+
+                local Grad = Instance.new("UIGradient", Fade)
+                -- Gradient goes opaque → transparent (left → right for left fade,
+                -- reversed for right fade via Rotation = 180).
+                Grad.Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0),   -- opaque
+                    NumberSequenceKeypoint.new(1, 1),   -- transparent
+                })
+                if rotated then Grad.Rotation = 180 end
+
+                return Fade
+            end
+
+            MakeFade(0, 0,   false)   -- left fade:  opaque on far left → transparent
+            MakeFade(1, 1,   true)    -- right fade: transparent → opaque on far right
+
+            -- ── Search filter logic ───────────────────────────────
+            local function ApplySearch(query)
+                query = query:lower():gsub("^%s+", ""):gsub("%s+$", "")
+                local anyVisible = false
+
+                for _, entry in ipairs(SlotRegistry) do
+                    local match = query == "" or entry.title:lower():find(query, 1, true)
+                    entry.slot.Visible = match ~= nil
+                    if match then anyVisible = true end
+                end
+
+                -- Reflow canvas after visibility changes
+                task.defer(function()
+                    Scroll.CanvasSize = UDim2.new(0, Layout.AbsoluteContentSize.X + 10, 0, 0)
+                end)
+            end
+
+            SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+                ApplySearch(SearchBox.Text)
+            end)
+
+            -- ── AddSlot ───────────────────────────────────────────
             function Element:AddSlot(ID, SlotTitle, SlotSubText)
                 local Slot = Instance.new("TextButton")
-                Slot.BackgroundColor3 = T.SurfaceDeep -- Updated to match theme
+                Slot.BackgroundColor3 = T.SurfaceDeep
                 Slot.Text             = ""
+                Slot.ZIndex           = 2
                 Slot.Parent           = Scroll
                 Instance.new("UICorner", Slot).CornerRadius = UDim.new(0, 6)
-                
+
                 local Stroke = Instance.new("UIStroke", Slot)
-                Stroke.Color          = T.Stroke -- Updated to match theme
-                Stroke.Thickness      = 1.2
+                Stroke.Color           = T.Stroke
+                Stroke.Thickness       = 1.2
                 Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-                
+
                 local Image = Instance.new("ImageLabel")
-                Image.Size                = UDim2.new(0.75, 0, 0.75, 0) -- Increased size
-                Image.Position            = UDim2.new(0.5, 0, 0.5, 0) -- Centered
-                Image.AnchorPoint         = Vector2.new(0.5, 0.5)
+                Image.Size                   = UDim2.new(0.75, 0, 0.75, 0)
+                Image.Position               = UDim2.new(0.5, 0, 0.5, 0)
+                Image.AnchorPoint            = Vector2.new(0.5, 0.5)
                 Image.BackgroundTransparency = 1
-                Image.Image              = ID
-                Image.Parent             = Slot
-        
-                -- Adjust image position if text is present to make room
+                Image.Image                  = ID
+                Image.ZIndex                 = 2
+                Image.Parent                 = Slot
+
                 if SlotTitle or SlotSubText then
                     Image.Position = UDim2.new(0.5, 0, 0.35, 0)
-                    Image.Size = UDim2.new(0.55, 0, 0.55, 0)
+                    Image.Size     = UDim2.new(0.55, 0, 0.55, 0)
                 end
-        
+
                 if SlotTitle then
                     local Txt = Instance.new("TextLabel")
-                    Txt.Size           = UDim2.new(1, 0, 0, FS(12))
-                    Txt.Position       = UDim2.new(0, 0, 0.65, 0)
+                    Txt.Size               = UDim2.new(1, 0, 0, FS(12))
+                    Txt.Position           = UDim2.new(0, 0, 0.65, 0)
                     Txt.BackgroundTransparency = 1
-                    Txt.Text           = SlotTitle
-                    Txt.TextColor3     = T.TextPrimary
-                    Txt.Font           = Enum.Font.GothamMedium
-                    Txt.TextSize       = FS(10)
-                    Txt.Parent         = Slot
+                    Txt.Text               = SlotTitle
+                    Txt.TextColor3         = T.TextPrimary
+                    Txt.Font               = Enum.Font.GothamMedium
+                    Txt.TextSize           = FS(10)
+                    Txt.ZIndex             = 2
+                    Txt.Parent             = Slot
                 end
-                
+
                 if SlotSubText then
                     local SubTxt = Instance.new("TextLabel")
-                    SubTxt.Size           = UDim2.new(1, 0, 0, FS(12))
-                    SubTxt.Position       = UDim2.new(0, 0, 0.82, 0)
+                    SubTxt.Size               = UDim2.new(1, 0, 0, FS(12))
+                    SubTxt.Position           = UDim2.new(0, 0, 0.82, 0)
                     SubTxt.BackgroundTransparency = 1
-                    SubTxt.Text           = SlotSubText
-                    SubTxt.TextColor3     = T.Success -- Using theme success color
-                    SubTxt.Font           = Enum.Font.GothamBold
-                    SubTxt.TextSize       = FS(9)
-                    SubTxt.Parent         = Slot
+                    SubTxt.Text               = SlotSubText
+                    SubTxt.TextColor3         = T.Success
+                    SubTxt.Font               = Enum.Font.GothamBold
+                    SubTxt.TextSize           = FS(9)
+                    SubTxt.ZIndex             = 2
+                    SubTxt.Parent             = Slot
                 end
-        
+
+                -- Register for search filtering
+                table.insert(SlotRegistry, {
+                    slot  = Slot,
+                    title = SlotTitle or "",
+                })
+
+                -- Selection click handler
                 Slot.MouseButton1Click:Connect(function()
                     local isSelected = (Slot.BackgroundColor3 == T.Accent)
-                    
+
                     if not Multi then
                         for _, child in pairs(Scroll:GetChildren()) do
                             if child:IsA("TextButton") then
                                 TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = T.SurfaceDeep}):Play()
-                                child:FindFirstChildOfClass("UIStroke").Color = T.Stroke
+                                local s = child:FindFirstChildOfClass("UIStroke")
+                                if s then s.Color = T.Stroke end
                             end
                         end
                         Element.Selected = {SlotTitle or ID}
                     else
                         if isSelected then
                             for i, v in ipairs(Element.Selected) do
-                                if v == (SlotTitle or ID) then table.remove(Element.Selected, i) break end
+                                if v == (SlotTitle or ID) then
+                                    table.remove(Element.Selected, i)
+                                    break
+                                end
                             end
                         else
                             table.insert(Element.Selected, SlotTitle or ID)
                         end
                     end
-        
+
                     local targetColor = isSelected and T.SurfaceDeep or T.Accent
-                    local strokeColor = isSelected and T.Stroke or T.TextWhite
-                    
+                    local strokeColor = isSelected and T.Stroke      or T.TextWhite
+
                     TweenService:Create(Slot, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
                     Stroke.Color = strokeColor
-                    
+
                     Callback(Multi and Element.Selected or Element.Selected[1])
                 end)
-        
+
+                -- Reflow canvas whenever layout changes
                 Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                     Scroll.CanvasSize = UDim2.new(0, Layout.AbsoluteContentSize.X + 10, 0, 0)
                 end)
-        
+
+                -- Re-apply the current search query so new slots obey any
+                -- active filter even if they were added after the user typed
+                ApplySearch(SearchBox.Text)
+
                 return Slot
             end
-        
+
             return Element
         end
 
