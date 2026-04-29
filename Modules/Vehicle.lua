@@ -21,29 +21,27 @@ local trueDefaults     = {}
 local cachedConfig     = nil
 local cachedVehicle    = nil
 
---------------------------------------------------------------------
 -- VEHICLE COLOR PALETTE
 -- Add / remove entries freely.
 -- Color  = the swatch shown in the dropdown (visual only)
 -- Code   = the BrickColor number used by the game
 --------------------------------------------------------------------
 local VehicleColors = {
-    { Name = "White",          Color = Color3.fromRGB(242, 243, 242), Code = 1   },
-    { Name = "Black",          Color = Color3.fromRGB(27,  42,  52),  Code = 26  },
-    { Name = "Bright Red",     Color = Color3.fromRGB(196, 40,  28),  Code = 21  },
-    { Name = "Bright Blue",    Color = Color3.fromRGB(13,  105, 172), Code = 23  },
-    { Name = "Bright Yellow",  Color = Color3.fromRGB(245, 205, 48),  Code = 24  },
-    { Name = "Bright Green",   Color = Color3.fromRGB(75,  151, 74),  Code = 37  },
-    { Name = "Bright Orange",  Color = Color3.fromRGB(218, 133, 65),  Code = 106 },
-    { Name = "Lime Green",     Color = Color3.fromRGB(187, 233, 11),  Code = 119 },
-    { Name = "Dark Red",       Color = Color3.fromRGB(114, 14,  15),  Code = 154 },
-    { Name = "Dark Orange",    Color = Color3.fromRGB(160, 95,  52),  Code = 68  },
-    { Name = "Dark Green",     Color = Color3.fromRGB(40,  127, 71),  Code = 28  },
-    { Name = "Sand Blue",      Color = Color3.fromRGB(112, 142, 152), Code = 135 },
-    { Name = "Sand Green",     Color = Color3.fromRGB(160, 188, 172), Code = 151 },
-    { Name = "Metal",          Color = Color3.fromRGB(159, 163, 162), Code = 148 },
-    { Name = "Reddish Brown",  Color = Color3.fromRGB(105, 64,  40),  Code = 192 },
-    { Name = "Earth Green",    Color = Color3.fromRGB(39,  70,  44),  Code = 141 },
+    { Name = "White",          Color = Color3.fromRGB(143, 76, 42),   Code = 345 },
+    { Name = "Black",          Color = Color3.fromRGB(17, 17, 17),    Code = 1003 },
+    { Name = "Bright Red",     Color = Color3.fromRGB(123, 46, 47),   Code = 154 },
+    { Name = "Bright Blue",    Color = Color3.fromRGB(156, 163, 168), Code = 131 },
+    { Name = "Bright Yellow",  Color = Color3.fromRGB(98, 71, 50),    Code = 25  },
+    { Name = "Bright Green",   Color = Color3.fromRGB(87, 88, 87),    Code = 148 },
+    { Name = "Bright Orange",  Color = Color3.fromRGB(149, 121, 119), Code = 153 },
+    { Name = "Lime Green",     Color = Color3.fromRGB(109, 110, 108), Code = 27 },
+    { Name = "Dark Red",       Color = Color3.fromRGB(120, 144, 130),  Code = 151 },
+    { Name = "Dark Orange",    Color = Color3.fromRGB(130, 138, 93),  Code = 200 },
+    { Name = "Dark Green",     Color = Color3.fromRGB(112, 149, 120),  Code = 210  },
+    { Name = "Sand Blue",      Color = Color3.fromRGB(143, 76, 42), Code = 345 },
+    { Name = "Sand Green",     Color = Color3.fromRGB(215, 197, 154), Code = 5 },
+    { Name = "Metal",          Color = Color3.fromRGB(104, 92, 67), Code = 108 },
+    { Name = "Pink",  Color = Color3.fromRGB(255, 0, 191),  Code = 1032 },
 }
 
 -- Quick lookup: Name → Code (used in the dropdown callback)
