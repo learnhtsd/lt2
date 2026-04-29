@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.256"
+local Version = "v0.0.257"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1206,11 +1206,18 @@ function Library:CreateWindow()
             local Rows     = Config2.Rows or 1
             local SlotSize = Config2.SlotSize or UDim2.new(0, ES(70), 0, ES(70))
 
+            -- FIX 1: Reserve space for the horizontal scrollbar so it
+            -- isn't hidden behind the bottom edge of the slot area.
+            local SCROLLBAR_H   = 4
             local TopPadding    = ES(35)
             local BottomPadding = ES(10)
             local CellPaddingY  = ES(8)
             local ScrollHeight  = (SlotSize.Y.Offset * Rows) + (CellPaddingY * (Rows - 1)) + 6
-            local TotalHeight   = TopPadding + ScrollHeight + BottomPadding
+            local TotalHeight   = TopPadding + ScrollHeight + SCROLLBAR_H + BottomPadding
+
+            -- FIX 2: Capture the outer tab ScrollingFrame so we can
+            -- forward vertical mouse-wheel events to it from the inner scroll.
+            local TabPage = self.Container
 
             local SlotRegistry = {}
 
@@ -1269,16 +1276,30 @@ function Library:CreateWindow()
             end)
 
             local Scroll = Instance.new("ScrollingFrame")
-            Scroll.Size                   = UDim2.new(1, -ES(20), 0, ScrollHeight)
+            Scroll.Size                   = UDim2.new(1, -ES(20), 0, ScrollHeight + SCROLLBAR_H)
             Scroll.Position               = UDim2.new(0, ES(10), 0, TopPadding)
             Scroll.BackgroundTransparency = 1
             Scroll.BorderSizePixel        = 0
             Scroll.CanvasSize             = UDim2.new(0, 0, 0, 0)
-            Scroll.ScrollBarThickness     = 2
+            Scroll.ScrollBarThickness     = SCROLLBAR_H
             Scroll.ScrollBarImageColor3   = T.Accent
             Scroll.ScrollingDirection     = Enum.ScrollingDirection.X
             Scroll.ClipsDescendants       = true
             Scroll.Parent                 = SelectorFrame
+
+            -- FIX 2: Forward vertical mouse-wheel events from the inner
+            -- horizontal scroll to the outer tab page so the tab still
+            -- scrolls normally when the cursor is over the image selector.
+            Scroll.InputChanged:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseWheel then
+                    local delta  = -input.Position.Z * 40
+                    local maxY   = math.max(0, TabPage.AbsoluteCanvasSize.Y - TabPage.AbsoluteSize.Y)
+                    TabPage.CanvasPosition = Vector2.new(
+                        TabPage.CanvasPosition.X,
+                        math.clamp(TabPage.CanvasPosition.Y + delta, 0, maxY)
+                    )
+                end
+            end)
 
             local Layout = Instance.new("UIGridLayout", Scroll)
             Layout.CellSize      = SlotSize
@@ -1356,12 +1377,9 @@ function Library:CreateWindow()
                     Image.Size     = UDim2.new(0.55, 0, 0.55, 0)
                 end
 
-                -- Stores the left/right fade frames for this slot's title so
-                -- we can recolor them when the slot is selected / deselected.
                 local TitleFades = {}
 
                 if SlotTitle then
-                    -- Clipping container — masks the scrolling text
                     local TitleClip = Instance.new("Frame")
                     TitleClip.Size                   = UDim2.new(1, -ES(6), 0, FS(13))
                     TitleClip.Position               = UDim2.new(0, ES(3), 0.65, 0)
@@ -1370,16 +1388,15 @@ function Library:CreateWindow()
                     TitleClip.ZIndex                 = 2
                     TitleClip.Parent                 = Slot
 
-                    -- Off-screen label used only to measure text pixel width
                     local Measure = Instance.new("TextLabel")
-                    Measure.Size          = UDim2.new(0, 500, 1, 0)
-                    Measure.Position      = UDim2.new(0, -1000, 0, 0)
+                    Measure.Size                   = UDim2.new(0, 500, 1, 0)
+                    Measure.Position               = UDim2.new(0, -1000, 0, 0)
                     Measure.BackgroundTransparency = 1
-                    Measure.Text          = SlotTitle
-                    Measure.Font          = Enum.Font.GothamMedium
-                    Measure.TextSize      = FS(10)
-                    Measure.TextWrapped   = false
-                    Measure.Parent        = TitleClip
+                    Measure.Text                   = SlotTitle
+                    Measure.Font                   = Enum.Font.GothamMedium
+                    Measure.TextSize               = FS(10)
+                    Measure.TextWrapped            = false
+                    Measure.Parent                 = TitleClip
 
                     task.defer(function()
                         if not Slot.Parent then return end
@@ -1389,7 +1406,6 @@ function Library:CreateWindow()
                         Measure:Destroy()
 
                         if textW <= clipW then
-                            -- ── Fits: plain centred label ─────────
                             local Txt = Instance.new("TextLabel")
                             Txt.Size                   = UDim2.new(1, 0, 1, 0)
                             Txt.BackgroundTransparency = 1
@@ -1400,11 +1416,9 @@ function Library:CreateWindow()
                             Txt.ZIndex                 = 2
                             Txt.Parent                 = TitleClip
                         else
-                            -- ── Overflows: marquee ────────────────
                             local GAP    = ES(18)
-                            local totalW = textW + GAP   -- one full scroll cycle
+                            local totalW = textW + GAP
 
-                            -- Two copies laid end-to-end so the loop is seamless
                             local Scroller = Instance.new("Frame")
                             Scroller.Size                   = UDim2.new(0, totalW * 2, 1, 0)
                             Scroller.Position               = UDim2.new(0, 0, 0, 0)
@@ -1426,9 +1440,6 @@ function Library:CreateWindow()
                                 Lbl.Parent                 = Scroller
                             end
 
-                            -- Left/right fades on the title clip.
-                            -- BackgroundColor3 matches the slot bg and is
-                            -- tweened in sync with selection state changes.
                             local TITLE_FADE_W = ES(10)
                             local function MakeTitleFade(anchorX, posX, rotated)
                                 local F = Instance.new("Frame")
@@ -1447,15 +1458,14 @@ function Library:CreateWindow()
                                 if rotated then G.Rotation = 180 end
                                 table.insert(TitleFades, F)
                             end
-                            MakeTitleFade(0, 0, false)   -- left
-                            MakeTitleFade(1, 1, true)    -- right
+                            MakeTitleFade(0, 0, false)
+                            MakeTitleFade(1, 1, true)
 
-                            -- Marquee loop
-                            local SPEED          = 28    -- pixels per second
+                            local SPEED          = 28
                             local scrollDuration = totalW / SPEED
 
                             task.spawn(function()
-                                task.wait(1.2)           -- pause before first scroll
+                                task.wait(1.2)
                                 while Slot.Parent do
                                     local tween = TweenService:Create(
                                         Scroller,
@@ -1465,8 +1475,8 @@ function Library:CreateWindow()
                                     tween:Play()
                                     tween.Completed:Wait()
                                     if not Slot.Parent then break end
-                                    Scroller.Position = UDim2.new(0, 0, 0, 0)  -- seamless snap
-                                    task.wait(0.6)       -- pause before looping
+                                    Scroller.Position = UDim2.new(0, 0, 0, 0)
+                                    task.wait(0.6)
                                 end
                             end)
                         end
@@ -1486,7 +1496,6 @@ function Library:CreateWindow()
                     SubTxt.Parent                 = Slot
                 end
 
-                -- Register for search and for cross-slot fade reset
                 table.insert(SlotRegistry, {
                     slot       = Slot,
                     title      = SlotTitle or "",
@@ -1497,7 +1506,6 @@ function Library:CreateWindow()
                     local isSelected = (Slot.BackgroundColor3 == T.Accent)
 
                     if not Multi then
-                        -- Deselect all other slots and reset their title fades
                         for _, entry in ipairs(SlotRegistry) do
                             if entry.slot ~= Slot then
                                 TweenService:Create(entry.slot, TweenInfo.new(0.2), {BackgroundColor3 = T.SurfaceDeep}):Play()
@@ -1528,7 +1536,6 @@ function Library:CreateWindow()
                     TweenService:Create(Slot, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
                     Stroke.Color = strokeColor
 
-                    -- Sync title fades with the new slot background
                     for _, fade in ipairs(TitleFades) do
                         TweenService:Create(fade, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
                     end
