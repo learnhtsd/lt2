@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.227"
+local Version = "v0.0.228"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1666,8 +1666,8 @@ if VehicleModule and VehicleModule.Init then VehicleModule.Init(VehicleTab) end
 local PlotModule = LoadModule("Plot")
 if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
 
---local AxeDupeModule = LoadModule("AxeDupe")
---if AxeDupeModule and AxeDupeModule.Init then AxeDupeModule.Init(DuplicationTab) end
+local AxeDupeModule = LoadModule("AxeDupe")
+if AxeDupeModule and AxeDupeModule.Init then AxeDupeModule.Init(DuplicationTab) end
 
 local TreeModule = LoadModule("Tree")
 if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, LooseObjectTeleportModule) end
