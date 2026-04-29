@@ -283,8 +283,6 @@ local function PurchasePart(mainPart, itemName, originalCF)
     end
 
     return purchased
-
-    return purchased
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
