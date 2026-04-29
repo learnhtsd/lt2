@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.257"
+local Version = "v0.0.258"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1198,7 +1198,7 @@ function Library:CreateWindow()
             return InfoBox
         end
                 
-        -- ── IMAGE SELECTOR ────────────────────────────────────
+-- ── IMAGE SELECTOR ────────────────────────────────────
         function Tab:CreateImageSelector(Title, Config2, Callback)
             local Element = {Selected = {}}
             Config2 = Config2 or {}
@@ -1206,8 +1206,6 @@ function Library:CreateWindow()
             local Rows     = Config2.Rows or 1
             local SlotSize = Config2.SlotSize or UDim2.new(0, ES(70), 0, ES(70))
 
-            -- FIX 1: Reserve space for the horizontal scrollbar so it
-            -- isn't hidden behind the bottom edge of the slot area.
             local SCROLLBAR_H   = 4
             local TopPadding    = ES(35)
             local BottomPadding = ES(10)
@@ -1215,10 +1213,7 @@ function Library:CreateWindow()
             local ScrollHeight  = (SlotSize.Y.Offset * Rows) + (CellPaddingY * (Rows - 1)) + 6
             local TotalHeight   = TopPadding + ScrollHeight + SCROLLBAR_H + BottomPadding
 
-            -- FIX 2: Capture the outer tab ScrollingFrame so we can
-            -- forward vertical mouse-wheel events to it from the inner scroll.
-            local TabPage = self.Container
-
+            local TabPage      = self.Container
             local SlotRegistry = {}
 
             local SelectorFrame = Instance.new("Frame")
@@ -1287,16 +1282,19 @@ function Library:CreateWindow()
             Scroll.ClipsDescendants       = true
             Scroll.Parent                 = SelectorFrame
 
-            -- FIX 2: Forward vertical mouse-wheel events from the inner
-            -- horizontal scroll to the outer tab page so the tab still
-            -- scrolls normally when the cursor is over the image selector.
+            -- ── Mouse wheel handling ───────────────────────────────
+            -- X-direction ScrollingFrames don't respond to mouse wheel
+            -- natively in Roblox, so we wire it manually.
+            -- Scrolling over the slots scrolls them horizontally.
+            -- Scrolling over the rest of the tab scrolls the tab vertically
+            -- as normal (the TabPage handles those events itself).
             Scroll.InputChanged:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseWheel then
-                    local delta  = -input.Position.Z * 40
-                    local maxY   = math.max(0, TabPage.AbsoluteCanvasSize.Y - TabPage.AbsoluteSize.Y)
-                    TabPage.CanvasPosition = Vector2.new(
-                        TabPage.CanvasPosition.X,
-                        math.clamp(TabPage.CanvasPosition.Y + delta, 0, maxY)
+                    local step = SlotSize.X.Offset + ES(8)   -- one slot + gap per tick
+                    local maxX = math.max(0, Scroll.AbsoluteCanvasSize.X - Scroll.AbsoluteSize.X)
+                    Scroll.CanvasPosition = Vector2.new(
+                        math.clamp(Scroll.CanvasPosition.X - input.Position.Z * step, 0, maxX),
+                        0
                     )
                 end
             end)
@@ -1312,13 +1310,18 @@ function Library:CreateWindow()
             Padding.PaddingTop    = UDim.new(0, ES(3))
             Padding.PaddingBottom = UDim.new(0, ES(3))
 
-            -- ── Scroll edge fades (on SelectorFrame, not Scroll) ──
-            local FADE_W = ES(28)
-            local function MakeScrollFade(anchorX, posX, rotated)
+            -- ── Scroll edge fades ──────────────────────────────────
+            -- Parented to SelectorFrame (not Scroll) so UIGridLayout
+            -- ignores them. Height covers slots + scrollbar so there
+            -- is no gap at the bottom.
+            local FADE_W      = ES(28)
+            local FADE_HEIGHT = ScrollHeight + SCROLLBAR_H   -- FIX: match full scroll area
+
+            local function MakeScrollFade(anchorX, posX, offsetX, rotated)
                 local Fade = Instance.new("Frame")
-                Fade.Size                   = UDim2.new(0, FADE_W, 0, ScrollHeight)
+                Fade.Size                   = UDim2.new(0, FADE_W, 0, FADE_HEIGHT)
                 Fade.AnchorPoint            = Vector2.new(anchorX, 0)
-                Fade.Position               = UDim2.new(posX, rotated and -ES(10) or ES(10), 0, TopPadding)
+                Fade.Position               = UDim2.new(posX, offsetX, 0, TopPadding)
                 Fade.BackgroundColor3       = T.Surface
                 Fade.BackgroundTransparency = 0
                 Fade.BorderSizePixel        = 0
@@ -1331,8 +1334,9 @@ function Library:CreateWindow()
                 })
                 if rotated then Grad.Rotation = 180 end
             end
-            MakeScrollFade(0, 0, false)
-            MakeScrollFade(1, 1, true)
+            --                anchorX  posX  offsetX      rotated
+            MakeScrollFade(   0,       0,    ES(10),      false )   -- left  edge
+            MakeScrollFade(   1,       1,    -ES(10),     true  )   -- right edge
 
             -- ── Search filter ─────────────────────────────────────
             local function ApplySearch(query)
