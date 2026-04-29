@@ -272,28 +272,45 @@ function VehicleModule.Init(Tab, Library)
                         if customSettings.SteerAngle > 0 then ApplyCustomization("SteerAngle", customSettings.SteerAngle) end
                         if customSettings.SteerVelocity > 0 then ApplyCustomization("SteerVelocity", customSettings.SteerVelocity) end
                     end
-                else
-                    -- PLAYER EXITED VEHICLE (RESET EVERYTHING)
-                    print("[Vehicle] Resetting values and disabling sliders.")
-                    
-                    -- 1. Reset Internal Memory so the next car starts fresh
-                    customSettings.MaxSpeed = 0
-                    customSettings.SteerAngle = 0
-                    customSettings.SteerVelocity = 0
-
-                    -- 2. Reset UI Visuals
-                    FlipButton:SetDisabled(true)
-                    FlipButton:SetText("No Vehicle")
-                    
-                    SpeedSlider:SetDisabled(true)
-                    SafeUpdateSlider(SpeedSlider, 0.1)
-                    
-                    SteerAngleSlider:SetDisabled(true)
-                    SafeUpdateSlider(SteerAngleSlider, 0.1)
-                    
-                    SteerVelocitySlider:SetDisabled(true)
-                    SafeUpdateSlider(SteerVelocitySlider, 0.01)
-                end
+                        else
+                            -- PLAYER EXITED VEHICLE (RESET EVERYTHING)
+                            print("[Vehicle] Resetting values and disabling sliders.")
+                        
+                            -- 1. Write default values back into the vehicle config BEFORE clearing memory
+                            --    so the car is physically restored to its original state on exit
+                            local config = GetVehicleConfig()
+                            if config then
+                                local defaults = {
+                                    MaxSpeed      = 1.0,
+                                    SteerAngle    = 1.0,
+                                    SteerVelocity = 0.03,
+                                }
+                                for name, defaultVal in pairs(defaults) do
+                                    local setting = config:FindFirstChild(name)
+                                    if setting and setting:IsA("ValueBase") then
+                                        setting.Value = defaultVal
+                                    end
+                                end
+                            end
+                        
+                            -- 2. Reset Internal Memory so the next car starts fresh
+                            customSettings.MaxSpeed      = 0
+                            customSettings.SteerAngle    = 0
+                            customSettings.SteerVelocity = 0
+                        
+                            -- 3. Reset UI Visuals
+                            FlipButton:SetDisabled(true)
+                            FlipButton:SetText("No Vehicle")
+                        
+                            SpeedSlider:SetDisabled(true)
+                            SafeUpdateSlider(SpeedSlider, 0.1)
+                        
+                            SteerAngleSlider:SetDisabled(true)
+                            SafeUpdateSlider(SteerAngleSlider, 0.1)
+                        
+                            SteerVelocitySlider:SetDisabled(true)
+                            SafeUpdateSlider(SteerVelocitySlider, 0.01)
+                        end
             end
         end
     end)
