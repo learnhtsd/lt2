@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.255"
+local Version = "v0.0.256"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -15,7 +15,7 @@ local Config = {
     Window = { -- Menu Scale
         Width  = 520,
         Height = 350,
-        SidebarWidth = 60,
+        SidebarWidth = 45,
     },
     Elements = { -- UI Element Scale
         Scale = 0.85,
