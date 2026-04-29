@@ -933,60 +933,49 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     InitLassoGui()
 
     -- ── Selection section ────────────────────────────────────────
-    Tab:CreateSection("Item Teleportation")
+    Tab:CreateSection("Teleportation Tools")
     Tab:CreateToggle("Click Selection", false, function(val)
         State.ClickSelectMode = val
     end)
-
     Tab:CreateToggle("Group Selection", false, function(val)
         State.GroupSelectMode = val
     end)
-
     Tab:CreateToggle("Lasso Tool", false, function(val)
         State.LassoMode = val
         if not val then
             State.LassoDragging = false
             if State.LassoFrame then State.LassoFrame.Visible = false end
         end
-    end):AddTooltip("Drag a box over objects to select them.")
-
+    end)
     Tab:CreateSlider("Max Retries", 1, 10, 5, function(val)
         Settings.MaxRetries = val
     end):AddTooltip("How many times to attempt grabbing network ownership per failed object.")
 
     local MainRow = Tab:CreateRow()
     MainRow:CreateAction("Clear Selection", "Clear", PerformClear)
-    MainRow:CreateAction("TP Selection",    "Execute", PerformExecute)
+    MainRow:CreateAction("Teleport Selection",    "TP", PerformExecute)
 
     -- ── Stack TP section ─────────────────────────────────────────
-    Tab:CreateSection("Stack Teleport")
-
-    Tab:CreateSlider("Stack X (columns)", 1, 20, Settings.StackX, function(val)
+    Tab:CreateSection("Sorting")
+    Tab:CreateSlider("X", 1, 100, Settings.StackX, function(val)
         Settings.StackX = val
-    end):AddTooltip("How many items wide the stack is (left ↔ right).")
-
-    Tab:CreateSlider("Stack Y (layers)",  1, 50, Settings.StackY, function(val)
+    end)
+    Tab:CreateSlider("Y", 1, 50, Settings.StackY, function(val)
         Settings.StackY = val
-    end):AddTooltip("How many items tall the stack is (bottom ↑ top).")
-
-    Tab:CreateSlider("Stack Z (rows)",    1, 20, Settings.StackZ, function(val)
+    end)
+    Tab:CreateSlider("Z", 1, 100, Settings.StackZ, function(val)
         Settings.StackZ = val
-    end):AddTooltip("How many items deep the stack is (front ↔ back).")
+    end)
 
-    Tab:CreateSlider("Item Padding", 0, 5, Settings.StackPadding * 10, function(val)
+    Tab:CreateSlider("Padding", 0, 10, Settings.StackPadding * 10, function(val)
         Settings.StackPadding = val / 10
-    end):AddTooltip("Gap between each item in the stack (0 = flush, 5 = 0.5 studs apart).")
+    end)
 
     local StackRow = Tab:CreateRow()
     State.StackStartBtn = StackRow:CreateAction(
-        "Stack TP — place selected items in a neat grid",
-        "Start Stack",
+        "Sort Selected Objects",
+        "Start",
         StartStackMode
-    )
-    State.StackStartBtn:AddTooltip(
-        "All selected items must be the same type.\n"
-        .. "After clicking Start Stack, a ghost preview follows your cursor.\n"
-        .. "Left-click in the world to confirm placement."
     )
 
     -- ── Input routing ────────────────────────────────────────────
