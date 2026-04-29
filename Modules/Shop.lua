@@ -5,6 +5,7 @@ local ShopModule = {}
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService        = game:GetService("RunService")
 local StarterGui        = game:GetService("StarterGui")
 local Player            = Players.LocalPlayer
 
@@ -249,7 +250,42 @@ local function SpamPurchase(mainPart, npcArg, itemName)
     return false
 end
 
+-- After a successful purchase the player owns the item, so we can
+-- enforce its CFrame directly without going through LOT's grab loop.
+-- A brief Heartbeat lock makes the position stick against any physics kick.
+local function ReturnItemToOrigin(mainPart, goalCF)
+    if not (mainPart and mainPart.Parent) then return end
+
+    local lock = RunService.Heartbeat:Connect(function()
+        if mainPart and mainPart.Parent then
+            mainPart.CFrame                  = goalCF
+            mainPart.AssemblyLinearVelocity  = Vector3.zero
+            mainPart.AssemblyAngularVelocity = Vector3.zero
+        end
+    end)
+
+    task.wait(0.2)  -- hold for a few frames so the engine accepts it
+    lock:Disconnect()
+
+    if mainPart and mainPart.Parent then
+        mainPart.CFrame                  = goalCF
+        mainPart.AssemblyLinearVelocity  = Vector3.zero
+        mainPart.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+
 local function PurchasePart(mainPart, itemName)
+    local char = Player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then
+        Notify("❌ Error", "No character found.", 3)
+        return false
+    end
+
+    -- Snapshot the player's position NOW — before any warping — so we
+    -- can return the purchased item here at the end of this cycle.
+    local originalPlayerCF = root.CFrame
+
     -- Step 1: TP the box to the drop zone via LOT
     local success = _LOT.TeleportMany({ { target = mainPart, goalCF = ITEM_DROP_CF } })
 
@@ -266,13 +302,6 @@ local function PurchasePart(mainPart, itemName)
     end
 
     -- Step 3: Warp player into purchase range
-    local char = Player.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then
-        Notify("❌ Error", "No character found.", 3)
-        return false
-    end
-
     root.CFrame = PLAYER_BUY_CF
     task.wait(0.1)  -- let the server register the new position
 
@@ -283,7 +312,19 @@ local function PurchasePart(mainPart, itemName)
         return false
     end
 
-    return SpamPurchase(mainPart, npcArg, itemName)
+    local purchased = SpamPurchase(mainPart, npcArg, itemName)
+
+    -- Step 5: On success, move the item back to where the player was
+    -- standing before the whole TP sequence began, then restore the
+    -- player there too so they're standing next to their new item.
+    if purchased then
+        -- Small upward offset so the item doesn't clip into the floor
+        local itemReturnCF = originalPlayerCF * CFrame.new(0, mainPart.Size.Y * 0.5, -2)
+        ReturnItemToOrigin(mainPart, itemReturnCF)
+        root.CFrame = originalPlayerCF
+    end
+
+    return purchased
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
