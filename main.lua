@@ -168,7 +168,7 @@ function Library:CreateWindow()
     -- MAIN FRAME
     local MainFrame = Instance.new("Frame")
     MainFrame.Size                 = UDim2.new(0, W.Width, 0, W.Height)
-    MainFrame.Position             = UDim2.new(0.5, -math.floor(W.Width/2), 0.5, -math.floor(W.Height/2))
+    MainFrame.Position             = UDim2.new(0, 0, 1, -(W.Height + 200))
     MainFrame.BackgroundColor3     = T.Background
     MainFrame.BackgroundTransparency = 0.15
     MainFrame.BorderSizePixel      = 0
