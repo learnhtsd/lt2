@@ -524,10 +524,6 @@ function TreeModule.Init(Tab, LOT)
         end
     end)
 
-    if type(chopActionButton) == "table" and chopActionButton.AddTooltip then
-        chopActionButton
-    end
-
     -- ── LOG MANAGEMENT SECTION ────────────────────────────────────────
     Tab:CreateSection("Log Management")
 
@@ -560,7 +556,7 @@ function TreeModule.Init(Tab, LOT)
                 or CFrame.new(0, 0, 0)
         end, function()
             if type(tpAllButton) == "table" and tpAllButton.SetText then
-                tpAllButton:SetText("TP All My Logs")
+                tpAllButton:SetText("TP")
             end
         end)
     end)
@@ -595,7 +591,7 @@ function TreeModule.Init(Tab, LOT)
             )
         end, function()
             if type(sellButton) == "table" and sellButton.SetText then
-                sellButton:SetText("Sell All My Logs")
+                sellButton:SetText("Sell")
             end
         end)
     end)
