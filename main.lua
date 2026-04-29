@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.225"
+local Version = "v0.0.226"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1592,19 +1592,19 @@ end
 -- ============================================================
 local HubWindow = Library:CreateWindow()
 
-local HomeTab       = HubWindow:CreateTab("Home")
-local PlayerTab     = HubWindow:CreateTab("Player")
-local WorldTab      = HubWindow:CreateTab("World")
-local TeleportTab   = HubWindow:CreateTab("Teleport")
-local WoodTab       = HubWindow:CreateTab("Wood")
-local PlotTab       = HubWindow:CreateTab("Plot")
-local DuplicatetTab = HubWindow:CreateTab("Duplicate")
-local ShopTab       = HubWindow:CreateTab("Shop")
-local VehicleTab    = HubWindow:CreateTab("Vehicle")
-local BuildTab      = HubWindow:CreateTab("Build")
-local ToolTab       = HubWindow:CreateTab("Tool")
-local ProtectionTab = HubWindow:CreateTab("Protection")
-local SettingsTab   = HubWindow:CreateTab("Settings")
+local HomeTab        = HubWindow:CreateTab("Home")
+local PlayerTab      = HubWindow:CreateTab("Player")
+local WorldTab       = HubWindow:CreateTab("World")
+local TeleportTab    = HubWindow:CreateTab("Teleport")
+local WoodTab        = HubWindow:CreateTab("Wood")
+local PlotTab        = HubWindow:CreateTab("Plot")
+local DuplicationTab = HubWindow:CreateTab("Duplicate")
+local ShopTab        = HubWindow:CreateTab("Shop")
+local VehicleTab     = HubWindow:CreateTab("Vehicle")
+local BuildTab       = HubWindow:CreateTab("Build")
+local ToolTab        = HubWindow:CreateTab("Tool")
+local ProtectionTab  = HubWindow:CreateTab("Protection")
+local SettingsTab    = HubWindow:CreateTab("Settings")
 
 local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s",
@@ -1666,14 +1666,17 @@ if VehicleModule and VehicleModule.Init then VehicleModule.Init(VehicleTab) end
 local PlotModule = LoadModule("Plot")
 if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
 
-local AxeDupeModule = LoadModule("AxeDupe")
-if AxeDupeModule and AxeDupeModule.Init then AxeDupeModule.Init(DuplicatetTab) end
+--local AxeDupeModule = LoadModule("AxeDupe")
+--if AxeDupeModule and AxeDupeModule.Init then AxeDupeModule.Init(DuplicationTab) end
 
 local TreeModule = LoadModule("Tree")
 if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, LooseObjectTeleportModule) end
 
 local ShopScript = LoadModule("Shop")
 if ShopScript and ShopScript.Init then ShopScript.Init(ShopTab, LooseObjectTeleportModule) end
+
+local Duplicationodule = LoadModule("Duplication")
+if Duplicationodule and Duplicationodule.Init then GhostModule.Init(DuplicationTab) end
 
 local Theme = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
