@@ -13,8 +13,8 @@ local Version = "v0.0.227"
 
 local Config = {
     Window = { -- Menu Scale
-        Width  = 350,
-        Height = 500,
+        Width  = 420,
+        Height = 540,
         SidebarWidth = 40,
     },
     Elements = { -- UI Element Scale
