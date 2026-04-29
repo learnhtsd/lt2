@@ -42,12 +42,23 @@ local SetChatting = ReplicatedStorage.NPCDialog.SetChattingValue
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                       FUNDS REMOTE                              │
 -- │                                                                 │
+-- │  Resolved lazily on first call — never blocks module load.     │
 -- │  GetFunds:InvokeServer() → number (player's current balance)   │
 -- └─────────────────────────────────────────────────────────────────┘
-local GetFundsRemote = ReplicatedStorage:WaitForChild("GetFunds")
+local GetFundsRemote = nil  -- resolved on first FetchFunds() call
 
 -- Returns the player's current balance as a number, or nil on failure.
 local function FetchFunds()
+    -- Resolve the remote once, with a short timeout so we never hang.
+    if not GetFundsRemote then
+        GetFundsRemote = ReplicatedStorage:FindFirstChild("GetFunds")
+                      or ReplicatedStorage:WaitForChild("GetFunds", 5)
+        if not GetFundsRemote then
+            warn("[ShopModule] GetFunds remote not found in ReplicatedStorage.")
+            return nil
+        end
+    end
+
     local ok, result = pcall(function()
         return GetFundsRemote:InvokeServer()
     end)
