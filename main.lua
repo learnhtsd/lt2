@@ -1676,7 +1676,7 @@ local ShopScript = LoadModule("Shop")
 if ShopScript and ShopScript.Init then ShopScript.Init(ShopTab, LooseObjectTeleportModule) end
 
 local Duplicationodule = LoadModule("Duplication")
-if Duplicationodule and Duplicationodule.Init then GhostModule.Init(DuplicationTab) end
+if Duplicationodule and Duplicationodule.Init then Duplicationodule.Init(DuplicationTab) end
 
 local Theme = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
