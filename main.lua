@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.260"
+local Version = "v0.0.261"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -168,7 +168,7 @@ function Library:CreateWindow()
     -- MAIN FRAME
     local MainFrame = Instance.new("Frame")
     MainFrame.Size                 = UDim2.new(0, W.Width, 0, W.Height)
-    MainFrame.Position             = UDim2.new(0, 0, 1, -(W.Height + 200))
+    MainFrame.Position             = UDim2.new(0, 0, 1, -(W.Height + 120))
     MainFrame.BackgroundColor3     = T.Background
     MainFrame.BackgroundTransparency = 0.15
     MainFrame.BorderSizePixel      = 0
