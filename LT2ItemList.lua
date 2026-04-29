@@ -15,7 +15,7 @@ return {
     { Name = "Straight Conveyor Switch Right", Image = "Conveyor_Straight_Switch_Right.png", Price = 480, BoxItemName = "", },
     { Name = "Sweeper Conveyor", Image = "Conveyor_Sweeper.png", Price = 430, BoxItemName = "", },
     { Name = "Conveyor Supports", Image = "Conveyor_Supports.png", Price = 12, BoxItemName = "", },
-    { Name = "Turn Conveyor Suppords", Image = "Conveyor_Tilted_Supports.png", Price = 20, BoxItemName = "", },
+    { Name = "Turn Conveyor Suppords", Image = "Conveyor_Turn_Supports.png", Price = 20, BoxItemName = "", },
     -- Sawmills
     { Name = "Shabby Sawmill", Image = "Sawmill_Shabby.png", Price = 130, BoxItemName = "", },
     { Name = "Fair Sawmill", Image = "Sawmill_Fair.png", Price = 1600, BoxItemName = "", },
