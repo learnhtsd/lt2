@@ -395,12 +395,12 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     local SelectedItem = ShopItems[1]
     local Quantity     = 1
 
-    Tab:CreateSection("Hardware Store")
+    Tab:CreateSection("Stores")
 
-    local Catalog = Tab:CreateImageSelector("Select Item", {
+    local Catalog = Tab:CreateImageSelector("Wood R Us", {
         MultiSelect = false,
-        Rows        = 1,
-        SlotSize    = UDim2.new(0, 60, 0, 60),
+        Rows        = 3,
+        SlotSize    = UDim2.new(0, 70, 0, 70),
     }, function(name)
         for _, item in pairs(ShopItems) do
             if item.Name == name then
@@ -416,7 +416,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
     end
 
-    Tab:CreateSlider("Quantity", 1, 50, 1, function(val)
+    Tab:CreateSlider("Quantity", 1, 100, 1, function(val)
         Quantity = val
         ShopModule.UpdateDisplay()
     end)
