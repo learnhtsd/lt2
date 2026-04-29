@@ -10,36 +10,39 @@ function PlayerMovement.Init(Tab)
     local Camera           = Workspace.CurrentCamera
 
     -- ===========================
-    -- CONNECTION CLEANUP (THE FIX)
+    -- THE REAL FIX: EXECUTOR GLOBALS
+    -- getgenv() persists across script executions, unlike _G which often gets sandboxed.
     -- ===========================
-    if _G.PM_Connections then
-        for _, conn in pairs(_G.PM_Connections) do
+    local env = getgenv and getgenv() or _G
+
+    if env.PM_Connections then
+        for _, conn in pairs(env.PM_Connections) do
             if typeof(conn) == "RBXScriptConnection" then
                 conn:Disconnect()
             end
         end
     end
-    _G.PM_Connections = {}
+    env.PM_Connections = {}
 
     -- ===========================
     -- STATE VARIABLES
     -- ===========================
-    _G.WalkSpeed     = 16
-    _G.SprintEnabled = false
-    _G.SprintSpeed   = 32
-    _G.IsSprinting   = false
+    env.WalkSpeed     = 16
+    env.SprintEnabled = false
+    env.SprintSpeed   = 32
+    env.IsSprinting   = false
 
-    _G.JumpHeight = 50
-    _G.InfJump    = false
+    env.JumpHeight = 50
+    env.InfJump    = false
 
-    _G.FlyMasterSwitch = true
-    _G.IsFlying        = false
-    _G.FlySpeed        = 100
+    env.FlyMasterSwitch = true
+    env.IsFlying        = false
+    env.FlySpeed        = 100
 
-    _G.Noclip    = false
-    _G.WaterWalk = false
-    _G.ClickTP   = false
-    _G.Fling     = false
+    env.Noclip    = false
+    env.WaterWalk = false
+    env.ClickTP   = false
+    env.Fling     = false
 
     local flyVelocity = nil
     local flyGyro     = nil
@@ -55,28 +58,30 @@ function PlayerMovement.Init(Tab)
         local hum = char:FindFirstChildOfClass("Humanoid")
 
         if hrp then
-            local orphanedVelocity = hrp:FindFirstChild("ExploitFlyVelocity")
-            local orphanedGyro     = hrp:FindFirstChild("ExploitFlyGyro")
-            if orphanedVelocity then orphanedVelocity:Destroy() end
-            if orphanedGyro     then orphanedGyro:Destroy()     end
+            -- Aggressively destroy ALL orphaned exploit movers, not just the first one
+            for _, v in pairs(hrp:GetChildren()) do
+                if v.Name == "ExploitFlyVelocity" or v.Name == "ExploitFlyGyro" then
+                    v:Destroy()
+                end
+            end
 
             -- Zero out any residual velocity so the character isn't launched
             pcall(function() hrp.Velocity    = Vector3.new(0, 0, 0) end)
             pcall(function() hrp.RotVelocity = Vector3.new(0, 0, 0) end)
         end
 
-        -- Reset PlatformStand
+        -- Reset PlatformStand and force Freefall to unstick the physics engine
         if hum then
             hum.PlatformStand = false
-            task.defer(function()
-                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            task.delay(0.05, function()
+                hum:ChangeState(Enum.HumanoidStateType.Freefall)
             end)
         end
 
-        -- Reset globals so the new session starts clean regardless of prior state
-        _G.IsFlying = false
-        _G.Noclip   = false
-        _G.Fling    = false
+        -- Reset globals so the new session starts clean
+        env.IsFlying = false
+        env.Noclip   = false
+        env.Fling    = false
         flyVelocity = nil
         flyGyro     = nil
     end
@@ -84,7 +89,7 @@ function PlayerMovement.Init(Tab)
     CleanupOrphanedFlyObjects()
 
     -- Track the CharacterAdded connection
-    table.insert(_G.PM_Connections, LocalPlayer.CharacterAdded:Connect(function()
+    table.insert(env.PM_Connections, LocalPlayer.CharacterAdded:Connect(function()
         task.wait(0.1)
         CleanupOrphanedFlyObjects()
     end))
@@ -128,9 +133,8 @@ function PlayerMovement.Init(Tab)
     -- ===========================
     -- INPUT CONNECTIONS
     -- ===========================
-    -- Track InputBegan connection
-    table.insert(_G.PM_Connections, UserInputService.InputBegan:Connect(function(input, processed)
-        if not processed and _G.ClickTP
+    table.insert(env.PM_Connections, UserInputService.InputBegan:Connect(function(input, processed)
+        if not processed and env.ClickTP
             and input.UserInputType == Enum.UserInputType.MouseButton1
             and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             local char = LocalPlayer.Character
@@ -140,9 +144,8 @@ function PlayerMovement.Init(Tab)
         end
     end))
 
-    -- Track JumpRequest connection
-    table.insert(_G.PM_Connections, UserInputService.JumpRequest:Connect(function()
-        if _G.InfJump then
+    table.insert(env.PM_Connections, UserInputService.JumpRequest:Connect(function()
+        if env.InfJump then
             local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if hum then hum:ChangeState("Jumping") end
         end
@@ -152,29 +155,29 @@ function PlayerMovement.Init(Tab)
     -- UI SECTIONS
     -- ===========================
     Tab:CreateSection("Movement")
-    Tab:CreateSlider("Walk Speed",   16,  500,  16,  function(v) _G.WalkSpeed   = v end)
-    Tab:CreateSlider("Jump Height",  50,  800,  50,  function(v) _G.JumpHeight  = v end)
-    Tab:CreateSlider("Sprint Speed", 32,  1000, 32,  function(v) _G.SprintSpeed = v end)
-    Tab:CreateSlider("Fly Speed",    32,  1000, 100, function(v) _G.FlySpeed    = v end)
+    Tab:CreateSlider("Walk Speed",   16,  500,  16,  function(v) env.WalkSpeed   = v end)
+    Tab:CreateSlider("Jump Height",  50,  800,  50,  function(v) env.JumpHeight  = v end)
+    Tab:CreateSlider("Sprint Speed", 32,  1000, 32,  function(v) env.SprintSpeed = v end)
+    Tab:CreateSlider("Fly Speed",    32,  1000, 100, function(v) env.FlySpeed    = v end)
 
     local SprintRow = Tab:CreateRow()
-    SprintRow:CreateToggle("Sprint", false, function(s) _G.SprintEnabled = s end)
+    SprintRow:CreateToggle("Sprint", false, function(s) env.SprintEnabled = s end)
     SprintRow:CreateKeybind("KeyBind", Enum.KeyCode.LeftShift, function()
-        _G.IsSprinting = not _G.IsSprinting
+        env.IsSprinting = not env.IsSprinting
     end)
 
     local FlyRow = Tab:CreateRow()
     FlyRow:CreateToggle("Fly", true, function(s)
-        _G.FlyMasterSwitch = s
-        if not s and _G.IsFlying then
-            _G.IsFlying = false
+        env.FlyMasterSwitch = s
+        if not s and env.IsFlying then
+            env.IsFlying = false
             UpdateFlyPhysics(false)
         end
     end)
     FlyRow:CreateKeybind("KeyBind", Enum.KeyCode.Q, function()
-        if _G.FlyMasterSwitch then
-            _G.IsFlying = not _G.IsFlying
-            UpdateFlyPhysics(_G.IsFlying)
+        if env.FlyMasterSwitch then
+            env.IsFlying = not env.IsFlying
+            UpdateFlyPhysics(env.IsFlying)
         end
     end)
 
@@ -186,11 +189,11 @@ function PlayerMovement.Init(Tab)
     end):AddTooltip("Disable fog in Lighting settings for the best results. At extreme distances, fog can block your view.")
 
     Tab:CreateSection("Utility")
-    Tab:CreateToggle("Infinite Jump", false, function(s) _G.InfJump    = s end)
-    Tab:CreateToggle("Noclip",        false, function(s) _G.Noclip     = s end)
-    Tab:CreateToggle("G Fling",       false, function(s) _G.Fling      = s end):AddTooltip("Walk into players or objects to launch them.")
-    Tab:CreateToggle("Water Walk",    false, function(s) _G.WaterWalk  = s end)
-    Tab:CreateToggle("Ctrl + Click TP", false, function(s) _G.ClickTP  = s end)
+    Tab:CreateToggle("Infinite Jump", false, function(s) env.InfJump    = s end)
+    Tab:CreateToggle("Noclip",        false, function(s) env.Noclip     = s end)
+    Tab:CreateToggle("G Fling",       false, function(s) env.Fling      = s end):AddTooltip("Walk into players or objects to launch them.")
+    Tab:CreateToggle("Water Walk",    false, function(s) env.WaterWalk  = s end)
+    Tab:CreateToggle("Ctrl + Click TP", false, function(s) env.ClickTP  = s end)
     Tab:CreateAction("Reset Character", "Kill", function()
         if LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
     end)
@@ -198,8 +201,7 @@ function PlayerMovement.Init(Tab)
     -- ===========================
     -- MASTER LOOP
     -- ===========================
-    -- Track Stepped connection
-    table.insert(_G.PM_Connections, RunService.Stepped:Connect(function()
+    table.insert(env.PM_Connections, RunService.Stepped:Connect(function()
         local char = LocalPlayer.Character
         if not char then return end
 
@@ -207,7 +209,7 @@ function PlayerMovement.Init(Tab)
         local hrp = char:FindFirstChild("HumanoidRootPart")
 
         -- FLING LOGIC
-        if _G.Fling and hrp then
+        if env.Fling and hrp then
             if hum then hum.PlatformStand = true end
             hrp.RotVelocity = Vector3.new(0, 10000, 0)
             hrp.Velocity    = Vector3.new(0, 0, 0)
@@ -215,13 +217,13 @@ function PlayerMovement.Init(Tab)
                 if v:IsA("BasePart") then v.CanCollide = false end
             end
         else
-            if hum and not _G.IsFlying then
+            if hum and not env.IsFlying then
                 hum.PlatformStand = false
             end
         end
 
         -- NOCLIP
-        if _G.Noclip then
+        if env.Noclip then
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then v.CanCollide = false end
             end
@@ -230,16 +232,16 @@ function PlayerMovement.Init(Tab)
         -- SPEED / JUMP
         if hum then
             hum.UseJumpPower = true
-            hum.JumpPower    = _G.JumpHeight
-            if _G.SprintEnabled and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or _G.IsSprinting) then
-                hum.WalkSpeed = _G.SprintSpeed
+            hum.JumpPower    = env.JumpHeight
+            if env.SprintEnabled and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or env.IsSprinting) then
+                hum.WalkSpeed = env.SprintSpeed
             else
-                hum.WalkSpeed = _G.WalkSpeed
+                hum.WalkSpeed = env.WalkSpeed
             end
         end
 
         -- WATER WALK
-        if _G.WaterWalk and hrp then
+        if env.WaterWalk and hrp then
             if hrp.Position.Y <= 1 and hrp.Position.Y >= -5 then
                 hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
                 hrp.CFrame   = hrp.CFrame + Vector3.new(0, 0.1, 0)
@@ -247,7 +249,7 @@ function PlayerMovement.Init(Tab)
         end
 
         -- FLY
-        if _G.IsFlying and hrp then
+        if env.IsFlying and hrp then
             if not hrp:FindFirstChild("ExploitFlyVelocity") then UpdateFlyPhysics(true) end
             if flyVelocity and flyGyro then
                 local moveVector = Vector3.new(0, 0, 0)
@@ -255,7 +257,7 @@ function PlayerMovement.Init(Tab)
                 if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - Camera.CFrame.LookVector  end
                 if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - Camera.CFrame.RightVector end
                 if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + Camera.CFrame.RightVector end
-                local vel = (moveVector.Magnitude > 0) and (moveVector.Unit * _G.FlySpeed) or Vector3.new(0, 0, 0)
+                local vel = (moveVector.Magnitude > 0) and (moveVector.Unit * env.FlySpeed) or Vector3.new(0, 0, 0)
                 flyVelocity.Velocity = vel
                 flyGyro.CFrame       = Camera.CFrame
             end
