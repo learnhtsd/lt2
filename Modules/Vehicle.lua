@@ -137,6 +137,11 @@ function VehicleModule.Init(Tab, Library)
     end)
     ResetButton:SetDisabled(true)
 
+    local resetOnExit = true
+    Tab:CreateToggle("Reset Config On Exit", true, function(state)
+        resetOnExit = state
+    end):AddTooltip("When on, the vehicle's stats are restored to their original values when you get out.")
+
     Tab:CreateSection("Vehicle Pad Spawner")
 
     Tab:CreateInput("Target Color ID", "148", function(val)
@@ -295,13 +300,15 @@ function VehicleModule.Init(Tab, Library)
                     print("[Vehicle] Resetting values and disabling sliders.")
 
                     -- Write defaults back into the vehicle config before clearing memory
-                    local config = GetVehicleConfig()
-                    if config and vehicleDefaults.MaxSpeed then
-                        local names = { "MaxSpeed", "SteerAngle", "SteerVelocity" }
-                        for _, name in ipairs(names) do
-                            local setting = config:FindFirstChild(name)
-                            if setting and setting:IsA("ValueBase") then
-                                setting.Value = vehicleDefaults[name]
+                    if resetOnExit then
+                        local config = GetVehicleConfig()
+                        if config and vehicleDefaults.MaxSpeed then
+                            local names = { "MaxSpeed", "SteerAngle", "SteerVelocity" }
+                            for _, name in ipairs(names) do
+                                local setting = config:FindFirstChild(name)
+                                if setting and setting:IsA("ValueBase") then
+                                    setting.Value = vehicleDefaults[name]
+                                end
                             end
                         end
                     end
