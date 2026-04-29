@@ -41,14 +41,9 @@ local SetChatting = ReplicatedStorage.NPCDialog.SetChattingValue
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                       FUNDS REMOTE                              │
--- │                                                                 │
--- │  Resolved lazily on first call via a recursive search so it    │
--- │  works regardless of which folder the remote is nested in.     │
--- │  Found path is printed to console for reference.               │
 -- └─────────────────────────────────────────────────────────────────┘
-local GetFundsRemote = nil  -- resolved on first FetchFunds() call
+local GetFundsRemote = nil
 
--- Recursively searches `root` for the first RemoteFunction named `name`.
 local function FindRemoteRecursive(root, name)
     for _, child in ipairs(root:GetDescendants()) do
         if child.Name == name and child:IsA("RemoteFunction") then
@@ -58,7 +53,6 @@ local function FindRemoteRecursive(root, name)
     return nil
 end
 
--- Returns the player's current balance as a number, or nil on failure.
 local function FetchFunds()
     if not GetFundsRemote then
         GetFundsRemote = FindRemoteRecursive(ReplicatedStorage, "GetFunds")
@@ -186,13 +180,11 @@ local function SpamPurchase(mainPart, npcArg, itemName)
     while tick() < deadline do
         local parent = mainPart and mainPart.Parent
 
-        -- ── Success ───────────────────────────────────────────────
         if IsSuccessParent(parent) then
             Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
             return true
         end
 
-        -- ── Parent is nil: could be a mid-transition re-parent ────
         if parent == nil then
             task.wait()
             local newParent = mainPart and mainPart.Parent
@@ -206,7 +198,6 @@ local function SpamPurchase(mainPart, npcArg, itemName)
             end
         end
 
-        -- ── Fire the three-step purchase sequence ─────────────────
         pcall(function()
             Remote:InvokeServer(npcArg, "Initiate")
             Remote:InvokeServer(npcArg, "ConfirmPurchase")
@@ -226,14 +217,9 @@ local function SpamPurchase(mainPart, npcArg, itemName)
     return false
 end
 
--- originalCF: the player's CFrame captured at button-press time.
--- Passed in from the button callback so it reflects where the player
--- was standing the moment they clicked, before any async delay.
 local function PurchasePart(mainPart, itemName, originalCF)
-    -- Step 1: TP the box to the drop zone via LOT
     local success = _LOT.TeleportMany({ { target = mainPart, goalCF = ITEM_DROP_CF } })
 
-    -- Step 2: Safety-net wait
     if _LOT.IsBusy() then
         Notify("Shop", "Waiting for TP to settle…", 2)
         success = _LOT.WaitForBatch()
@@ -244,7 +230,6 @@ local function PurchasePart(mainPart, itemName, originalCF)
         return false
     end
 
-    -- Step 3: Warp player into purchase range
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then
@@ -252,13 +237,11 @@ local function PurchasePart(mainPart, itemName, originalCF)
         return false
     end
 
-    -- Fall back to current position if somehow none was passed in
     originalCF = originalCF or root.CFrame
 
     root.CFrame = PLAYER_BUY_CF
-    task.wait(0.1)  -- let the server register the new position
+    task.wait(0.1)
 
-    -- Step 4: Find the nearest NPC and spam remotes until purchased
     local npcArg = GetNearestNPCArg(mainPart)
     if not npcArg or not npcArg.ID then
         Notify("❌ No NPC", ("Could not find NPC for '%s'."):format(itemName), 4)
@@ -267,18 +250,16 @@ local function PurchasePart(mainPart, itemName, originalCF)
 
     local purchased = SpamPurchase(mainPart, npcArg, itemName)
 
-    -- Step 5: TP the item to where the player was when they pressed Buy
     if purchased then
-        task.wait(0.05)  -- let the server finish re-parenting
+        task.wait(0.05)
         if mainPart and mainPart.Parent then
             _LOT.TeleportMany({ { target = mainPart, goalCF = originalCF } })
         end
 
-        -- Step 6: Return the player to their original position
         local returnChar = Player.Character
         local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
         if returnRoot then
-            returnRoot.CFrame = originalCF * CFrame.new(0, 0, 3)  -- slight offset so they don't clip into the item
+            returnRoot.CFrame = originalCF * CFrame.new(0, 0, 3)
         end
     end
 
@@ -286,22 +267,65 @@ local function PurchasePart(mainPart, itemName, originalCF)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
--- │                     SHOP CONFIGURATION                          │
+-- │                     REMOTE ITEM LIST LOADER                     │
+-- │                                                                 │
+-- │  Fetches LT2ItemList.lua from the root of your GitHub repo     │
+-- │  and runs it. The file must return a table of item entries,    │
+-- │  for example:                                                   │
+-- │                                                                 │
+-- │  return {                                                       │
+-- │      {                                                          │
+-- │          Name        = "Basic Hatchet",                        │
+-- │          Image       = "BasicHatchet.png",                     │
+-- │          Price       = 12,                                      │
+-- │          BoxItemName = "BasicHatchet",                         │
+-- │      },                                                         │
+-- │      {                                                          │
+-- │          Name        = "Large Axe",                            │
+-- │          Image       = "LargeAxe.png",                         │
+-- │          Price       = 800,                                     │
+-- │          BoxItemName = "LargeAxe",                             │
+-- │      },                                                         │
+-- │  }                                                              │
+-- │                                                                 │
+-- │  User / Repo / Branch are read from getgenv() so they always   │
+-- │  stay in sync with whatever the main script has set.           │
 -- └─────────────────────────────────────────────────────────────────┘
-local ShopItems = {
-    {
-        Name        = "Basic Hatchet",
-        Image       = "BasicHatchet.png",
-        Price       = 12,
-        BoxItemName = "BasicHatchet",
-    },
-    -- {
-    --     Name        = "Large Axe",
-    --     Image       = "LargeAxe.png",
-    --     Price       = 800,
-    --     BoxItemName = "LargeAxe",
-    -- },
-}
+local function LoadItemList()
+    local genv   = getgenv()
+    local user   = genv.User   or "learnhtsd"
+    local repo   = genv.Repo   or "lt2"
+    local branch = genv.Branch or "main"
+
+    local url = string.format(
+        "https://raw.githubusercontent.com/%s/%s/%s/LT2ItemList.lua?t=%s",
+        user, repo, branch, tick()  -- cache-bust so edits are picked up immediately
+    )
+
+    local ok, result = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if not ok or not result or result:find("404: Not Found") then
+        warn("[ShopModule] Could not fetch LT2ItemList.lua — " .. tostring(result))
+        return nil
+    end
+
+    local fn, parseErr = loadstring(result)
+    if not fn then
+        warn("[ShopModule] LT2ItemList.lua has a syntax error — " .. tostring(parseErr))
+        return nil
+    end
+
+    local ok2, items = pcall(fn)
+    if not ok2 or type(items) ~= "table" then
+        warn("[ShopModule] LT2ItemList.lua must return a table — " .. tostring(items))
+        return nil
+    end
+
+    print(("[ShopModule] Loaded %d item(s) from LT2ItemList.lua"):format(#items))
+    return items
+end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                      WORLD PATH RESOLVER                        │
@@ -355,11 +379,18 @@ end
 function ShopModule.Init(Tab, lot, GetImageFunc)
     if lot ~= nil then _LOT = lot end
 
-    -- FIX 1: Use getgenv() instead of getfenv() so we find the global
-    --         GetImage that the main script registered via getgenv().GetImage.
     local GetImage = GetImageFunc
                   or getgenv().GetImage
                   or function() return nil end
+
+    -- Fetch the item list from GitHub. If it fails, leave the tab
+    -- empty rather than crashing halfway through UI construction.
+    local ShopItems = LoadItemList()
+    if not ShopItems or #ShopItems == 0 then
+        warn("[ShopModule] No items loaded — shop tab will be empty.")
+        Tab:CreateSection("Hardware Store")
+        return
+    end
 
     local SelectedItem = ShopItems[1]
     local Quantity     = 1
@@ -381,9 +412,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     end)
 
     for _, item in pairs(ShopItems) do
-        -- FIX 2: Pass "" as the folder so the URL resolves to
-        --         .../Images/BasicHatchet.png  (not .../Images/Images/BasicHatchet.png)
-        --         matching exactly where the Placeholder.png sits.
         local img = GetImage("", item.Image)
         Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
     end
@@ -406,7 +434,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
             return
         end
 
-        -- ── Funds check ───────────────────────────────────────────
         local totalCost = SelectedItem.Price * Quantity
         local funds     = FetchFunds()
 
@@ -429,15 +456,12 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         local parts = ResolveItemParts(SelectedItem, Quantity)
         if #parts == 0 then return end
 
-        -- Snapshot the player's position RIGHT NOW, on the main thread,
-        -- before task.spawn hands off to an async context. FetchNPCIDs()
-        -- can take several seconds, during which the player may have moved.
         local char      = Player.Character
         local root      = char and char:FindFirstChild("HumanoidRootPart")
         local pressedCF = root and root.CFrame
 
         task.spawn(function()
-            FetchNPCIDs()  -- no-op after first call
+            FetchNPCIDs()
 
             local bought    = 0
             local failed    = 0
@@ -462,8 +486,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                     _LOT.WaitForBatch()
                 end
 
-                -- Pass pressedCF so the item lands where the player
-                -- was standing when they clicked the button.
                 local ok = PurchasePart(mainPart, itemName, pressedCF)
                 if ok then
                     bought += 1
