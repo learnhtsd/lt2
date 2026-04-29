@@ -143,7 +143,9 @@ function VehicleModule.Init(Tab, Library)
         targetColorCode = tonumber(val) or 148
     end):AddTooltip("The BrickColor number ID you want to roll for.")
 
+    -- Forward declare so SelectButton's closure can reference SpawnButton and AutoToggle
     local SpawnButton
+    local AutoToggle
     local SelectButton
     SelectButton = Tab:CreateAction("Select Car Pad", "Select", function()
         SelectButton:SetText("Click Pad!")
@@ -166,6 +168,7 @@ function VehicleModule.Init(Tab, Library)
                         selectedPadEvent = ev
                         SelectButton:SetText(current.Name)
                         SpawnButton:SetDisabled(false)
+                        AutoToggle:SetDisabled(false)  -- pad found — unlock the toggle
                         return
                     end
                     current = current.Parent
@@ -217,9 +220,11 @@ function VehicleModule.Init(Tab, Library)
         return result
     end
 
-    local AutoToggle
     AutoToggle = Tab:CreateToggle("Auto-Roll Color", false, function(state)
-        if not selectedPadEvent then return end
+        if not selectedPadEvent then
+            AutoToggle:SetState(false)
+            return
+        end
         isAutoRolling = state
 
         if isAutoRolling then
@@ -238,6 +243,7 @@ function VehicleModule.Init(Tab, Library)
             end)
         end
     end)
+    AutoToggle:SetDisabled(true)  -- disabled until a pad is selected
 
     --------------------------------------------------------------------
     -- BACKGROUND MONITORING
