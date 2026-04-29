@@ -918,21 +918,19 @@ function Library:CreateWindow()
             return AttachTooltip(TitleLabel, Element)
         end
 
--- ── INFO BOX ──────────────────────────────────────────────────
-        function Tab:CreateInfoBox(CfgOrTitle, LegacyDescription)
-            local Cfg
-            if type(CfgOrTitle) == "string" then
-                Cfg = { Title = CfgOrTitle, Description = LegacyDescription }
-            else
-                Cfg = CfgOrTitle or {}
-            end
-
-            local InfoBox     = {}
-            local hasHeader   = (Cfg.Title ~= nil and Cfg.Title ~= "") or (Cfg.Icon ~= nil and Cfg.Icon ~= "")
-            local headerH     = hasHeader and ES(28) or 0
-
-            -- ── Outer card (vertical list so height is automatic) ────
+        -- ── INFO BOX (v2) ─────────────────────────────────────────────
+        -- Looks like CreateAction (flat Surface card, rounded corners, depth stroke).
+        -- No button. Accepts unlimited text entries via :AddText(), each fully
+        -- configurable. Card height is automatic — grows with content.
+        -- Also exposes :AddDivider() and :AddSpacer() for layout control.
+        -- ──────────────────────────────────────────────────────────────
+        function Tab:CreateInfoBox()
+            local InfoBox    = {}
+            local layoutOrder = 0
+        
+            -- ── Outer card (matches Action button style exactly) ──────
             local Card = Instance.new("Frame")
+            Card.Name             = "InfoBox"
             Card.Size             = UDim2.new(1, 0, 0, 0)
             Card.AutomaticSize    = Enum.AutomaticSize.Y
             Card.BackgroundColor3 = T.Surface
@@ -940,135 +938,251 @@ function Library:CreateWindow()
             Card.ClipsDescendants = false
             Card.Parent           = self.Container
             Instance.new("UICorner", Card).CornerRadius = UDim.new(0, 6)
-
-            local CardStroke = Instance.new("UIStroke", Card)
-            CardStroke.Color           = T.Stroke
-            CardStroke.Thickness       = 1
-            CardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-            local CardLayout = Instance.new("UIListLayout", Card)
-            CardLayout.SortOrder      = Enum.SortOrder.LayoutOrder
-            CardLayout.FillDirection  = Enum.FillDirection.Vertical
-            CardLayout.Padding        = UDim.new(0, 0)
-
-            -- ── Top accent stripe ─────────────────────────────────────
-            local TopStripe = Instance.new("Frame")
-            TopStripe.LayoutOrder      = 1
-            TopStripe.Size             = UDim2.new(1, 0, 0, 2)
-            TopStripe.BackgroundColor3 = T.Accent
-            TopStripe.BorderSizePixel  = 0
-            TopStripe.Parent           = Card
-            -- UICorner on just the top: a covering frame hides the bottom rounding
-            Instance.new("UICorner", TopStripe).CornerRadius = UDim.new(0, 6)
-            local StripeFloor = Instance.new("Frame", TopStripe)
-            StripeFloor.Size             = UDim2.new(1, 0, 0.5, 1)
-            StripeFloor.Position         = UDim2.new(0, 0, 0.5, 0)
-            StripeFloor.BackgroundColor3 = T.Accent
-            StripeFloor.BorderSizePixel  = 0
-
-            -- ── Header (icon · title on left, badge on right) ─────────
-            local Header
-            if hasHeader then
-                Header = Instance.new("Frame")
-                Header.LayoutOrder      = 2
-                Header.Size             = UDim2.new(1, 0, 0, headerH)
-                Header.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-                Header.BorderSizePixel  = 0
-                Header.Parent           = Card
-
-                -- Icon (left-anchored, fixed width)
-                local iconW = (Cfg.Icon and Cfg.Icon ~= "") and ES(22) or 0
-                if Cfg.Icon and Cfg.Icon ~= "" then
-                    local IconLabel = Instance.new("TextLabel")
-                    IconLabel.Size                = UDim2.new(0, iconW, 1, 0)
-                    IconLabel.Position            = UDim2.new(0, ES(10), 0, 0)
-                    IconLabel.BackgroundTransparency = 1
-                    IconLabel.Text                = Cfg.Icon
-                    IconLabel.TextColor3          = T.Accent
-                    IconLabel.Font                = Enum.Font.GothamBold
-                    IconLabel.TextSize            = FS(13)
-                    IconLabel.TextXAlignment      = Enum.TextXAlignment.Center
-                    IconLabel.Parent              = Header
+            AddDepthStroke(Card)
+        
+            -- ── Inner layout container with shared padding ────────────
+            local Inner = Instance.new("Frame")
+            Inner.Name                = "Inner"
+            Inner.Size                = UDim2.new(1, 0, 0, 0)
+            Inner.AutomaticSize       = Enum.AutomaticSize.Y
+            Inner.BackgroundTransparency = 1
+            Inner.Parent              = Card
+        
+            local InnerPad = Instance.new("UIPadding", Inner)
+            InnerPad.PaddingLeft   = UDim.new(0, ES(10))
+            InnerPad.PaddingRight  = UDim.new(0, ES(10))
+            InnerPad.PaddingTop    = UDim.new(0, ES(6))
+            InnerPad.PaddingBottom = UDim.new(0, ES(6))
+        
+            local InnerLayout = Instance.new("UIListLayout", Inner)
+            InnerLayout.SortOrder     = Enum.SortOrder.LayoutOrder
+            InnerLayout.FillDirection = Enum.FillDirection.Vertical
+            InnerLayout.Padding       = UDim.new(0, ES(3))
+        
+            -- ─────────────────────────────────────────────────────────
+            -- :AddText(content, opts)
+            --
+            -- Appends a TextLabel to the card. Returns a Handle with
+            -- setter methods so you can update any property at runtime.
+            --
+            -- opts fields (all optional):
+            --   Font        Enum.Font              Gotham
+            --   Size        number (pt)            12
+            --   Color       Color3                 T.TextPrimary
+            --   XAlignment  Enum.TextXAlignment    Left
+            --   YAlignment  Enum.TextYAlignment    Center
+            --   Rotation    number (degrees)       0
+            --   Wrap        boolean                true
+            --   RichText    boolean                false
+            --   Bold        boolean                false   (shortcut; overrides Font)
+            --   Italic      boolean                false   (wraps text in <i> via RichText)
+            --   Opacity     number 0–1             1       (TextTransparency)
+            --   PaddingTop / PaddingBottom / PaddingLeft / PaddingRight
+            --               number (pts)           —       per-element extra spacing
+            -- ─────────────────────────────────────────────────────────
+            function InfoBox:AddText(content, opts)
+                opts = opts or {}
+                layoutOrder = layoutOrder + 1
+        
+                -- Resolve font: Bold shortcut overrides Font field
+                local resolvedFont = opts.Font or Enum.Font.Gotham
+                if opts.Bold then resolvedFont = Enum.Font.GothamBold end
+        
+                -- Resolve content: Italic shortcut wraps in RichText tag
+                local resolvedContent = tostring(content or "")
+                local useRichText     = opts.RichText or false
+                if opts.Italic then
+                    resolvedContent = "<i>" .. resolvedContent .. "</i>"
+                    useRichText     = true
                 end
-
-                -- Title (fills space between icon and badge)
-                local TitleLabel = Instance.new("TextLabel")
-                TitleLabel.Size               = UDim2.new(1, -(ES(10) + iconW + ES(6) + ES(90)), 1, 0)
-                TitleLabel.Position           = UDim2.new(0, ES(10) + iconW + ES(6), 0, 0)
-                TitleLabel.BackgroundTransparency = 1
-                TitleLabel.Text               = Cfg.Title or ""
-                TitleLabel.TextColor3         = T.TextWhite
-                TitleLabel.Font               = Enum.Font.GothamBold
-                TitleLabel.TextSize           = FS(12)
-                TitleLabel.TextXAlignment     = Enum.TextXAlignment.Left
-                TitleLabel.TextTruncate       = Enum.TextTruncate.AtEnd
-                TitleLabel.Parent             = Header
-
-                -- Badge (right-anchored pill)
-                local BadgeLabel = Instance.new("TextLabel")
-                BadgeLabel.AnchorPoint        = Vector2.new(1, 0.5)
-                BadgeLabel.Position           = UDim2.new(1, -ES(8), 0.5, 0)
-                BadgeLabel.Size               = UDim2.new(0, ES(80), 0, ES(17))
-                BadgeLabel.BackgroundColor3   = Cfg.BadgeColor or T.Success
-                BadgeLabel.TextColor3         = T.TextWhite
-                BadgeLabel.Font               = Enum.Font.GothamBold
-                BadgeLabel.TextSize           = FS(10)
-                BadgeLabel.Text               = Cfg.Badge or ""
-                BadgeLabel.Visible            = (Cfg.Badge ~= nil and Cfg.Badge ~= "")
-                BadgeLabel.Parent             = Header
-                Instance.new("UICorner", BadgeLabel).CornerRadius = UDim.new(1, 0)
-
-                -- Store refs for API
-                function InfoBox:SetTitle(text)
-                    TitleLabel.Text = text or ""
+        
+                local Label = Instance.new("TextLabel")
+                Label.Name                = "InfoText_" .. layoutOrder
+                Label.LayoutOrder         = layoutOrder
+                Label.Size                = UDim2.new(1, 0, 0, 0)
+                Label.AutomaticSize       = Enum.AutomaticSize.Y
+                Label.BackgroundTransparency = 1
+                Label.Text                = resolvedContent
+                Label.Font                = resolvedFont
+                Label.TextSize            = FS(opts.Size or 12)
+                Label.TextColor3          = opts.Color or T.TextPrimary
+                Label.TextXAlignment      = opts.XAlignment or Enum.TextXAlignment.Left
+                Label.TextYAlignment      = opts.YAlignment or Enum.TextYAlignment.Center
+                Label.TextWrapped         = (opts.Wrap ~= false)
+                Label.RichText            = useRichText
+                Label.Rotation            = opts.Rotation or 0
+                Label.TextTransparency    = opts.Opacity ~= nil and (1 - opts.Opacity) or 0
+                Label.Parent              = Inner
+        
+                -- Per-element extra padding (applied via UIPadding on the label itself)
+                if opts.PaddingTop or opts.PaddingBottom or opts.PaddingLeft or opts.PaddingRight then
+                    local Pad = Instance.new("UIPadding", Label)
+                    Pad.PaddingTop    = UDim.new(0, ES(opts.PaddingTop    or 0))
+                    Pad.PaddingBottom = UDim.new(0, ES(opts.PaddingBottom or 0))
+                    Pad.PaddingLeft   = UDim.new(0, ES(opts.PaddingLeft   or 0))
+                    Pad.PaddingRight  = UDim.new(0, ES(opts.PaddingRight  or 0))
                 end
-                function InfoBox:SetBadge(text, color)
-                    BadgeLabel.Text             = text or ""
-                    BadgeLabel.BackgroundColor3 = color or T.Success
-                    BadgeLabel.Visible          = (text ~= nil and text ~= "")
+        
+                -- ── Handle — every property settable at runtime ───────
+                local Handle = {}
+        
+                -- Text content
+                function Handle:Set(text)
+                    local str = tostring(text)
+                    if opts.Italic then str = "<i>" .. str .. "</i>" end
+                    Label.Text = str
                 end
-                function InfoBox:SetAccentColor(color)
-                    TopStripe.BackgroundColor3  = color
-                    StripeFloor.BackgroundColor3 = color
-                    CardStroke.Color            = color
+        
+                -- Colour
+                function Handle:SetColor(color)
+                    Label.TextColor3 = color
+                end
+        
+                -- Font size (runs through FS() scale helper)
+                function Handle:SetSize(pts)
+                    Label.TextSize = FS(pts)
+                end
+        
+                -- Font family
+                function Handle:SetFont(font)
+                    Label.Font = font
+                end
+        
+                -- Rotation in degrees
+                function Handle:SetRotation(degrees)
+                    Label.Rotation = degrees
+                end
+        
+                -- Opacity: 1 = fully visible, 0 = invisible
+                function Handle:SetOpacity(value)
+                    Label.TextTransparency = 1 - math.clamp(value, 0, 1)
+                end
+        
+                -- Horizontal text alignment
+                function Handle:SetXAlignment(alignment)
+                    Label.TextXAlignment = alignment
+                end
+        
+                -- Vertical text alignment
+                function Handle:SetYAlignment(alignment)
+                    Label.TextYAlignment = alignment
+                end
+        
+                -- Text wrapping
+                function Handle:SetWrap(state)
+                    Label.TextWrapped = state
+                end
+        
+                -- RichText on/off
+                function Handle:SetRichText(state)
+                    Label.RichText = state
+                end
+        
+                -- Tween any numeric or Color3 property smoothly
+                function Handle:Tween(props, duration, style, direction)
+                    TweenService:Create(
+                        Label,
+                        TweenInfo.new(
+                            duration  or 0.25,
+                            style     or Enum.EasingStyle.Quad,
+                            direction or Enum.EasingDirection.Out
+                        ),
+                        props
+                    ):Play()
+                end
+        
+                -- Visibility
+                function Handle:SetVisible(state)
+                    Label.Visible = state
+                end
+        
+                -- Remove this text element from the card entirely
+                function Handle:Destroy()
+                    Label:Destroy()
+                end
+        
+                return Handle
+            end
+        
+            -- ─────────────────────────────────────────────────────────
+            -- :AddDivider(color, thickness)
+            --
+            -- Inserts a horizontal rule between text entries.
+            --   color      Color3    T.Stroke
+            --   thickness  number    1  (pixels)
+            -- ─────────────────────────────────────────────────────────
+            function InfoBox:AddDivider(color, thickness)
+                layoutOrder = layoutOrder + 1
+                local Line = Instance.new("Frame")
+                Line.LayoutOrder        = layoutOrder
+                Line.Size               = UDim2.new(1, 0, 0, math.max(1, thickness or 1))
+                Line.BackgroundColor3   = color or T.Stroke
+                Line.BorderSizePixel    = 0
+                Line.Parent             = Inner
+            end
+        
+            -- ─────────────────────────────────────────────────────────
+            -- :AddSpacer(height)
+            --
+            -- Inserts invisible vertical space (in scaled points).
+            --   height  number  4
+            -- ─────────────────────────────────────────────────────────
+            function InfoBox:AddSpacer(height)
+                layoutOrder = layoutOrder + 1
+                local Gap = Instance.new("Frame")
+                Gap.LayoutOrder           = layoutOrder
+                Gap.Size                  = UDim2.new(1, 0, 0, ES(height or 4))
+                Gap.BackgroundTransparency = 1
+                Gap.Parent                = Inner
+            end
+        
+            -- ─────────────────────────────────────────────────────────
+            -- :SetPadding(top, bottom, left, right)
+            --
+            -- Override the card's inner edge padding (scaled points).
+            -- ─────────────────────────────────────────────────────────
+            function InfoBox:SetPadding(top, bottom, left, right)
+                InnerPad.PaddingTop    = UDim.new(0, ES(top    or 6))
+                InnerPad.PaddingBottom = UDim.new(0, ES(bottom or 6))
+                InnerPad.PaddingLeft   = UDim.new(0, ES(left   or 10))
+                InnerPad.PaddingRight  = UDim.new(0, ES(right  or 10))
+            end
+        
+            -- ─────────────────────────────────────────────────────────
+            -- :SetSpacing(pts)
+            --
+            -- Override the gap between stacked text entries.
+            --   pts  number  3
+            -- ─────────────────────────────────────────────────────────
+            function InfoBox:SetSpacing(pts)
+                InnerLayout.Padding = UDim.new(0, ES(pts))
+            end
+        
+            -- ─────────────────────────────────────────────────────────
+            -- :SetBackground(color)
+            --
+            -- Change the card's background colour at runtime.
+            -- ─────────────────────────────────────────────────────────
+            function InfoBox:SetBackground(color)
+                Card.BackgroundColor3 = color
+            end
+        
+            -- ─────────────────────────────────────────────────────────
+            -- :SetStroke(color, thickness)
+            --
+            -- Change the card's border colour and thickness.
+            -- ─────────────────────────────────────────────────────────
+            function InfoBox:SetStroke(color, thickness)
+                local stroke = Card:FindFirstChildOfClass("UIStroke")
+                if stroke then
+                    stroke.Color     = color     or T.Stroke
+                    stroke.Thickness = thickness or 1
                 end
             end
-
-            -- ── Description body ──────────────────────────────────────
-            local Body = Instance.new("Frame")
-            Body.LayoutOrder        = 3
-            Body.Size               = UDim2.new(1, 0, 0, 0)
-            Body.AutomaticSize      = Enum.AutomaticSize.Y
-            Body.BackgroundTransparency = 1
-            Body.Parent             = Card
-
-            local BodyPad = Instance.new("UIPadding", Body)
-            BodyPad.PaddingLeft   = UDim.new(0, ES(10))
-            BodyPad.PaddingRight  = UDim.new(0, ES(10))
-            BodyPad.PaddingTop    = UDim.new(0, ES(7))
-            BodyPad.PaddingBottom = UDim.new(0, ES(9))
-
-            local DescLabel = Instance.new("TextLabel")
-            DescLabel.Size                = UDim2.new(1, 0, 0, 0)
-            DescLabel.BackgroundTransparency = 1
-            DescLabel.Text                = Cfg.Description or ""
-            DescLabel.TextColor3          = T.TextDark
-            DescLabel.Font                = Enum.Font.Gotham
-            DescLabel.TextSize            = FS(11)
-            DescLabel.TextWrapped         = true
-            DescLabel.RichText            = true
-            DescLabel.LineHeight          = 1.35
-            DescLabel.TextXAlignment      = Enum.TextXAlignment.Left
-            DescLabel.AutomaticSize       = Enum.AutomaticSize.Y
-            DescLabel.Parent              = Body
-
-            function InfoBox:SetDescription(text)
-                DescLabel.Text = text or ""
-            end
-
+        
             return InfoBox
         end
-
+        
         -- ── IMAGE SELECTOR ────────────────────────────────────
         function Tab:CreateImageSelector(Title, Config2, Callback)
             local Element = {Selected = {}}
