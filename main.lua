@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.219"
+local Version = "v0.0.220"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1328,27 +1328,27 @@ function Library:CreateWindow()
             return Element
         end
 
--- ── DROPDOWN ──────────────────────────────────────────────────────
+        -- ── DROPDOWN ──────────────────────────────────────────────────────
         -- Supports two modes detected automatically from the Options table:
         --
         -- TEXT MODE   — Options is a table of strings (existing behaviour)
         -- COLOR MODE  — Options is a table of Color3 values, or tables of
         --               the form { Name = "Label", Color = Color3 }
+        --               Renders as full-width coloured rows, same layout as
+        --               text mode but filled with the colour instead of text.
         --
         -- Public methods:
         --   Element:SetDisabled(state)        enable / disable the whole dropdown
         --   Element:SetOptions(newOptions)    replace the option list at runtime
         --   Element:SetSelected(val)          programmatically pick an option
-        --                                     (string for text mode, Color3 or
-        --                                      {Name,Color} table for color mode)
         --   Element:AddTooltip(text)          attach a hover tooltip
         -- ──────────────────────────────────────────────────────────────────
         function Tab:CreateDropdown(Title, Options, Default, Callback)
             local Element      = {}
             local dropDisabled = false
             local RowHeight    = ES(28)
+            local OptHeight    = ES(22)
 
-            -- ── detect mode from first option ─────────────────────────
             local function IsColorMode(opts)
                 if not opts or #opts == 0 then return false end
                 local first = opts[1]
@@ -1358,16 +1358,12 @@ function Library:CreateWindow()
 
             local colorMode = IsColorMode(Options)
 
-            -- Normalise an option into {Name, Color} (color mode) or string (text mode)
             local function Normalise(opt)
                 if not colorMode then return opt end
-                if typeof(opt) == "Color3" then
-                    return { Name = "", Color = opt }
-                end
-                return opt  -- already {Name, Color}
+                if typeof(opt) == "Color3" then return { Name = "", Color = opt } end
+                return opt
             end
 
-            -- ── determine initial selection ────────────────────────────
             local Selected = Default and Normalise(Default) or (Options[1] and Normalise(Options[1]))
 
             -- ── outer card ────────────────────────────────────────────
@@ -1379,12 +1375,12 @@ function Library:CreateWindow()
             Instance.new("UICorner", DropdownFrame).CornerRadius = UDim.new(0, 6)
             AddDepthStroke(DropdownFrame)
 
-            -- ── header row ────────────────────────────────────────────
+            -- ── header ────────────────────────────────────────────────
             local Header = Instance.new("TextButton")
-            Header.Size                 = UDim2.new(1, 0, 0, RowHeight)
+            Header.Size                   = UDim2.new(1, 0, 0, RowHeight)
             Header.BackgroundTransparency = 1
-            Header.Text                 = ""
-            Header.Parent               = DropdownFrame
+            Header.Text                   = ""
+            Header.Parent                 = DropdownFrame
 
             local TitleLabel = Instance.new("TextLabel")
             TitleLabel.Size            = UDim2.new(0.6, 0, 1, 0)
@@ -1397,26 +1393,22 @@ function Library:CreateWindow()
             TitleLabel.TextXAlignment  = Enum.TextXAlignment.Left
             TitleLabel.Parent          = Header
 
-            -- Selected display — text label (text mode) or swatch+name (color mode)
-            local SelectedLabel   = nil
-            local SelectedSwatch  = nil
-            local SelectedName    = nil
+            local SelectedLabel  = nil
+            local SelectedSwatch = nil
+            local SelectedName   = nil
 
             if colorMode then
-                -- small coloured square
                 SelectedSwatch = Instance.new("Frame")
-                SelectedSwatch.Size        = UDim2.new(0, ES(14), 0, ES(14))
-                SelectedSwatch.AnchorPoint = Vector2.new(1, 0.5)
-                SelectedSwatch.Position    = UDim2.new(1, -ES(10), 0.5, 0)
-                SelectedSwatch.BorderSizePixel = 0
+                SelectedSwatch.Size             = UDim2.new(0, ES(14), 0, ES(14))
+                SelectedSwatch.AnchorPoint      = Vector2.new(1, 0.5)
+                SelectedSwatch.Position         = UDim2.new(1, -ES(10), 0.5, 0)
+                SelectedSwatch.BorderSizePixel  = 0
                 SelectedSwatch.BackgroundColor3 = (Selected and Selected.Color) or Color3.new(1,1,1)
-                SelectedSwatch.Parent      = Header
+                SelectedSwatch.Parent           = Header
                 Instance.new("UICorner", SelectedSwatch).CornerRadius = UDim.new(0, 3)
-                local SwatchStroke = Instance.new("UIStroke", SelectedSwatch)
-                SwatchStroke.Color     = T.Stroke
-                SwatchStroke.Thickness = 1
+                local SwStroke = Instance.new("UIStroke", SelectedSwatch)
+                SwStroke.Color = T.Stroke; SwStroke.Thickness = 1
 
-                -- optional name label to the left of the swatch
                 SelectedName = Instance.new("TextLabel")
                 SelectedName.Size            = UDim2.new(0.35, 0, 1, 0)
                 SelectedName.AnchorPoint     = Vector2.new(1, 0)
@@ -1443,122 +1435,94 @@ function Library:CreateWindow()
                 SelectedLabel.Parent          = Header
             end
 
-            -- ── option container ──────────────────────────────────────
+            -- ── option container — always a vertical list ──────────────
             local OptionHolder = Instance.new("Frame")
             OptionHolder.Size             = UDim2.new(1, -ES(10), 0, 0)
             OptionHolder.Position         = UDim2.new(0, ES(5), 0, RowHeight + ES(4))
             OptionHolder.BackgroundTransparency = 1
             OptionHolder.Parent           = DropdownFrame
 
+            local Layout = Instance.new("UIListLayout", OptionHolder)
+            Layout.Padding   = UDim.new(0, ES(3))
+            Layout.SortOrder = Enum.SortOrder.LayoutOrder
+
             local Dropdown = { Open = false }
 
-            -- layout — Grid for color mode, List for text mode
-            local Layout
-            local SwatchSize = ES(22)
-
-            if colorMode then
-                Layout = Instance.new("UIGridLayout", OptionHolder)
-                Layout.CellSize    = UDim2.new(0, SwatchSize, 0, SwatchSize)
-                Layout.CellPadding = UDim2.new(0, ES(4), 0, ES(4))
-                Layout.SortOrder   = Enum.SortOrder.LayoutOrder
-                Layout.FillDirection = Enum.FillDirection.Horizontal
-            else
-                Layout = Instance.new("UIListLayout", OptionHolder)
-                Layout.Padding   = UDim.new(0, ES(3))
-                Layout.SortOrder = Enum.SortOrder.LayoutOrder
-            end
-
-            -- ── internal: update header to reflect current selection ──
             local function UpdateHeader(sel)
                 Selected = sel
                 if colorMode then
-                    if SelectedSwatch then
-                        SelectedSwatch.BackgroundColor3 = sel and sel.Color or Color3.new(1,1,1)
-                    end
-                    if SelectedName then
-                        SelectedName.Text = (sel and sel.Name) or ""
-                    end
+                    if SelectedSwatch then SelectedSwatch.BackgroundColor3 = sel and sel.Color or Color3.new(1,1,1) end
+                    if SelectedName   then SelectedName.Text = (sel and sel.Name) or "" end
                 else
-                    if SelectedLabel then
-                        SelectedLabel.Text = (type(sel) == "string" and sel) or "Select..."
-                    end
+                    if SelectedLabel  then SelectedLabel.Text = (type(sel) == "string" and sel) or "Select..." end
                 end
             end
 
-            -- ── internal: compute expanded dropdown height ─────────────
             local function GetOpenHeight()
-                if colorMode then
-                    return RowHeight + ES(4) + Layout.AbsoluteContentSize.Y + ES(6)
-                else
-                    return RowHeight + ES(7) + Layout.AbsoluteContentSize.Y
-                end
+                return RowHeight + ES(4) + Layout.AbsoluteContentSize.Y + ES(6)
             end
 
-            -- ── internal: build / rebuild option list ─────────────────
             local function Refresh()
-                -- clear old options
                 for _, child in pairs(OptionHolder:GetChildren()) do
-                    if child:IsA("TextButton") or child:IsA("Frame") then
-                        child:Destroy()
-                    end
+                    if child:IsA("TextButton") or child:IsA("Frame") then child:Destroy() end
                 end
-
                 colorMode = IsColorMode(Options)
 
                 for i, rawOpt in ipairs(Options) do
                     local opt = Normalise(rawOpt)
 
                     if colorMode then
-                        -- ── COLOR SWATCH ──────────────────────────────
-                        local Swatch = Instance.new("TextButton")
-                        Swatch.LayoutOrder        = i
-                        Swatch.Size               = UDim2.new(0, SwatchSize, 0, SwatchSize)
-                        Swatch.BackgroundColor3   = opt.Color
-                        Swatch.Text               = ""
-                        Swatch.BorderSizePixel    = 0
-                        Swatch.Parent             = OptionHolder
-                        Instance.new("UICorner", Swatch).CornerRadius = UDim.new(0, 4)
-
-                        local SwStroke = Instance.new("UIStroke", Swatch)
-                        SwStroke.Thickness = 1.5
-                        SwStroke.Color     = T.Stroke
-
-                        -- highlight if this is the currently selected color
-                        if Selected and typeof(Selected) == "table"
-                            and Selected.Color == opt.Color then
-                            SwStroke.Color = T.TextWhite
-                        end
-
-                        -- tooltip showing the color name
-                        if opt.Name and opt.Name ~= "" then
-                            Swatch.MouseEnter:Connect(function()
-                                Library.ShowTooltip(opt.Name)
-                            end)
-                            Swatch.MouseLeave:Connect(function()
-                                Library.HideTooltip()
-                            end)
-                        end
-
-                        Swatch.MouseButton1Click:Connect(function()
-                            if dropDisabled then return end
-                            -- deselect all other swatches
-                            for _, child in pairs(OptionHolder:GetChildren()) do
-                                local s = child:FindFirstChildOfClass("UIStroke")
-                                if s then s.Color = T.Stroke end
-                            end
-                            SwStroke.Color = T.TextWhite
-                            UpdateHeader(opt)
-                            Dropdown.Open = false
-                            TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {
-                                Size = UDim2.new(1, 0, 0, RowHeight)
-                            }):Play()
-                            Callback(opt.Color, opt.Name)
-                        end)
-                    else
-                        -- ── TEXT OPTION ───────────────────────────────
+                        -- ── FULL-WIDTH COLOR ROW ──────────────────────
                         local OptBtn = Instance.new("TextButton")
                         OptBtn.LayoutOrder      = i
-                        OptBtn.Size             = UDim2.new(1, 0, 0, ES(22))
+                        OptBtn.Size             = UDim2.new(1, 0, 0, OptHeight)
+                        OptBtn.BackgroundColor3 = opt.Color
+                        OptBtn.Text             = ""
+                        OptBtn.BorderSizePixel  = 0
+                        OptBtn.Parent           = OptionHolder
+                        Instance.new("UICorner", OptBtn).CornerRadius = UDim.new(0, 4)
+
+                        local RowStroke = Instance.new("UIStroke", OptBtn)
+                        RowStroke.Thickness = 1.5
+                        local isSel = Selected and typeof(Selected) == "table" and Selected.Color == opt.Color
+                        RowStroke.Color        = isSel and T.TextWhite or Color3.fromRGB(0,0,0)
+                        RowStroke.Transparency = isSel and 0 or 0.85
+
+                        if opt.Name and opt.Name ~= "" then
+                            local NameLbl = Instance.new("TextLabel")
+                            NameLbl.Size                  = UDim2.new(1, -ES(10), 1, 0)
+                            NameLbl.Position              = UDim2.new(0, ES(8), 0, 0)
+                            NameLbl.BackgroundTransparency = 1
+                            NameLbl.Text                  = opt.Name
+                            NameLbl.Font                  = Enum.Font.GothamBold
+                            NameLbl.TextSize              = FS(11)
+                            NameLbl.TextColor3            = Color3.new(1, 1, 1)
+                            NameLbl.TextTransparency      = 0.2
+                            NameLbl.TextXAlignment        = Enum.TextXAlignment.Left
+                            NameLbl.TextStrokeColor3      = Color3.new(0, 0, 0)
+                            NameLbl.TextStrokeTransparency = 0.5
+                            NameLbl.Parent                = OptBtn
+                        end
+
+                        OptBtn.MouseButton1Click:Connect(function()
+                            if dropDisabled then return end
+                            for _, child in pairs(OptionHolder:GetChildren()) do
+                                local s = child:FindFirstChildOfClass("UIStroke")
+                                if s then s.Color = Color3.fromRGB(0,0,0); s.Transparency = 0.85 end
+                            end
+                            RowStroke.Color        = T.TextWhite
+                            RowStroke.Transparency = 0
+                            UpdateHeader(opt)
+                            Dropdown.Open = false
+                            TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, RowHeight)}):Play()
+                            Callback(opt.Color, opt.Name)
+                        end)
+
+                    else
+                        -- ── STANDARD TEXT ROW ─────────────────────────
+                        local OptBtn = Instance.new("TextButton")
+                        OptBtn.LayoutOrder      = i
+                        OptBtn.Size             = UDim2.new(1, 0, 0, OptHeight)
                         OptBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
                         OptBtn.Text             = opt
                         OptBtn.TextColor3       = T.TextDark
@@ -1571,73 +1535,44 @@ function Library:CreateWindow()
                             if dropDisabled then return end
                             UpdateHeader(opt)
                             Dropdown.Open = false
-                            TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {
-                                Size = UDim2.new(1, 0, 0, RowHeight)
-                            }):Play()
+                            TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, RowHeight)}):Play()
                             Callback(opt)
                         end)
                     end
                 end
             end
 
-            -- ── open / close ──────────────────────────────────────────
             Header.MouseButton1Click:Connect(function()
                 if dropDisabled then return end
                 Dropdown.Open = not Dropdown.Open
                 local targetH = Dropdown.Open and GetOpenHeight() or RowHeight
-                TweenService:Create(DropdownFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {
-                    Size = UDim2.new(1, 0, 0, targetH)
-                }):Play()
+                TweenService:Create(DropdownFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 0, targetH)}):Play()
             end)
 
-            -- ── PUBLIC METHODS ────────────────────────────────────────
-
             function Element:SetDisabled(state)
-                dropDisabled = state
+                dropDisabled  = state
                 Header.Active = not state
-                TweenService:Create(TitleLabel, TweenInfo.new(0.2), {
-                    TextColor3 = state and T.TextSecondary or T.TextPrimary
-                }):Play()
-                if SelectedLabel then
-                    TweenService:Create(SelectedLabel, TweenInfo.new(0.2), {
-                        TextTransparency = state and 0.5 or 0
-                    }):Play()
-                end
-                if SelectedSwatch then
-                    TweenService:Create(SelectedSwatch, TweenInfo.new(0.2), {
-                        BackgroundTransparency = state and 0.5 or 0
-                    }):Play()
-                end
-                if SelectedName then
-                    TweenService:Create(SelectedName, TweenInfo.new(0.2), {
-                        TextTransparency = state and 0.5 or 0
-                    }):Play()
-                end
-                -- close if open
+                TweenService:Create(TitleLabel, TweenInfo.new(0.2), {TextColor3 = state and T.TextSecondary or T.TextPrimary}):Play()
+                if SelectedLabel  then TweenService:Create(SelectedLabel,  TweenInfo.new(0.2), {TextTransparency       = state and 0.5 or 0}):Play() end
+                if SelectedSwatch then TweenService:Create(SelectedSwatch, TweenInfo.new(0.2), {BackgroundTransparency = state and 0.5 or 0}):Play() end
+                if SelectedName   then TweenService:Create(SelectedName,   TweenInfo.new(0.2), {TextTransparency       = state and 0.5 or 0}):Play() end
                 if state and Dropdown.Open then
                     Dropdown.Open = false
-                    TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {
-                        Size = UDim2.new(1, 0, 0, RowHeight)
-                    }):Play()
+                    TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, RowHeight)}):Play()
                 end
             end
 
             function Element:SetOptions(newOptions)
-                Options = newOptions
-                -- reset selection to first option
+                Options  = newOptions
                 Selected = newOptions[1] and Normalise(newOptions[1])
                 UpdateHeader(Selected)
-                -- close dropdown
                 Dropdown.Open = false
-                TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {
-                    Size = UDim2.new(1, 0, 0, RowHeight)
-                }):Play()
+                TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, RowHeight)}):Play()
                 Refresh()
             end
 
             function Element:SetSelected(val)
-                local norm = Normalise(val)
-                UpdateHeader(norm)
+                UpdateHeader(Normalise(val))
             end
 
             Refresh()
