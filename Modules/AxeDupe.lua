@@ -51,8 +51,8 @@ function RespawnLoad.Init(Tab, Library)
 
         Notify("RELOADING", "Reloading slot " .. slot .. "…", 4)
 
-        -- 3. Fling into the void and wait until the humanoid is dead
-        hrp.CFrame = CFrame.new(0, -5000, 0)
+        -- 3. Drop below the baseplate and wait until the humanoid is dead
+        hrp.CFrame = CFrame.new(hrp.Position.X, -40, hrp.Position.Z)
         humanoid.Died:Wait()
 
         -- 4. Now fire RequestLoad — character is confirmed dead
