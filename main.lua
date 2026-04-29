@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.214"
+local Version = "v0.0.215"
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
 -- ██╔════╝ ██╔═══██╗████╗  ██║██╔════╝██║██╔════╝
@@ -602,19 +602,20 @@ function Library:CreateWindow()
             return AttachTooltip(TitleLabel, Element)
         end
 
-        -- ── TOGGLE ────────────────────────────────────────────
+        -- ── TOGGLE ────────────────────────────────────────────────────────────
         function Tab:CreateToggle(Title, Default, Callback)
-            local Element  = {}
-            local Toggled  = Default
-            local RowHeight = ES(28)
-
+            local Element        = {}
+            local Toggled        = Default
+            local toggleDisabled = false
+            local RowHeight      = ES(28)
+        
             local ToggleFrame = Instance.new("Frame")
             ToggleFrame.Size             = UDim2.new(1, 0, 0, RowHeight)
             ToggleFrame.BackgroundColor3 = T.Surface
             ToggleFrame.Parent           = self.Container
             Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 6)
             AddDepthStroke(ToggleFrame)
-
+        
             local TitleLabel = Instance.new("TextLabel")
             TitleLabel.Size            = UDim2.new(0.65, 0, 1, 0)
             TitleLabel.Position        = UDim2.new(0, ES(10), 0, 0)
@@ -625,7 +626,7 @@ function Library:CreateWindow()
             TitleLabel.TextSize        = FS(12)
             TitleLabel.TextXAlignment  = Enum.TextXAlignment.Left
             TitleLabel.Parent          = ToggleFrame
-
+        
             local ToggleBG = Instance.new("TextButton")
             ToggleBG.Size             = UDim2.new(0, ES(34), 0, ES(18))
             ToggleBG.AnchorPoint      = Vector2.new(1, 0.5)
@@ -635,7 +636,7 @@ function Library:CreateWindow()
             ToggleBG.Parent           = ToggleFrame
             Instance.new("UICorner", ToggleBG).CornerRadius = UDim.new(1, 0)
             AddDepthStroke(ToggleBG)
-
+        
             local dotOff = ES(3)
             local dotOn  = ES(34) - ES(15)
             local dotSz  = ES(12)
@@ -645,29 +646,42 @@ function Library:CreateWindow()
             ToggleDot.BackgroundColor3 = T.TextWhite
             ToggleDot.Parent           = ToggleBG
             Instance.new("UICorner", ToggleDot).CornerRadius = UDim.new(1, 0)
-
-            ToggleBG.MouseButton1Click:Connect(function()
-                Toggled = not Toggled
-                local targetPos = Toggled and UDim2.new(0, dotOn, 0.5, -dotSz/2) or UDim2.new(0, dotOff, 0.5, -dotSz/2)
-                local targetCol = Toggled and T.Accent or T.SurfaceDeep
-                TweenService:Create(ToggleDot, TweenInfo.new(0.2), {Position = targetPos}):Play()
-                TweenService:Create(ToggleBG,  TweenInfo.new(0.2), {BackgroundColor3 = targetCol}):Play()
-                Callback(Toggled)
-            end)
-
-            function Element:SetState(state)
-                if state == Toggled then return end
-                Toggled = state
-                local targetPos = Toggled and UDim2.new(0, dotOn, 0.5, -dotSz/2) or UDim2.new(0, dotOff, 0.5, -dotSz/2)
-                local targetCol = Toggled and T.Accent or T.SurfaceDeep
+        
+            local function ApplyVisual(state)
+                local targetPos = state and UDim2.new(0, dotOn, 0.5, -dotSz/2) or UDim2.new(0, dotOff, 0.5, -dotSz/2)
+                local targetCol = state and T.Accent or T.SurfaceDeep
                 TweenService:Create(ToggleDot, TweenInfo.new(0.2), {Position = targetPos}):Play()
                 TweenService:Create(ToggleBG,  TweenInfo.new(0.2), {BackgroundColor3 = targetCol}):Play()
             end
-            
+        
+            ToggleBG.MouseButton1Click:Connect(function()
+                if toggleDisabled then return end
+                Toggled = not Toggled
+                ApplyVisual(Toggled)
+                Callback(Toggled)
+            end)
+        
+            function Element:SetState(state)
+                if state == Toggled then return end
+                Toggled = state
+                ApplyVisual(Toggled)
+            end
+        
+            function Element:SetDisabled(state)
+                toggleDisabled = state
+                ToggleBG.Active = not state
+                TweenService:Create(ToggleBG, TweenInfo.new(0.2), {
+                    BackgroundTransparency = state and 0.5 or 0,
+                    BackgroundColor3       = state and T.Surface or (Toggled and T.Accent or T.SurfaceDeep),
+                }):Play()
+                TweenService:Create(ToggleDot, TweenInfo.new(0.2), {
+                    BackgroundTransparency = state and 0.5 or 0,
+                }):Play()
+                TitleLabel.TextColor3 = state and T.TextSecondary or T.TextPrimary
+            end
+        
             return AttachTooltip(TitleLabel, Element)
         end
-
-
         
         -- ── INPUT ─────────────────────────────────────────────
         function Tab:CreateInput(Title, Placeholder, Callback)
