@@ -254,7 +254,9 @@ function VehicleModule.Init(Tab, Library)
     -- BACKGROUND MONITORING
     --------------------------------------------------------------------
     task.spawn(function()
-        local lastSeat = nil
+        local lastSeat    = nil
+        local cachedConfig = nil  -- held while seated so exit block can still reach it
+
         while task.wait(0.5) do
             local char        = player.Character
             local hum         = char and char:FindFirstChildOfClass("Humanoid")
@@ -272,18 +274,18 @@ function VehicleModule.Init(Tab, Library)
                     SteerAngleSlider:SetDisabled(false)
                     SteerVelocitySlider:SetDisabled(false)
 
-                    local config = nil
-                    for i = 1, 6 do
-                        config = GetVehicleConfig()
-                        if config then break end
+                    cachedConfig = nil
+                    for _ = 1, 6 do
+                        cachedConfig = GetVehicleConfig()
+                        if cachedConfig then break end
                         task.wait(0.5)
                     end
 
-                    if config then
+                    if cachedConfig then
                         -- Snapshot the vehicle's true default values before touching anything
-                        vehicleDefaults.MaxSpeed      = ReadConfigValue(config, "MaxSpeed")
-                        vehicleDefaults.SteerAngle    = ReadConfigValue(config, "SteerAngle")
-                        vehicleDefaults.SteerVelocity = ReadConfigValue(config, "SteerVelocity")
+                        vehicleDefaults.MaxSpeed      = ReadConfigValue(cachedConfig, "MaxSpeed")
+                        vehicleDefaults.SteerAngle    = ReadConfigValue(cachedConfig, "SteerAngle")
+                        vehicleDefaults.SteerVelocity = ReadConfigValue(cachedConfig, "SteerVelocity")
 
                         -- Update slider positions to reflect current vehicle values
                         if vehicleDefaults.MaxSpeed      then SafeUpdateSlider(SpeedSlider,         math.clamp(vehicleDefaults.MaxSpeed,      0.1, 10.0))  end
@@ -299,22 +301,20 @@ function VehicleModule.Init(Tab, Library)
                     -- PLAYER EXITED VEHICLE
                     print("[Vehicle] Resetting values and disabling sliders.")
 
-                    -- Write defaults back into the vehicle config before clearing memory
-                    if resetOnExit then
-                        local config = GetVehicleConfig()
-                        if config and vehicleDefaults.MaxSpeed then
-                            local names = { "MaxSpeed", "SteerAngle", "SteerVelocity" }
-                            for _, name in ipairs(names) do
-                                local setting = config:FindFirstChild(name)
-                                if setting and setting:IsA("ValueBase") then
-                                    setting.Value = vehicleDefaults[name]
-                                end
+                    -- Write defaults back using the cached config (SeatPart is already nil here)
+                    if resetOnExit and cachedConfig and vehicleDefaults.MaxSpeed then
+                        local names = { "MaxSpeed", "SteerAngle", "SteerVelocity" }
+                        for _, name in ipairs(names) do
+                            local setting = cachedConfig:FindFirstChild(name)
+                            if setting and setting:IsA("ValueBase") then
+                                setting.Value = vehicleDefaults[name]
                             end
                         end
                     end
 
-                    -- Clear snapshots and custom memory
-                    vehicleDefaults  = {}
+                    -- Clear cached ref, snapshots, and custom memory
+                    cachedConfig         = nil
+                    vehicleDefaults      = {}
                     customSettings.MaxSpeed      = 0
                     customSettings.SteerAngle    = 0
                     customSettings.SteerVelocity = 0
