@@ -355,8 +355,10 @@ end
 function ShopModule.Init(Tab, lot, GetImageFunc)
     if lot ~= nil then _LOT = lot end
 
+    -- FIX 1: Use getgenv() instead of getfenv() so we find the global
+    --         GetImage that the main script registered via getgenv().GetImage.
     local GetImage = GetImageFunc
-                  or (getfenv and getfenv().GetImage)
+                  or getgenv().GetImage
                   or function() return nil end
 
     local SelectedItem = ShopItems[1]
@@ -379,7 +381,10 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     end)
 
     for _, item in pairs(ShopItems) do
-        local img = GetImage("Images", item.Image)
+        -- FIX 2: Pass "" as the folder so the URL resolves to
+        --         .../Images/BasicHatchet.png  (not .../Images/Images/BasicHatchet.png)
+        --         matching exactly where the Placeholder.png sits.
+        local img = GetImage("", item.Image)
         Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
     end
 
