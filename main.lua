@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.250"
+local Version = "v0.0.251"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1197,7 +1197,7 @@ function Library:CreateWindow()
         
             return InfoBox
         end
-        
+                
         -- ── IMAGE SELECTOR ────────────────────────────────────
         function Tab:CreateImageSelector(Title, Config2, Callback)
             local Element = {Selected = {}}
@@ -1205,23 +1205,24 @@ function Library:CreateWindow()
             local Multi    = Config2.MultiSelect or false
             local Rows     = Config2.Rows or 1
             local SlotSize = Config2.SlotSize or UDim2.new(0, ES(70), 0, ES(70))
-
-            local TopPadding   = ES(35)
+        
+            local TopPadding    = ES(35)
             local BottomPadding = ES(10)
             local CellPaddingY  = ES(8)
             local ScrollHeight  = (SlotSize.Y.Offset * Rows) + (CellPaddingY * (Rows - 1)) + 6
             local TotalHeight   = TopPadding + ScrollHeight + BottomPadding
-
+        
             local SelectorFrame = Instance.new("Frame")
             SelectorFrame.Name             = Title .. "_ImageSelector"
             SelectorFrame.Size             = UDim2.new(1, 0, 0, TotalHeight)
             SelectorFrame.BackgroundColor3 = T.Surface
             SelectorFrame.Parent           = self.Container
             Instance.new("UICorner", SelectorFrame).CornerRadius = UDim.new(0, 6)
+            
             local FrameStroke = Instance.new("UIStroke", SelectorFrame)
             FrameStroke.Color     = T.Stroke
             FrameStroke.Thickness = 1
-
+        
             local TitleLabel = Instance.new("TextLabel")
             TitleLabel.Size            = UDim2.new(1, -20, 0, ES(20))
             TitleLabel.Position        = UDim2.new(0, ES(10), 0, ES(8))
@@ -1232,7 +1233,7 @@ function Library:CreateWindow()
             TitleLabel.TextSize        = FS(13)
             TitleLabel.TextXAlignment  = Enum.TextXAlignment.Left
             TitleLabel.Parent          = SelectorFrame
-
+        
             local Scroll = Instance.new("ScrollingFrame")
             Scroll.Size                  = UDim2.new(1, -ES(20), 0, ScrollHeight)
             Scroll.Position              = UDim2.new(0, ES(10), 0, TopPadding)
@@ -1243,39 +1244,48 @@ function Library:CreateWindow()
             Scroll.ScrollBarImageColor3  = T.Accent
             Scroll.ScrollingDirection    = Enum.ScrollingDirection.X
             Scroll.Parent                = SelectorFrame
-
+        
             local Layout = Instance.new("UIGridLayout", Scroll)
             Layout.CellSize      = SlotSize
             Layout.CellPadding   = UDim2.new(0, ES(8), 0, CellPaddingY)
             Layout.SortOrder     = Enum.SortOrder.LayoutOrder
             Layout.FillDirection = Enum.FillDirection.Vertical
-
+        
             local Padding = Instance.new("UIPadding", Scroll)
             Padding.PaddingLeft   = UDim.new(0, 2)
             Padding.PaddingTop    = UDim.new(0, ES(3))
             Padding.PaddingBottom = UDim.new(0, ES(3))
-
+        
             function Element:AddSlot(ID, SlotTitle, SlotSubText)
                 local Slot = Instance.new("TextButton")
-                Slot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                Slot.BackgroundColor3 = T.SurfaceDeep -- Updated to match theme
                 Slot.Text             = ""
                 Slot.Parent           = Scroll
                 Instance.new("UICorner", Slot).CornerRadius = UDim.new(0, 6)
+                
                 local Stroke = Instance.new("UIStroke", Slot)
-                Stroke.Color          = Color3.fromRGB(50, 50, 55)
+                Stroke.Color          = T.Stroke -- Updated to match theme
                 Stroke.Thickness      = 1.2
                 Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                
                 local Image = Instance.new("ImageLabel")
-                Image.Size               = UDim2.new(0.4, 0, 0.4, 0)
-                Image.Position           = UDim2.new(0.5, 0, 0.35, 0)
-                Image.AnchorPoint        = Vector2.new(0.5, 0.5)
+                Image.Size                = UDim2.new(0.75, 0, 0.75, 0) -- Increased size
+                Image.Position            = UDim2.new(0.5, 0, 0.5, 0) -- Centered
+                Image.AnchorPoint         = Vector2.new(0.5, 0.5)
                 Image.BackgroundTransparency = 1
                 Image.Image              = ID
                 Image.Parent             = Slot
+        
+                -- Adjust image position if text is present to make room
+                if SlotTitle or SlotSubText then
+                    Image.Position = UDim2.new(0.5, 0, 0.35, 0)
+                    Image.Size = UDim2.new(0.55, 0, 0.55, 0)
+                end
+        
                 if SlotTitle then
                     local Txt = Instance.new("TextLabel")
                     Txt.Size           = UDim2.new(1, 0, 0, FS(12))
-                    Txt.Position       = UDim2.new(0, 0, 0.62, 0)
+                    Txt.Position       = UDim2.new(0, 0, 0.65, 0)
                     Txt.BackgroundTransparency = 1
                     Txt.Text           = SlotTitle
                     Txt.TextColor3     = T.TextPrimary
@@ -1283,24 +1293,27 @@ function Library:CreateWindow()
                     Txt.TextSize       = FS(10)
                     Txt.Parent         = Slot
                 end
+                
                 if SlotSubText then
                     local SubTxt = Instance.new("TextLabel")
                     SubTxt.Size           = UDim2.new(1, 0, 0, FS(12))
-                    SubTxt.Position       = UDim2.new(0, 0, 0.78, 0)
+                    SubTxt.Position       = UDim2.new(0, 0, 0.82, 0)
                     SubTxt.BackgroundTransparency = 1
                     SubTxt.Text           = SlotSubText
-                    SubTxt.TextColor3     = Color3.fromRGB(120, 230, 120)
+                    SubTxt.TextColor3     = T.Success -- Using theme success color
                     SubTxt.Font           = Enum.Font.GothamBold
-                    SubTxt.TextSize       = FS(10)
+                    SubTxt.TextSize       = FS(9)
                     SubTxt.Parent         = Slot
                 end
+        
                 Slot.MouseButton1Click:Connect(function()
                     local isSelected = (Slot.BackgroundColor3 == T.Accent)
+                    
                     if not Multi then
                         for _, child in pairs(Scroll:GetChildren()) do
                             if child:IsA("TextButton") then
-                                TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 20, 24)}):Play()
-                                child:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(50, 50, 55)
+                                TweenService:Create(child, TweenInfo.new(0.2), {BackgroundColor3 = T.SurfaceDeep}):Play()
+                                child:FindFirstChildOfClass("UIStroke").Color = T.Stroke
                             end
                         end
                         Element.Selected = {SlotTitle or ID}
@@ -1313,18 +1326,23 @@ function Library:CreateWindow()
                             table.insert(Element.Selected, SlotTitle or ID)
                         end
                     end
-                    local targetColor = isSelected and Color3.fromRGB(20, 20, 24) or T.Accent
-                    local strokeColor = isSelected and Color3.fromRGB(50, 50, 55) or Color3.new(1,1,1)
+        
+                    local targetColor = isSelected and T.SurfaceDeep or T.Accent
+                    local strokeColor = isSelected and T.Stroke or T.TextWhite
+                    
                     TweenService:Create(Slot, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
                     Stroke.Color = strokeColor
+                    
                     Callback(Multi and Element.Selected or Element.Selected[1])
                 end)
+        
                 Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                     Scroll.CanvasSize = UDim2.new(0, Layout.AbsoluteContentSize.X + 10, 0, 0)
                 end)
+        
                 return Slot
             end
-
+        
             return Element
         end
 
