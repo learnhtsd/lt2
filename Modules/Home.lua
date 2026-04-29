@@ -124,8 +124,8 @@ function HomeModule.Init(Tab, Library)
     end)
 
     local HopRow = Tab:CreateRow()
-    HopRow:CreateAction("Descending Server", "Join", function() ServerHop("Asc")  end)
-    HopRow:CreateAction("Ascending Server",  "Join", function() ServerHop("Desc") end)
+    HopRow:CreateAction("Descending", "Join", function() ServerHop("Asc")  end)
+    HopRow:CreateAction("Ascending",  "Join", function() ServerHop("Desc") end)
 
     -- ── 4. Community & Support ────────────────────────────────
     Tab:CreateSection("Community & Support")
