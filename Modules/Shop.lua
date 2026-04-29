@@ -273,7 +273,16 @@ local function PurchasePart(mainPart, itemName, originalCF)
         if mainPart and mainPart.Parent then
             _LOT.TeleportMany({ { target = mainPart, goalCF = originalCF } })
         end
+
+        -- Step 6: Return the player to their original position
+        local returnChar = Player.Character
+        local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
+        if returnRoot then
+            returnRoot.CFrame = originalCF * CFrame.new(0, 0, 3)  -- slight offset so they don't clip into the item
+        end
     end
+
+    return purchased
 
     return purchased
 end
