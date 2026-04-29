@@ -1,6 +1,6 @@
 -- RespawnLoad.lua
--- Fires RequestLoad and kills the character in parallel so the respawn
--- lands on the freshly loaded plot without either step racing the other.
+-- Kills the character first, waits for death, then fires RequestLoad so
+-- the respawn always lands on the freshly loaded plot.
 local RespawnLoad = {}
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,8 +21,6 @@ function RespawnLoad.Init(Tab, Library)
     -- ================================================================
     --  CORE LOGIC
     -- ================================================================
-    local KILL_DELAY = 0.2 -- seconds
-
     local function ReloadCurrentSlot()
         -- 1. Read active slot
         local slotObj = LocalPlayer:FindFirstChild("CurrentSaveSlot")
@@ -45,6 +43,7 @@ function RespawnLoad.Init(Tab, Library)
 
         local char     = LocalPlayer.Character
         local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp      = char and char:FindFirstChild("HumanoidRootPart")
         if not humanoid or humanoid.Health <= 0 then
             Notify("ERROR", "Character not found or already dead.", 5)
             return
@@ -52,25 +51,20 @@ function RespawnLoad.Init(Tab, Library)
 
         Notify("RELOADING", "Reloading slot " .. slot .. "…", 4)
 
-        -- 3. Fire RequestLoad and kill in parallel.
-        task.spawn(function()
-            local ok, err = pcall(function()
-                RequestLoadRemote:InvokeServer(slot)
-            end)
-            if not ok then
-                Notify("FAILED", "RequestLoad failed: " .. tostring(err), 6)
-            end
-        end)
+        -- 3. Fling into the void and wait until the humanoid is dead
+        hrp.CFrame = CFrame.new(0, -5000, 0)
+        humanoid.Died:Wait()
 
-        task.delay(KILL_DELAY, function()
-            local c   = LocalPlayer.Character
-            local hrp = c and c:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = CFrame.new(0, -5000, 0)
-            end
+        -- 4. Now fire RequestLoad — character is confirmed dead
+        local ok, err = pcall(function()
+            RequestLoadRemote:InvokeServer(slot)
         end)
+        if not ok then
+            Notify("FAILED", "RequestLoad failed: " .. tostring(err), 6)
+            return
+        end
 
-        -- 4. Wait for the fresh character then confirm
+        -- 5. Wait for the fresh character then confirm
         local newChar = LocalPlayer.CharacterAdded:Wait()
         newChar:WaitForChild("HumanoidRootPart", 10)
         Notify("SUCCESS", "Slot " .. slot .. " reloaded!", 5)
