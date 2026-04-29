@@ -161,7 +161,7 @@ function VehicleModule.Init(Tab, Library)
     end)
     FlipButton:SetDisabled(true)
 
-    local ResetButton = Tab:CreateAction("Reset Vehicle Stats", "Reset", function()
+    local ResetButton = Tab:CreateAction("Reset Vehicle Modifications", "Reset", function()
         local defaults = (cachedVehicle and trueDefaults[cachedVehicle]) or vehicleDefaults
         if not defaults or not defaults.MaxSpeed then return end
         WriteConfigValues(cachedConfig, defaults)
@@ -175,9 +175,9 @@ function VehicleModule.Init(Tab, Library)
     ResetButton:SetDisabled(true)
 
     local resetOnExit = true
-    Tab:CreateToggle("Reset Config On Exit", true, function(state)
+    Tab:CreateToggle("Reset Vehicle Modifications On Exit", true, function(state)
         resetOnExit = state
-    end):AddTooltip("When on, the vehicle's stats are restored to their original values when you get out.")
+    end)
 
     Tab:CreateSection("Vehicle Pad Spawner")
 
@@ -190,12 +190,12 @@ function VehicleModule.Init(Tab, Library)
                 Library:Notify("Auto-Roll", "Target set to " .. name .. " (Code: " .. code .. ")", 3)
             end
         end
-    end):AddTooltip("The vehicle color you want Auto-Roll to stop on.")
+    end)
 
     local SpawnButton
     local AutoToggle
     local SelectButton
-    SelectButton = Tab:CreateAction("Select Car Pad", "Select", function()
+    SelectButton = Tab:CreateAction("Select Vehicle Pad", "Select", function()
         SelectButton:SetText("Click Pad!")
         local conn
         conn = UserInputService.InputBegan:Connect(function(input)
