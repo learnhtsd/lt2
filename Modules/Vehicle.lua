@@ -27,21 +27,20 @@ local cachedVehicle    = nil
 -- Code   = the BrickColor number used by the game
 --------------------------------------------------------------------
 local VehicleColors = {
-    { Name = "White",          Color = Color3.fromRGB(143, 76, 42),   Code = 345 },
-    { Name = "Black",          Color = Color3.fromRGB(17, 17, 17),    Code = 1003 },
-    { Name = "Bright Red",     Color = Color3.fromRGB(123, 46, 47),   Code = 154 },
-    { Name = "Bright Blue",    Color = Color3.fromRGB(156, 163, 168), Code = 131 },
-    { Name = "Bright Yellow",  Color = Color3.fromRGB(98, 71, 50),    Code = 25  },
-    { Name = "Bright Green",   Color = Color3.fromRGB(87, 88, 87),    Code = 148 },
-    { Name = "Bright Orange",  Color = Color3.fromRGB(149, 121, 119), Code = 153 },
-    { Name = "Lime Green",     Color = Color3.fromRGB(109, 110, 108), Code = 27 },
-    { Name = "Dark Red",       Color = Color3.fromRGB(120, 144, 130),  Code = 151 },
-    { Name = "Dark Orange",    Color = Color3.fromRGB(130, 138, 93),  Code = 200 },
-    { Name = "Dark Green",     Color = Color3.fromRGB(112, 149, 120),  Code = 210  },
-    { Name = "Sand Blue",      Color = Color3.fromRGB(143, 76, 42), Code = 345 },
-    { Name = "Sand Green",     Color = Color3.fromRGB(215, 197, 154), Code = 5 },
-    { Name = "Metal",          Color = Color3.fromRGB(104, 92, 67), Code = 108 },
-    { Name = "Pink",  Color = Color3.fromRGB(255, 0, 191),  Code = 1032 },
+    { Name = "Koa",           Color = Color3.fromRGB(143, 76, 42),  Code = 345 },
+    { Name = "Black",         Color = Color3.fromRGB(17, 17, 17),   Code = 1003 },
+    { Name = "Fir",           Color = Color3.fromRGB(123, 46, 47),  Code = 154 },
+    { Name = "Silver Pine",   Color = Color3.fromRGB(156, 163, 168), Code = 131 },
+    { Name = "Walnut",        Color = Color3.fromRGB(98, 71, 50),   Code = 25  },
+    { Name = "Slate Gray",    Color = Color3.fromRGB(87, 88, 87),   Code = 148 },
+    { Name = "Cherry",        Color = Color3.fromRGB(149, 121, 119), Code = 153 },
+    { Name = "Pine",          Color = Color3.fromRGB(109, 110, 108), Code = 27 },
+    { Name = "Frost",         Color = Color3.fromRGB(120, 144, 130), Code = 151 },
+    { Name = "Olive",         Color = Color3.fromRGB(130, 138, 93),  Code = 200 },
+    { Name = "Oak",           Color = Color3.fromRGB(112, 149, 120), Code = 210 },
+    { Name = "Birch",         Color = Color3.fromRGB(215, 197, 154), Code = 5 },
+    { Name = "Palm",          Color = Color3.fromRGB(104, 92, 67),  Code = 108 },
+    { Name = "Hot Pink",      Color = Color3.fromRGB(255, 0, 191),   Code = 1032 },
 }
 
 -- Quick lookup: Name → Code (used in the dropdown callback)
