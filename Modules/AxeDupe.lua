@@ -1,15 +1,12 @@
 -- RespawnLoad.lua
 -- Fires RequestLoad and kills the character in parallel so the respawn
 -- lands on the freshly loaded plot without either step racing the other.
-
 local RespawnLoad = {}
-
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 function RespawnLoad.Init(Tab, Library)
     if not Tab then return warn("[RespawnLoad] Tab was nil!") end
-
     local LocalPlayer      = Players.LocalPlayer
     local loadSaveRequests = ReplicatedStorage:FindFirstChild("LoadSaveRequests")
 
@@ -24,7 +21,6 @@ function RespawnLoad.Init(Tab, Library)
     -- ================================================================
     --  CORE LOGIC
     -- ================================================================
-
     -- How long to wait after firing RequestLoad before killing the character.
     -- Increase if the plot hasn't unloaded yet when you respawn.
     -- Decrease if you're spawning before the new plot is ready.
@@ -61,8 +57,8 @@ function RespawnLoad.Init(Tab, Library)
 
         -- 3. Fire RequestLoad and kill in parallel.
         --    RequestLoad goes first, then KILL_DELAY later the character
-        --    dies — giving the server just enough time to start the unload
-        --    before the respawn begins.
+        --    is sent to the void — giving the server just enough time to
+        --    start the unload before the respawn begins.
         task.spawn(function()
             local ok, err = pcall(function()
                 RequestLoadRemote:InvokeServer(slot)
@@ -74,17 +70,25 @@ function RespawnLoad.Init(Tab, Library)
 
         task.delay(KILL_DELAY, function()
             -- Re-fetch in case the reference changed
-            local c = LocalPlayer.Character
-            local h = c and c:FindFirstChildOfClass("Humanoid")
-            if h and h.Health > 0 then
-                h.Health = 0
+            local c   = LocalPlayer.Character
+            local hrp = c and c:FindFirstChild("HumanoidRootPart")
+            local h   = c and c:FindFirstChildOfClass("Humanoid")
+            if hrp and h and h.Health > 0 then
+                -- Teleport into the void to trigger a natural death
+                hrp.CFrame = CFrame.new(0, -5000, 0)
+                -- Fallback: if the void doesn't kill fast enough, zero health directly
+                task.delay(1.5, function()
+                    local h2 = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    if h2 and h2.Health > 0 then
+                        h2.Health = 0
+                    end
+                end)
             end
         end)
 
         -- 4. Wait for the fresh character then confirm
         local newChar = LocalPlayer.CharacterAdded:Wait()
         newChar:WaitForChild("HumanoidRootPart", 10)
-
         Notify("SUCCESS", "Slot " .. slot .. " reloaded!", 5)
     end
 
@@ -92,7 +96,6 @@ function RespawnLoad.Init(Tab, Library)
     --  UI
     -- ================================================================
     Tab:CreateSection("Respawn & Reload")
-
     Tab:CreateAction("Reload Current Slot", "Reload", function()
         task.spawn(ReloadCurrentSlot)
     end)
