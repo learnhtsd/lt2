@@ -25,17 +25,15 @@ local function GetVehicleConfig()
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
     local seat = hum and hum.SeatPart
 
-    if not seat then 
-        return nil 
+    if not seat then
+        return nil
     end
 
-    -- 1. Walk up to find the top-most model (the vehicle itself)
     local vehicle = seat
     while vehicle.Parent and vehicle.Parent ~= workspace and vehicle.Parent.Name ~= "PlayerModels" do
         vehicle = vehicle.Parent
     end
 
-    -- 2. Recursively search the entire vehicle for the Configuration folder
     if vehicle and vehicle:IsA("Model") then
         local config = vehicle:FindFirstChild("Configuration", true)
         if config and config:FindFirstChild("MaxSpeed") then
@@ -66,7 +64,6 @@ local function ApplyCustomization(name, value)
     end
 end
 
--- Safely updates UI sliders regardless of which UI library you use
 local function SafeUpdateSlider(slider, value)
     if not slider then return end
     pcall(function()
@@ -103,30 +100,38 @@ end
 function VehicleModule.Init(Tab, Library)
 
     Tab:CreateSection("Vehicle Modifications")
+
     local SpeedSlider = Tab:CreateSlider("Max Speed", 0.1, 10.0, 0.1, function(val)
         ApplyCustomization("MaxSpeed", val)
     end, 2)
     SpeedSlider:SetDisabled(true)
+
     local SteerAngleSlider = Tab:CreateSlider("Steer Angle", 0.1, 2.0, 0.1, function(val)
         ApplyCustomization("SteerAngle", val)
     end, 2)
     SteerAngleSlider:SetDisabled(true)
+
     local SteerVelocitySlider = Tab:CreateSlider("Steer Velocity", 0.01, 0.03, 0.01, function(val)
         ApplyCustomization("SteerVelocity", val)
     end, 3)
     SteerVelocitySlider:SetDisabled(true)
+
     local FlipButton = Tab:CreateAction("Flip Vehicle", "No Vehicle", function()
         FlipVehicle()
     end)
     FlipButton:SetDisabled(true)
 
     Tab:CreateSection("Vehicle Pad Spawner")
+
     Tab:CreateInput("Target Color ID", "148", function(val)
         targetColorCode = tonumber(val) or 148
     end):AddTooltip("The BrickColor number ID you want to roll for.")
+
+    -- Forward declare so SelectButton's closure can reference SpawnButton
+    local SpawnButton
     local SelectButton
-    SelectButton = Tab:CreateAction("Select Car Pad", "Pick Pad", function()
-        SelectButton:SetText("Click Pad...")
+    SelectButton = Tab:CreateAction("Select Car Pad", "Select", function()
+        SelectButton:SetText("Click Pad!")
         local conn
         conn = UserInputService.InputBegan:Connect(function(input)
             if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
@@ -144,24 +149,28 @@ function VehicleModule.Init(Tab, Library)
                     if ev then
                         selectedPadRoot  = current
                         selectedPadEvent = ev
-                        SelectButton:SetText("LOCKED: " .. current.Name)
+                        SelectButton:SetText(.. current.Name)
                         SpawnButton:SetDisabled(false)
                         return
                     end
                     current = current.Parent
                 end
-                SelectButton:SetText("NOT FOUND — retry")
+                SelectButton:SetText("Not Found")
             else
-                SelectButton:SetText("Nothing Hit")
+                SelectButton:SetText("Missed")
             end
         end)
     end)
-    local SpawnButton = Tab:CreateAction("Spawn Once", "Execute", function()
+
+    -- No 'local' here — assigns to the forward-declared SpawnButton above
+    SpawnButton = Tab:CreateAction("Respawn Vehicle", "Respawn", function()
         InteractWithPad()
     end)
     SpawnButton:SetDisabled(true)
+
     local SPAWN_INTERVAL = 0.5
     local POLL_RATE      = 0.02
+
     local function SpawnAndGetColor()
         local watchFolder = workspace:FindFirstChild("PlayerModels") or workspace
         local existing = {}
@@ -193,6 +202,7 @@ function VehicleModule.Init(Tab, Library)
         conn:Disconnect()
         return result
     end
+
     local AutoToggle
     AutoToggle = Tab:CreateToggle("Auto-Roll Color", false, function(state)
         if not selectedPadEvent then return end
@@ -213,8 +223,9 @@ function VehicleModule.Init(Tab, Library)
                 end
             end)
         end
+    end)  -- AutoToggle closes here
 
---------------------------------------------------------------------
+    --------------------------------------------------------------------
     -- BACKGROUND MONITORING
     --------------------------------------------------------------------
     task.spawn(function()
@@ -251,53 +262,52 @@ function VehicleModule.Init(Tab, Library)
                         if angle    then SafeUpdateSlider(SteerAngleSlider, math.clamp(angle, 0.1, 2.0)) end
                         if velocity then SafeUpdateSlider(SteerVelocitySlider, math.clamp(velocity, 0.01, 0.05)) end
 
-                        -- Apply stored custom settings if they exist
                         if customSettings.MaxSpeed > 0 then ApplyCustomization("MaxSpeed", customSettings.MaxSpeed) end
                         if customSettings.SteerAngle > 0 then ApplyCustomization("SteerAngle", customSettings.SteerAngle) end
                         if customSettings.SteerVelocity > 0 then ApplyCustomization("SteerVelocity", customSettings.SteerVelocity) end
                     end
-                        else
-                            -- PLAYER EXITED VEHICLE (RESET EVERYTHING)
-                            print("[Vehicle] Resetting values and disabling sliders.")
-                        
-                            -- 1. Write default values back into the vehicle config BEFORE clearing memory
-                            --    so the car is physically restored to its original state on exit
-                            local config = GetVehicleConfig()
-                            if config then
-                                local defaults = {
-                                    MaxSpeed      = 1.0,
-                                    SteerAngle    = 1.0,
-                                    SteerVelocity = 0.03,
-                                }
-                                for name, defaultVal in pairs(defaults) do
-                                    local setting = config:FindFirstChild(name)
-                                    if setting and setting:IsA("ValueBase") then
-                                        setting.Value = defaultVal
-                                    end
-                                end
+                else
+                    -- PLAYER EXITED VEHICLE (RESET EVERYTHING)
+                    print("[Vehicle] Resetting values and disabling sliders.")
+
+                    -- 1. Write defaults back into the vehicle config before clearing memory
+                    local config = GetVehicleConfig()
+                    if config then
+                        local defaults = {
+                            MaxSpeed      = 1.0,
+                            SteerAngle    = 1.0,
+                            SteerVelocity = 0.03,
+                        }
+                        for name, defaultVal in pairs(defaults) do
+                            local setting = config:FindFirstChild(name)
+                            if setting and setting:IsA("ValueBase") then
+                                setting.Value = defaultVal
                             end
-                        
-                            -- 2. Reset Internal Memory so the next car starts fresh
-                            customSettings.MaxSpeed      = 0
-                            customSettings.SteerAngle    = 0
-                            customSettings.SteerVelocity = 0
-                        
-                            -- 3. Reset UI Visuals
-                            FlipButton:SetDisabled(true)
-                            FlipButton:SetText("No Vehicle")
-                        
-                            SpeedSlider:SetDisabled(true)
-                            SafeUpdateSlider(SpeedSlider, 0.1)
-                        
-                            SteerAngleSlider:SetDisabled(true)
-                            SafeUpdateSlider(SteerAngleSlider, 0.1)
-                        
-                            SteerVelocitySlider:SetDisabled(true)
-                            SafeUpdateSlider(SteerVelocitySlider, 0.01)
                         end
+                    end
+
+                    -- 2. Reset internal memory
+                    customSettings.MaxSpeed      = 0
+                    customSettings.SteerAngle    = 0
+                    customSettings.SteerVelocity = 0
+
+                    -- 3. Reset UI
+                    FlipButton:SetDisabled(true)
+                    FlipButton:SetText("No Vehicle")
+
+                    SpeedSlider:SetDisabled(true)
+                    SafeUpdateSlider(SpeedSlider, 0.1)
+
+                    SteerAngleSlider:SetDisabled(true)
+                    SafeUpdateSlider(SteerAngleSlider, 0.1)
+
+                    SteerVelocitySlider:SetDisabled(true)
+                    SafeUpdateSlider(SteerVelocitySlider, 0.01)
+                end
             end
         end
     end)
+
 end
 
 return VehicleModule
