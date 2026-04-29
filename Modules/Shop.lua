@@ -42,21 +42,32 @@ local SetChatting = ReplicatedStorage.NPCDialog.SetChattingValue
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                       FUNDS REMOTE                              │
 -- │                                                                 │
--- │  Resolved lazily on first call — never blocks module load.     │
--- │  GetFunds:InvokeServer() → number (player's current balance)   │
+-- │  Resolved lazily on first call via a recursive search so it    │
+-- │  works regardless of which folder the remote is nested in.     │
+-- │  Found path is printed to console for reference.               │
 -- └─────────────────────────────────────────────────────────────────┘
 local GetFundsRemote = nil  -- resolved on first FetchFunds() call
 
+-- Recursively searches `root` for the first RemoteFunction named `name`.
+local function FindRemoteRecursive(root, name)
+    for _, child in ipairs(root:GetDescendants()) do
+        if child.Name == name and child:IsA("RemoteFunction") then
+            return child
+        end
+    end
+    return nil
+end
+
 -- Returns the player's current balance as a number, or nil on failure.
 local function FetchFunds()
-    -- Resolve the remote once, with a short timeout so we never hang.
     if not GetFundsRemote then
-        GetFundsRemote = ReplicatedStorage:FindFirstChild("GetFunds")
-                      or ReplicatedStorage:WaitForChild("GetFunds", 5)
+        GetFundsRemote = FindRemoteRecursive(ReplicatedStorage, "GetFunds")
         if not GetFundsRemote then
-            warn("[ShopModule] GetFunds remote not found in ReplicatedStorage.")
+            warn("[ShopModule] GetFunds RemoteFunction not found anywhere in ReplicatedStorage.")
             return nil
         end
+        -- Print full path so you know exactly where it lives
+        print("[ShopModule] Found GetFunds at: " .. GetFundsRemote:GetFullName())
     end
 
     local ok, result = pcall(function()
@@ -65,7 +76,7 @@ local function FetchFunds()
     if ok and type(result) == "number" then
         return result
     end
-    warn("[ShopModule] GetFunds remote failed: " .. tostring(result))
+    warn("[ShopModule] GetFunds remote call failed: " .. tostring(result))
     return nil
 end
 
