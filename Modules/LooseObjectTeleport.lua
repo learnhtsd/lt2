@@ -25,7 +25,7 @@ local Settings = {
     PostBatchDelay         = 0.01,
     OwnershipMoveThreshold = 0.05,
     OwnershipTimeout       = 2,
-    MaxRetries             = 5,
+    MaxRetries             = 2,
     GapDistance            = 6,
     CleanRadius            = 12,
     LockMouseMovement      = true,
@@ -636,7 +636,7 @@ local function StopStackMode(silent)
     State.StackMode     = false
     State.StackRotation = CFrame.new()
     ClearStackPreview()
-    SetStackBtnLabel("Start Stack")
+    SetStackBtnLabel("Start")
     if not silent then
         Notify("Stack TP", "Placement cancelled.")
     end
@@ -691,7 +691,7 @@ local function StartStackMode()
     end
 
     State.StackMode = true
-    SetStackBtnLabel("Stop Stack")
+    SetStackBtnLabel("Stop")
     Notify("Stack TP",
         "Move cursor to target — click to place " .. #State.SelectedObjects .. " items.", 4)
 
@@ -1020,7 +1020,7 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
         Settings.KeepSelected = val
     end)
 
-    Tab:CreateSlider("Max Retries", 1, 10, 5, function(val)
+    Tab:CreateSlider("Max Retries", 0, 4, 2, function(val)
         Settings.MaxRetries = val
     end):AddTooltip("How many times to attempt grabbing network ownership per failed object.")
 
