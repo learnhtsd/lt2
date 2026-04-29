@@ -149,7 +149,7 @@ function VehicleModule.Init(Tab, Library)
                     if ev then
                         selectedPadRoot  = current
                         selectedPadEvent = ev
-                        SelectButton:SetText(.. current.Name)
+                        SelectButton:SetText(current.Name)
                         SpawnButton:SetDisabled(false)
                         return
                     end
