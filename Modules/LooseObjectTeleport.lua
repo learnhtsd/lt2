@@ -37,6 +37,9 @@ local Settings = {
     StackY                 = 5,
     StackZ                 = 1,
     StackPadding           = 0.05,
+
+    -- NEW: Keep teleported items selected after a batch finishes (default off)
+    KeepSelected           = false,
 }
 
 local State = {
@@ -46,8 +49,12 @@ local State = {
     TempDeleted       = {},
     BatchCancelled    = false,
 
-    -- FIX 3: Global busy flag — silences all selection input during any TP batch
+    -- Global busy flag — silences all selection input during any TP batch
     IsBusy            = false,
+
+    -- FIX 1: Signals GrabAndTeleport's playerLock is active so ghostLock
+    -- skips its own root/camera enforcement (prevents them fighting each other)
+    GrabPhase         = false,
 
     ClickSelectMode   = false,
     GroupSelectMode   = false,
@@ -153,24 +160,63 @@ end
 -- │                     BATCH CLEANUP HELPER                        │
 -- └─────────────────────────────────────────────────────────────────┘
 
-local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
+--
+-- FIX 1 + FIX 3: Accept saved camera state so we can restore exactly
+-- what the player had before the batch started.
+--
+-- Restoration order matters to prevent the spaz/rotation bug:
+--   1. Kill the ghostLock heartbeat first (stops competing writes)
+--   2. Zero velocities
+--   3. Restore position
+--   4. Un-ghost the character
+--   5. Wait one frame so physics settles with the character visible
+--   6. Re-zero velocities (physics may have ticked)
+--   7. Re-set position  ← catches any kick that happened in step 5
+--   8. Release PlatformStand (now the character is already grounded)
+--   9. Wait one more frame then zero again (PlatformStand release can nudge)
+--  10. Restore camera to whatever state the player was in
+--
+local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock, origCamType, origCamMode)
+    -- 1. Kill the ghostLock so it stops enforcing Scriptable camera / root lock
     if ghostLock then ghostLock:Disconnect() end
 
+    -- 2-3. Zero velocities, then snap to saved position
     root.AssemblyLinearVelocity  = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
     root.CFrame = originalCharCFrame
 
+    -- 4. Un-ghost (restores LocalTransparencyModifier + CanCollide)
     SetCharacterGhosting(char, false)
+
+    -- 5. One physics frame for the engine to acknowledge the new state
+    task.wait()
+
+    -- 6-7. Re-enforce position after the physics tick (catches any kick)
+    if root and root.Parent then
+        root.AssemblyLinearVelocity  = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        root.CFrame = originalCharCFrame
+    end
+
+    -- 8. Now release PlatformStand — character is already in the right spot
     hum.PlatformStand = false
 
+    -- 9. One more frame; PlatformStand release can cause a small nudge
     task.wait()
     if root and root.Parent then
         root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
     end
 
-    Camera.CameraType = Enum.CameraType.Custom
-    Player.CameraMode = Enum.CameraMode.Classic
+    -- 10. FIX 3: Restore the camera to exactly what the player had.
+    --     Re-attach the camera subject so third-person tracking resumes.
+    Camera.CameraType = origCamType
+    Player.CameraMode = origCamMode
+    local hum2 = char:FindFirstChildOfClass("Humanoid")
+    if hum2 then
+        Camera.CameraSubject = hum2
+    end
+
     UIS.MouseBehavior = Enum.MouseBehavior.Default
 end
 
@@ -303,14 +349,17 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
     local hoverPos = currentTarget.Position + Vector3.new(0, worldHalfHeight + Settings.GapDistance, 0)
     local hoverCF  = CFrame.lookAt(hoverPos, currentTarget.Position)
 
+    -- FIX 1: Signal ghostLock to stand down while playerLock drives position
+    State.GrabPhase = true
+
     local playerLock = RunService.Heartbeat:Connect(function()
         if root then
             root.CFrame = hoverCF
             root.AssemblyLinearVelocity = Vector3.zero
         end
         if Settings.LockMouseMovement and head and currentTarget then
-            Camera.CameraType = Enum.CameraType.Scriptable
-            Camera.CFrame     = CFrame.lookAt(head.Position, currentTarget.Position)
+            -- FIX 2: Camera already Scriptable from RunBatch; just update its CFrame
+            Camera.CFrame = CFrame.lookAt(head.Position, currentTarget.Position)
         end
     end)
 
@@ -335,7 +384,15 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
     end
 
     playerLock:Disconnect()
-    Camera.CameraType = Enum.CameraType.Custom
+
+    -- FIX 1: Return control to ghostLock — it will re-lock root and camera
+    State.GrabPhase = false
+
+    -- FIX 2 + FIX 1: Do NOT restore Camera.CameraType here.
+    -- ghostLock (still alive) immediately takes over: it enforces Scriptable
+    -- camera at the head and locks root.CFrame to originalCharCFrame.
+    -- Restoring CameraType here mid-batch was what caused the camera snap
+    -- and the cascade that led to the character spaz.
 
     for _, data in ipairs(State.TempDeleted) do
         if data.Part then data.Part.Parent = data.OldParent end
@@ -397,13 +454,9 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
--- │              *** NEW: SHARED INTERNAL BATCH RUNNER ***          │
+-- │              *** SHARED INTERNAL BATCH RUNNER ***               │
 -- │                                                                 │
 -- │  jobs  — array of { target = BasePart, goalCF = CFrame }       │
--- │                                                                 │
--- │  All public API methods AND the existing UI actions             │
--- │  (PerformExecute, PerformStackExecute) funnel through here.     │
--- │  Nothing else needs to touch character setup / teardown.        │
 -- └─────────────────────────────────────────────────────────────────┘
 local function RunBatch(jobs)
     if #jobs == 0 then
@@ -424,19 +477,55 @@ local function RunBatch(jobs)
     -- Raise busy flag — blocks all UI selection clicks while running
     State.IsBusy         = true
     State.BatchCancelled = false
+    State.GrabPhase      = false  -- reset in case a previous batch was cancelled dirty
+
+    -- FIX 3: Save the player's camera state so we can restore it precisely.
+    local origCamType = Camera.CameraType
+    local origCamMode = Player.CameraMode
 
     local originalCharCFrame = root.CFrame
 
-    Player.CameraMode = Enum.CameraMode.LockFirstPerson
+    -- FIX 2: Use Scriptable camera driven by ghostLock instead of LockFirstPerson.
+    -- LockFirstPerson uses a canned Roblox camera offset that feels "fake".
+    -- Scriptable lets us position the camera exactly at eye-level inside the head,
+    -- giving real first-person feel with full control.
+    Player.CameraMode = Enum.CameraMode.Classic  -- don't fight LockFirstPerson's offsets
+    Camera.CameraType = Enum.CameraType.Scriptable
     UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
     hum.PlatformStand = true
     SetCharacterGhosting(char, true)
 
-    -- Continuously re-enforce no-collision every frame
+    --
+    -- ghostLock runs every Heartbeat for the entire lifetime of the batch.
+    --
+    -- It has two responsibilities:
+    --   A) Always: enforce no-collision on every character part.
+    --   B) When NOT in GrabPhase: lock root.CFrame to the saved position and
+    --      hold the Scriptable camera at eye level (FIX 1 + FIX 2).
+    --      During GrabPhase, playerLock inside GrabAndTeleport owns these.
+    --
     local ghostLock = RunService.Heartbeat:Connect(function()
+        -- A) Always enforce no-collision
         for _, part in ipairs(char:GetDescendants()) do
             if part:IsA("BasePart") and part.CanCollide then
                 part.CanCollide = false
+            end
+        end
+
+        -- B) Between grabs: hold the character still and show real first-person view.
+        --    GrabPhase = true means playerLock is alive; we skip to avoid fighting it.
+        if not State.GrabPhase then
+            if root and root.Parent then
+                root.CFrame = originalCharCFrame
+                root.AssemblyLinearVelocity  = Vector3.zero
+                root.AssemblyAngularVelocity = Vector3.zero
+            end
+            -- FIX 2: Real first-person — camera sits at the eye position inside the head.
+            -- head.CFrame already points the right direction; nudge up ~0.25 studs to
+            -- approximate eye level (Roblox heads are 1 stud tall, origin at centre).
+            if head and head.Parent then
+                Camera.CameraType = Enum.CameraType.Scriptable
+                Camera.CFrame     = head.CFrame * CFrame.new(0, 0.25, 0)
             end
         end
     end)
@@ -464,7 +553,8 @@ local function RunBatch(jobs)
 
     task.wait(Settings.PostBatchDelay)
 
-    RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock)
+    -- FIX 1 + FIX 3: Pass saved camera state into restore so it resets properly.
+    RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock, origCamType, origCamMode)
 
     State.IsBusy = false
 
@@ -683,7 +773,10 @@ local function PerformStackExecute(hitPos)
 
     local success = RunBatch(jobs)
 
-    State.SelectedObjects = {}
+    -- NEW: Only clear the queue if KeepSelected is off
+    if not Settings.KeepSelected then
+        State.SelectedObjects = {}
+    end
     UpdateVisuals()
     Notify("Stack TP", success and "Stack complete!" or "Batch cancelled.", 3)
 end
@@ -779,40 +872,32 @@ local function PerformExecute()
 
     local success = RunBatch(jobs)
 
-    State.SelectedObjects = {}
+    -- NEW: Only clear the queue if KeepSelected is off
+    if not Settings.KeepSelected then
+        State.SelectedObjects = {}
+    end
     UpdateVisuals()
     Notify("Finished", success and "Batch complete." or "Batch cancelled.", 3)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
--- │              *** NEW: PUBLIC API FOR EXTERNAL SCRIPTS ***       │
+-- │              *** PUBLIC API FOR EXTERNAL SCRIPTS ***            │
 -- │                                                                 │
 -- │  Usage from another module (e.g. ShopModule):                  │
 -- │                                                                 │
 -- │    local LOT = require(path.to.LooseObjectTeleport)            │
 -- │                                                                 │
--- │    -- Add a part to the selection queue                         │
 -- │    LOT.Select(somePart)                                         │
--- │                                                                 │
--- │    -- Remove a part from the selection queue                    │
 -- │    LOT.Deselect(somePart)                                       │
--- │                                                                 │
--- │    -- Teleport every part currently in the queue to one CFrame  │
 -- │    LOT.TeleportTo(CFrame.new(0, 5, 0))                         │
--- │                                                                 │
--- │    -- Convenience: select + teleport a single part immediately  │
--- │    -- Does NOT modify the persistent selection queue.           │
 -- │    LOT.TeleportObjectTo(somePart, CFrame.new(100, 5, 200))     │
--- │                                                                 │
--- │    -- Teleport multiple specific parts to individual CFrames    │
 -- │    LOT.TeleportMany({                                           │
 -- │        { target = partA, goalCF = CFrame.new(10, 0, 10) },     │
 -- │        { target = partB, goalCF = CFrame.new(20, 0, 10) },     │
 -- │    })                                                           │
 -- └─────────────────────────────────────────────────────────────────┘
 
--- Add a BasePart to the selection queue (same as clicking it in Click-Select mode).
--- Safe to call while a batch is NOT running; ignored if already selected.
+-- Add a BasePart to the selection queue.
 function LooseObjectTeleport.Select(part)
     assert(typeof(part) == "Instance" and part:IsA("BasePart"),
         "LOT.Select: expected a BasePart, got " .. typeof(part))
@@ -835,19 +920,13 @@ function LooseObjectTeleport.Deselect(part)
     end
 end
 
--- Clear the entire selection queue (same as the UI "Clear" button).
+-- Clear the entire selection queue.
 function LooseObjectTeleport.Clear()
     PerformClear()
 end
 
--- Teleport every part currently in the selection queue to `goalCF`.
--- All objects land at exactly the same CFrame (position + rotation).
--- The queue is cleared after a successful run.
--- Returns true if all succeeded, false if the batch was cancelled.
---
--- goalCF  —  CFrame  (required)
---            The destination.  For a flat placement on the ground you
---            probably want  CFrame.new(x, y + halfHeight, z).
+-- Teleport every part in the selection queue to goalCF.
+-- Queue is always cleared after an API call regardless of KeepSelected.
 function LooseObjectTeleport.TeleportTo(goalCF)
     assert(typeof(goalCF) == "CFrame",
         "LOT.TeleportTo: expected a CFrame, got " .. typeof(goalCF))
@@ -873,12 +952,7 @@ function LooseObjectTeleport.TeleportTo(goalCF)
     return success
 end
 
--- Teleport a SINGLE part to `goalCF` without touching the selection queue.
--- Useful for "buy item → move it to the player" style calls.
--- Returns true if successful, false if it failed or was cancelled.
---
--- part    —  BasePart  (the Main part of the object's model, or any unanchored BasePart)
--- goalCF  —  CFrame    (destination)
+-- Teleport a single part to goalCF without touching the selection queue.
 function LooseObjectTeleport.TeleportObjectTo(part, goalCF)
     assert(typeof(part) == "Instance" and part:IsA("BasePart"),
         "LOT.TeleportObjectTo: expected a BasePart, got " .. typeof(part))
@@ -893,15 +967,6 @@ function LooseObjectTeleport.TeleportObjectTo(part, goalCF)
 end
 
 -- Teleport multiple parts, each to its own individual CFrame.
--- jobs  —  array of  { target = BasePart, goalCF = CFrame }
--- Returns true if all succeeded, false if cancelled.
---
--- Example (shop module places 3 axe spawns in a grid):
---   LOT.TeleportMany({
---       { target = axeA, goalCF = CFrame.new(10, 1, 0) },
---       { target = axeB, goalCF = CFrame.new(15, 1, 0) },
---       { target = axeC, goalCF = CFrame.new(20, 1, 0) },
---   })
 function LooseObjectTeleport.TeleportMany(jobs)
     assert(type(jobs) == "table", "LOT.TeleportMany: expected a table of jobs.")
     if State.IsBusy then
@@ -911,7 +976,7 @@ function LooseObjectTeleport.TeleportMany(jobs)
     return RunBatch(jobs)
 end
 
--- Read-only helpers so external scripts can inspect state without breaking it.
+-- Read-only helpers.
 function LooseObjectTeleport.IsBusy()
     return State.IsBusy
 end
@@ -947,13 +1012,21 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
             if State.LassoFrame then State.LassoFrame.Visible = false end
         end
     end)
+
+    -- NEW TOGGLE: Keep selected objects highlighted after a teleport finishes.
+    -- When ON, the queue is preserved so you can TP the same set again or inspect
+    -- which items were moved. When OFF (default), the queue clears as before.
+    Tab:CreateToggle("Keep Selection After TP", false, function(val)
+        Settings.KeepSelected = val
+    end)
+
     Tab:CreateSlider("Max Retries", 1, 10, 5, function(val)
         Settings.MaxRetries = val
     end):AddTooltip("How many times to attempt grabbing network ownership per failed object.")
 
     local MainRow = Tab:CreateRow()
     MainRow:CreateAction("Clear Selection", "Clear", PerformClear)
-    MainRow:CreateAction("Teleport Selection",    "TP", PerformExecute)
+    MainRow:CreateAction("Teleport Selection", "TP", PerformExecute)
 
     -- ── Stack TP section ─────────────────────────────────────────
     Tab:CreateSection("Sorting")
