@@ -66,7 +66,6 @@ local function FetchFunds()
             warn("[ShopModule] GetFunds RemoteFunction not found anywhere in ReplicatedStorage.")
             return nil
         end
-        -- Print full path so you know exactly where it lives
         print("[ShopModule] Found GetFunds at: " .. GetFundsRemote:GetFullName())
     end
 
@@ -165,24 +164,11 @@ local SPAM_INTERVAL    = 0.1
 local SPAM_TIMEOUT     = 30
 local SPAM_NOTIFY_FREQ = 50
 
---
--- Returns true if the given parent means the item was successfully
--- purchased and handed to the player.
---
--- The server may route the item to:
---   • workspace.PlayerModels        (most common — LT2-style plots)
---   • Player.Backpack               (tool given directly)
---   • Player.Character              (auto-equipped)
---   • any ancestor named PlayerModels (nested model hierarchy)
---
--- Anything still inside workspace.Stores is NOT a success.
---
 local function IsSuccessParent(parent)
     if not parent then return false end
     if parent.Name == "PlayerModels"  then return true end
     if parent == Player.Backpack      then return true end
     if parent == Player.Character     then return true end
-    -- Walk ancestors for deeply nested PlayerModels containers
     local current = parent
     while current do
         if current.Name == "PlayerModels" then return true end
@@ -207,12 +193,6 @@ local function SpamPurchase(mainPart, npcArg, itemName)
         end
 
         -- ── Parent is nil: could be a mid-transition re-parent ────
-        --
-        -- Roblox briefly sets Parent = nil when moving an instance between
-        -- containers. Rather than treating nil as immediate failure, we
-        -- wait one frame and re-check. Only give up if still nil after
-        -- that extra tick, which means the instance is truly gone.
-        --
         if parent == nil then
             task.wait()
             local newParent = mainPart and mainPart.Parent
@@ -221,12 +201,9 @@ local function SpamPurchase(mainPart, npcArg, itemName)
                 return true
             end
             if newParent == nil then
-                -- Genuinely destroyed — not a purchase, instance removed server-side
                 Notify("⚠️ Item Gone", ("'%s' was removed before purchase completed."):format(itemName), 4)
                 return false
             end
-            -- Parent is non-nil but not a success location — server likely
-            -- reset the item. Fall through and keep spamming.
         end
 
         -- ── Fire the three-step purchase sequence ─────────────────
@@ -249,12 +226,14 @@ local function SpamPurchase(mainPart, npcArg, itemName)
     return false
 end
 
-local function PurchasePart(mainPart, itemName)
+-- originalCF: the player's CFrame captured at button-press time.
+-- Passed in from the button callback so it reflects where the player
+-- was standing the moment they clicked, before any async delay.
+local function PurchasePart(mainPart, itemName, originalCF)
     -- Step 1: TP the box to the drop zone via LOT
     local success = _LOT.TeleportMany({ { target = mainPart, goalCF = ITEM_DROP_CF } })
 
-    -- Step 2: Safety-net wait — TeleportMany is synchronous but guard for
-    -- any lingering batch activity before touching the character.
+    -- Step 2: Safety-net wait
     if _LOT.IsBusy() then
         Notify("Shop", "Waiting for TP to settle…", 2)
         success = _LOT.WaitForBatch()
@@ -273,6 +252,9 @@ local function PurchasePart(mainPart, itemName)
         return false
     end
 
+    -- Fall back to current position if somehow none was passed in
+    originalCF = originalCF or root.CFrame
+
     root.CFrame = PLAYER_BUY_CF
     task.wait(0.1)  -- let the server register the new position
 
@@ -283,7 +265,17 @@ local function PurchasePart(mainPart, itemName)
         return false
     end
 
-    return SpamPurchase(mainPart, npcArg, itemName)
+    local purchased = SpamPurchase(mainPart, npcArg, itemName)
+
+    -- Step 5: TP the item to where the player was when they pressed Buy
+    if purchased then
+        task.wait(0.05)  -- let the server finish re-parenting
+        if mainPart and mainPart.Parent then
+            _LOT.TeleportMany({ { target = mainPart, goalCF = originalCF } })
+        end
+    end
+
+    return purchased
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -403,7 +395,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         end
 
         -- ── Funds check ───────────────────────────────────────────
-        -- Reject before doing anything if the player can't afford it.
         local totalCost = SelectedItem.Price * Quantity
         local funds     = FetchFunds()
 
@@ -426,17 +417,19 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         local parts = ResolveItemParts(SelectedItem, Quantity)
         if #parts == 0 then return end
 
-        -- Run everything in a background thread so the UI stays responsive.
-        -- Items are processed one at a time: each TP → spam cycle must finish
-        -- before the next begins, preventing LOT batch collisions.
+        -- Snapshot the player's position RIGHT NOW, on the main thread,
+        -- before task.spawn hands off to an async context. FetchNPCIDs()
+        -- can take several seconds, during which the player may have moved.
+        local char      = Player.Character
+        local root      = char and char:FindFirstChild("HumanoidRootPart")
+        local pressedCF = root and root.CFrame
+
         task.spawn(function()
             FetchNPCIDs()  -- no-op after first call
 
             local bought    = 0
             local failed    = 0
             local itemName  = SelectedItem.Name
-            -- Re-fetch balance now in case it changed between button press
-            -- and the thread actually executing (FetchNPCIDs can take time)
             local liveFunds = FetchFunds() or funds
 
             Notify(
@@ -453,12 +446,13 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                     continue
                 end
 
-                -- If somehow a previous iteration left LOT busy, wait it out
                 if _LOT.IsBusy() then
                     _LOT.WaitForBatch()
                 end
 
-                local ok = PurchasePart(mainPart, itemName)
+                -- Pass pressedCF so the item lands where the player
+                -- was standing when they clicked the button.
+                local ok = PurchasePart(mainPart, itemName, pressedCF)
                 if ok then
                     bought += 1
                 else
