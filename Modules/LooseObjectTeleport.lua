@@ -487,7 +487,7 @@ local function GrabAndTeleport(currentTarget, goalCFrame, char, head, root, orig
         currentTarget.CanCollide              = wasCollidable
         currentTarget.Anchored                = true
         local ref = currentTarget
-        task.delay(2, function()
+        task.delay(0.2, function()
             if ref and ref.Parent then ref.Anchored = false end
         end)
     end
