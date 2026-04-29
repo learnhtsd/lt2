@@ -1,40 +1,25 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.207"
+local Version = "v0.0.208"
 
--- ============================================================
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
 -- ██╔════╝ ██╔═══██╗████╗  ██║██╔════╝██║██╔════╝
 -- ██║      ██║   ██║██╔██╗ ██║█████╗  ██║██║  ███╗
 -- ██║      ██║   ██║██║╚██╗██║██╔══╝  ██║██║   ██║
 -- ╚██████╗ ╚██████╔╝██║ ╚████║██║     ██║╚██████╔╝
 --  ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝ ╚═════╝
--- ============================================================
--- EASY CONFIGURATION — edit this block only
--- ============================================================
 
 local Config = {
-
-    -- ── WINDOW SIZE ──────────────────────────────────────────
-    -- Controls the overall menu frame dimensions in pixels.
-    Window = {
-        Width  = 500,   -- total menu width
-        Height = 300,   -- total menu height
-        SidebarWidth = 35,  -- icon sidebar width
+    Window = { -- Menu Scale
+        Width  = 500,
+        Height = 300,
+        SidebarWidth = 35,
     },
-
-    -- ── ELEMENT SCALE ─────────────────────────────────────────
-    -- Scales the *contents* of the menu independently of the window.
-    -- Elements: row heights, font sizes, padding, toggle/button sizes.
-    -- 1.0 = default  |  0.75 = compact  |  1.25 = large
-    Elements = {
+    Elements = { -- UI Element Scale
         Scale = 0.75,
     },
-
-    -- ── COLOR THEME ───────────────────────────────────────────
-    -- Swap any colour below to retheme the entire UI instantly.
-    Theme = {
+    Theme = { -- Theme Color Pallet
         Accent          = Color3.fromRGB(74,  120, 255),  -- blue highlights / active
         Background      = Color3.fromRGB(18,  18,  22),   -- main window background
         Surface         = Color3.fromRGB(24,  24,  29),   -- element cards / dropdowns
