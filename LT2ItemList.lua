@@ -4,7 +4,7 @@ return {
     { Name = "Plain Axe", Image = "Axe_Plain.png", Price = 90, BoxItemName = "", },
     { Name = "Steel Axe", Image = "Axe_Steel.png", Price = 190, BoxItemName = "", },
     { Name = "Hardened Axe", Image = "Axe_Hardened.png", Price = 550, BoxItemName = "", },
-    { Name = "Silver Axe", Image = "Axe_Silver.png", Price = 2040, BoxItemName = "", },
+    { Name = "Silver Axe", Image = "Axe_Silver.png", Price = 2040, BoxItemName = "SilverAxe", },
     -- Conveyors
     { Name = "Straight Conveyor", Image = "Conveyor_Straight.png", Price = 80, BoxItemName = "", },
     { Name = "Turn Conveyor", Image = "Conveyor_Turn.png", Price = 100, BoxItemName = "", },
