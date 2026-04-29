@@ -49,19 +49,19 @@ function HomeModule.Init(Tab, Library)
     InfoBox:AddText("Version:       v0.0.208", {
         Size  = 11,
         Color = Color3.fromRGB(150, 150, 160),
-        Font  = Enum.Font.GothamMono,
+        Font  = Enum.Font.Code,
     })
 
     local StatusLabel = InfoBox:AddText("Status:        Checking...", {
         Size  = 11,
         Color = Color3.fromRGB(150, 150, 160),
-        Font  = Enum.Font.GothamMono,
+        Font  = Enum.Font.Code,
     })
 
     InfoBox:AddText("Last Updated:  April 2026", {
         Size  = 11,
         Color = Color3.fromRGB(150, 150, 160),
-        Font  = Enum.Font.GothamMono,
+        Font  = Enum.Font.Code,
     })
 
     InfoBox:AddSpacer(2)
