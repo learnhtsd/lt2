@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.252"
+local Version = "v0.0.253"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1298,36 +1298,31 @@ function Library:CreateWindow()
             Padding.PaddingBottom = UDim.new(0, ES(3))
 
             -- ── Edge-fade overlays ────────────────────────────────
-            -- Two gradient frames sit on top of the scroll area.
-            -- They blend from T.Surface (opaque) → transparent, making
-            -- slots look like they dissolve as they slide under the edge.
-            local FADE_W = ES(28)  -- width of the fade band in pixels
-
+            -- Parented to SelectorFrame (NOT Scroll) so UIGridLayout
+            -- doesn't treat them as grid cells and create a gap.
+            local FADE_W = ES(28)
+            
             local function MakeFade(anchorX, posX, rotated)
                 local Fade = Instance.new("Frame")
-                Fade.Size                  = UDim2.new(0, FADE_W, 1, 0)
-                Fade.AnchorPoint           = Vector2.new(anchorX, 0)
-                Fade.Position              = UDim2.new(posX, 0, 0, 0)
-                Fade.BackgroundColor3      = T.Surface
+                Fade.Size                   = UDim2.new(0, FADE_W, 0, ScrollHeight)
+                Fade.AnchorPoint            = Vector2.new(anchorX, 0)
+                Fade.Position               = UDim2.new(posX, rotated and -ES(10) or ES(10), 0, TopPadding)
+                Fade.BackgroundColor3       = T.Surface
                 Fade.BackgroundTransparency = 0
-                Fade.BorderSizePixel       = 0
-                Fade.ZIndex                = 5   -- above slots (default ZIndex 1)
-                Fade.Parent                = Scroll
-
+                Fade.BorderSizePixel        = 0
+                Fade.ZIndex                 = 5
+                Fade.Parent                 = SelectorFrame  -- ← SelectorFrame, not Scroll
+            
                 local Grad = Instance.new("UIGradient", Fade)
-                -- Gradient goes opaque → transparent (left → right for left fade,
-                -- reversed for right fade via Rotation = 180).
                 Grad.Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 0),   -- opaque
-                    NumberSequenceKeypoint.new(1, 1),   -- transparent
+                    NumberSequenceKeypoint.new(0, 0),
+                    NumberSequenceKeypoint.new(1, 1),
                 })
                 if rotated then Grad.Rotation = 180 end
-
-                return Fade
             end
-
-            MakeFade(0, 0,   false)   -- left fade:  opaque on far left → transparent
-            MakeFade(1, 1,   true)    -- right fade: transparent → opaque on far right
+            
+            MakeFade(0, 0, false)   -- left edge
+            MakeFade(1, 1, true)    -- right edge
 
             -- ── Search filter logic ───────────────────────────────
             local function ApplySearch(query)
