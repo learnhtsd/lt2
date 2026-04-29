@@ -102,101 +102,28 @@ end
 
 function VehicleModule.Init(Tab, Library)
 
-    Tab:CreateSection("Vehicle Customization")
-
-    local SpeedSlider = Tab:CreateSlider("Max Speed", 0.1, 2.0, 0.1, function(val)
+    Tab:CreateSection("Vehicle Modifications")
+    local SpeedSlider = Tab:CreateSlider("Max Speed", 0.1, 10.0, 0.1, function(val)
         ApplyCustomization("MaxSpeed", val)
     end, 2)
     SpeedSlider:SetDisabled(true)
-    SpeedSlider:AddTooltip("LT2 range: 0.1 – 2.0. Higher = faster top speed.")
-
     local SteerAngleSlider = Tab:CreateSlider("Steer Angle", 0.1, 2.0, 0.1, function(val)
         ApplyCustomization("SteerAngle", val)
     end, 2)
     SteerAngleSlider:SetDisabled(true)
-    SteerAngleSlider:AddTooltip("LT2 range: 0.1 – 2.0. Higher = sharper turns.")
-
-    local SteerVelocitySlider = Tab:CreateSlider("Steer Velocity", 0.01, 0.05, 0.01, function(val)
+    local SteerVelocitySlider = Tab:CreateSlider("Steer Velocity", 0.01, 0.03, 0.01, function(val)
         ApplyCustomization("SteerVelocity", val)
     end, 3)
     SteerVelocitySlider:SetDisabled(true)
-    SteerVelocitySlider:AddTooltip("LT2 range: 0.01 – 0.05. How fast wheels rotate to target angle.")
-
-    Tab:CreateSection("Vehicle Utilities")
-
     local FlipButton = Tab:CreateAction("Flip Vehicle", "No Vehicle", function()
         FlipVehicle()
     end)
     FlipButton:SetDisabled(true)
 
-    Tab:CreateSection("Turbo Car Spawner")
-
+    Tab:CreateSection("Vehicle Pad Spawner")
     Tab:CreateInput("Target Color ID", "148", function(val)
         targetColorCode = tonumber(val) or 148
     end):AddTooltip("The BrickColor number ID you want to roll for.")
-
-    local SpawnButton = Tab:CreateAction("Spawn Once", "Execute", function()
-        InteractWithPad()
-    end)
-    SpawnButton:SetDisabled(true)
-
-    local SPAWN_INTERVAL = 0.5
-    local POLL_RATE      = 0.02
-
-    local function SpawnAndGetColor()
-        local watchFolder = workspace:FindFirstChild("PlayerModels") or workspace
-        local existing = {}
-        for _, m in ipairs(watchFolder:GetChildren()) do existing[m] = true end
-
-        local done, result = false, nil
-
-        local conn = watchFolder.ChildAdded:Connect(function(model)
-            if done or existing[model] or not model:IsA("Model") then return end
-            local settings = model:WaitForChild("Settings", 0.5)
-            if not settings then return end
-            local colorVal = settings:WaitForChild("Color", 0.5)
-            if not colorVal then return end
-            local deadline = tick() + 0.4
-            while colorVal.Value == 0 and tick() < deadline do task.wait(POLL_RATE) end
-            if colorVal.Value ~= 0 and not done then
-                done   = true
-                result = colorVal.Value
-            end
-        end)
-
-        InteractWithPad()
-
-        local deadline = tick() + SPAWN_INTERVAL
-        while not done and tick() < deadline and isAutoRolling do
-            task.wait(POLL_RATE)
-        end
-
-        conn:Disconnect()
-        return result
-    end
-
-    local AutoToggle
-    AutoToggle = Tab:CreateToggle("Auto-Roll Color", false, function(state)
-        if not selectedPadEvent then return end
-        isAutoRolling = state
-
-        if isAutoRolling then
-            task.spawn(function()
-                while isAutoRolling and selectedPadEvent do
-                    local color = SpawnAndGetColor()
-                    if color == targetColorCode then
-                        isAutoRolling = false
-                        AutoToggle:SetState(false)
-                        if Library then
-                            Library:Notify("Auto-Roll", "Found target color: " .. tostring(targetColorCode), 5)
-                        end
-                        break
-                    end
-                end
-            end)
-        end
-    end):AddTooltip("Automatically spawns cars until the target color ID is matched.")
-
     local SelectButton
     SelectButton = Tab:CreateAction("Select Car Pad", "Pick Pad", function()
         SelectButton:SetText("Click Pad...")
@@ -229,6 +156,63 @@ function VehicleModule.Init(Tab, Library)
             end
         end)
     end)
+    local SpawnButton = Tab:CreateAction("Spawn Once", "Execute", function()
+        InteractWithPad()
+    end)
+    SpawnButton:SetDisabled(true)
+    local SPAWN_INTERVAL = 0.5
+    local POLL_RATE      = 0.02
+    local function SpawnAndGetColor()
+        local watchFolder = workspace:FindFirstChild("PlayerModels") or workspace
+        local existing = {}
+        for _, m in ipairs(watchFolder:GetChildren()) do existing[m] = true end
+
+        local done, result = false, nil
+
+        local conn = watchFolder.ChildAdded:Connect(function(model)
+            if done or existing[model] or not model:IsA("Model") then return end
+            local settings = model:WaitForChild("Settings", 0.5)
+            if not settings then return end
+            local colorVal = settings:WaitForChild("Color", 0.5)
+            if not colorVal then return end
+            local deadline = tick() + 0.4
+            while colorVal.Value == 0 and tick() < deadline do task.wait(POLL_RATE) end
+            if colorVal.Value ~= 0 and not done then
+                done   = true
+                result = colorVal.Value
+            end
+        end)
+
+        InteractWithPad()
+
+        local deadline = tick() + SPAWN_INTERVAL
+        while not done and tick() < deadline and isAutoRolling do
+            task.wait(POLL_RATE)
+        end
+
+        conn:Disconnect()
+        return result
+    end
+    local AutoToggle
+    AutoToggle = Tab:CreateToggle("Auto-Roll Color", false, function(state)
+        if not selectedPadEvent then return end
+        isAutoRolling = state
+
+        if isAutoRolling then
+            task.spawn(function()
+                while isAutoRolling and selectedPadEvent do
+                    local color = SpawnAndGetColor()
+                    if color == targetColorCode then
+                        isAutoRolling = false
+                        AutoToggle:SetState(false)
+                        if Library then
+                            Library:Notify("Auto-Roll", "Found target color: " .. tostring(targetColorCode), 5)
+                        end
+                        break
+                    end
+                end
+            end)
+        end
 
 --------------------------------------------------------------------
     -- BACKGROUND MONITORING
