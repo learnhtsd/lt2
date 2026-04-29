@@ -16,7 +16,10 @@ local customSettings = {
     SteerVelocity = 0,
 }
 
-local vehicleDefaults = {}  -- snapshot of the vehicle's original values on sit
+local vehicleDefaults = {}   -- snapshot of values when player sat down (may already be modified)
+local trueDefaults    = {}   -- permanent first-seen values per vehicle name, never overwritten
+local cachedConfig    = nil  -- held while seated so exit block can reach it after SeatPart clears
+local cachedVehicleKey = nil -- name key into trueDefaults for the current vehicle
 
 --------------------------------------------------------------------
 -- HELPERS
@@ -26,10 +29,7 @@ local function GetVehicleConfig()
     local char = player.Character
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
     local seat = hum and hum.SeatPart
-
-    if not seat then
-        return nil
-    end
+    if not seat then return nil end
 
     local vehicle = seat
     while vehicle.Parent and vehicle.Parent ~= workspace and vehicle.Parent.Name ~= "PlayerModels" do
@@ -39,11 +39,11 @@ local function GetVehicleConfig()
     if vehicle and vehicle:IsA("Model") then
         local config = vehicle:FindFirstChild("Configuration", true)
         if config and config:FindFirstChild("MaxSpeed") then
-            return config
+            return config, vehicle.Name
         end
     end
 
-    return nil
+    return nil, nil
 end
 
 local function ReadConfigValue(config, name)
@@ -55,11 +55,20 @@ local function ReadConfigValue(config, name)
     return nil
 end
 
+local function WriteConfigValues(config, values)
+    if not config or not values then return end
+    for name, value in pairs(values) do
+        local setting = config:FindFirstChild(name)
+        if setting and setting:IsA("ValueBase") then
+            setting.Value = value
+        end
+    end
+end
+
 local function ApplyCustomization(name, value)
     customSettings[name] = value
-    local config = GetVehicleConfig()
-    if config then
-        local setting = config:FindFirstChild(name)
+    if cachedConfig then
+        local setting = cachedConfig:FindFirstChild(name)
         if setting and setting:IsA("ValueBase") then
             setting.Value = value
         end
@@ -124,16 +133,19 @@ function VehicleModule.Init(Tab, Library)
     FlipButton:SetDisabled(true)
 
     local ResetButton = Tab:CreateAction("Reset Vehicle Stats", "Reset", function()
-        if not vehicleDefaults.MaxSpeed then return end
-        ApplyCustomization("MaxSpeed",      vehicleDefaults.MaxSpeed)
-        ApplyCustomization("SteerAngle",    vehicleDefaults.SteerAngle)
-        ApplyCustomization("SteerVelocity", vehicleDefaults.SteerVelocity)
+        -- Always prefer the permanent true defaults over the sit-snapshot
+        local defaults = (cachedVehicleKey and trueDefaults[cachedVehicleKey]) or vehicleDefaults
+        if not defaults or not defaults.MaxSpeed then return end
+
+        WriteConfigValues(cachedConfig, defaults)
+
         customSettings.MaxSpeed      = 0
         customSettings.SteerAngle    = 0
         customSettings.SteerVelocity = 0
-        SafeUpdateSlider(SpeedSlider,         math.clamp(vehicleDefaults.MaxSpeed,      0.1, 10.0))
-        SafeUpdateSlider(SteerAngleSlider,    math.clamp(vehicleDefaults.SteerAngle,    0.1, 2.0))
-        SafeUpdateSlider(SteerVelocitySlider, math.clamp(vehicleDefaults.SteerVelocity, 0.01, 0.03))
+
+        SafeUpdateSlider(SpeedSlider,         math.clamp(defaults.MaxSpeed,      0.1, 10.0))
+        SafeUpdateSlider(SteerAngleSlider,    math.clamp(defaults.SteerAngle,    0.1, 2.0))
+        SafeUpdateSlider(SteerVelocitySlider, math.clamp(defaults.SteerVelocity, 0.01, 0.03))
     end)
     ResetButton:SetDisabled(true)
 
@@ -148,7 +160,6 @@ function VehicleModule.Init(Tab, Library)
         targetColorCode = tonumber(val) or 148
     end):AddTooltip("The BrickColor number ID you want to roll for.")
 
-    -- Forward declare so SelectButton's closure can reference SpawnButton and AutoToggle
     local SpawnButton
     local AutoToggle
     local SelectButton
@@ -173,7 +184,7 @@ function VehicleModule.Init(Tab, Library)
                         selectedPadEvent = ev
                         SelectButton:SetText(current.Name)
                         SpawnButton:SetDisabled(false)
-                        AutoToggle:SetDisabled(false)  -- pad found — unlock the toggle
+                        AutoToggle:SetDisabled(false)
                         return
                     end
                     current = current.Parent
@@ -248,14 +259,13 @@ function VehicleModule.Init(Tab, Library)
             end)
         end
     end)
-    AutoToggle:SetDisabled(true)  -- disabled until a pad is selected
+    AutoToggle:SetDisabled(true)
 
     --------------------------------------------------------------------
     -- BACKGROUND MONITORING
     --------------------------------------------------------------------
     task.spawn(function()
-        local lastSeat    = nil
-        local cachedConfig = nil  -- held while seated so exit block can still reach it
+        local lastSeat = nil
 
         while task.wait(0.5) do
             local char        = player.Character
@@ -274,46 +284,64 @@ function VehicleModule.Init(Tab, Library)
                     SteerAngleSlider:SetDisabled(false)
                     SteerVelocitySlider:SetDisabled(false)
 
-                    cachedConfig = nil
+                    cachedConfig     = nil
+                    cachedVehicleKey = nil
+
                     for _ = 1, 6 do
-                        cachedConfig = GetVehicleConfig()
-                        if cachedConfig then break end
+                        local config, vehicleName = GetVehicleConfig()
+                        if config then
+                            cachedConfig     = config
+                            cachedVehicleKey = vehicleName
+                            break
+                        end
                         task.wait(0.5)
                     end
 
-                    if cachedConfig then
-                        -- Snapshot the vehicle's true default values before touching anything
-                        vehicleDefaults.MaxSpeed      = ReadConfigValue(cachedConfig, "MaxSpeed")
-                        vehicleDefaults.SteerAngle    = ReadConfigValue(cachedConfig, "SteerAngle")
-                        vehicleDefaults.SteerVelocity = ReadConfigValue(cachedConfig, "SteerVelocity")
+                    if cachedConfig and cachedVehicleKey then
+                        -- First time seeing this vehicle? Record its true factory defaults
+                        if not trueDefaults[cachedVehicleKey] then
+                            trueDefaults[cachedVehicleKey] = {
+                                MaxSpeed      = ReadConfigValue(cachedConfig, "MaxSpeed"),
+                                SteerAngle    = ReadConfigValue(cachedConfig, "SteerAngle"),
+                                SteerVelocity = ReadConfigValue(cachedConfig, "SteerVelocity"),
+                            }
+                            print("[Vehicle] Recorded true defaults for:", cachedVehicleKey)
+                        end
 
-                        -- Update slider positions to reflect current vehicle values
-                        if vehicleDefaults.MaxSpeed      then SafeUpdateSlider(SpeedSlider,         math.clamp(vehicleDefaults.MaxSpeed,      0.1, 10.0))  end
-                        if vehicleDefaults.SteerAngle    then SafeUpdateSlider(SteerAngleSlider,    math.clamp(vehicleDefaults.SteerAngle,    0.1, 2.0))   end
-                        if vehicleDefaults.SteerVelocity then SafeUpdateSlider(SteerVelocitySlider, math.clamp(vehicleDefaults.SteerVelocity, 0.01, 0.05)) end
+                        -- If resetOnExit is on, restore factory defaults now before snapshotting
+                        if resetOnExit then
+                            WriteConfigValues(cachedConfig, trueDefaults[cachedVehicleKey])
+                        end
 
-                        -- Re-apply any custom values the player had set previously
+                        -- Snapshot what's in the config right now (post-restore if applicable)
+                        vehicleDefaults = {
+                            MaxSpeed      = ReadConfigValue(cachedConfig, "MaxSpeed"),
+                            SteerAngle    = ReadConfigValue(cachedConfig, "SteerAngle"),
+                            SteerVelocity = ReadConfigValue(cachedConfig, "SteerVelocity"),
+                        }
+
+                        -- Update sliders to reflect current config
+                        SafeUpdateSlider(SpeedSlider,         math.clamp(vehicleDefaults.MaxSpeed,      0.1, 10.0))
+                        SafeUpdateSlider(SteerAngleSlider,    math.clamp(vehicleDefaults.SteerAngle,    0.1, 2.0))
+                        SafeUpdateSlider(SteerVelocitySlider, math.clamp(vehicleDefaults.SteerVelocity, 0.01, 0.05))
+
+                        -- Re-apply any lingering custom values
                         if customSettings.MaxSpeed      > 0 then ApplyCustomization("MaxSpeed",      customSettings.MaxSpeed)      end
                         if customSettings.SteerAngle    > 0 then ApplyCustomization("SteerAngle",    customSettings.SteerAngle)    end
                         if customSettings.SteerVelocity > 0 then ApplyCustomization("SteerVelocity", customSettings.SteerVelocity) end
                     end
                 else
                     -- PLAYER EXITED VEHICLE
-                    print("[Vehicle] Resetting values and disabling sliders.")
+                    print("[Vehicle] Player exited vehicle.")
 
-                    -- Write defaults back using the cached config (SeatPart is already nil here)
-                    if resetOnExit and cachedConfig and vehicleDefaults.MaxSpeed then
-                        local names = { "MaxSpeed", "SteerAngle", "SteerVelocity" }
-                        for _, name in ipairs(names) do
-                            local setting = cachedConfig:FindFirstChild(name)
-                            if setting and setting:IsA("ValueBase") then
-                                setting.Value = vehicleDefaults[name]
-                            end
-                        end
+                    -- Restore factory defaults if toggle is on (use cachedConfig, SeatPart is nil now)
+                    if resetOnExit and cachedConfig and cachedVehicleKey and trueDefaults[cachedVehicleKey] then
+                        WriteConfigValues(cachedConfig, trueDefaults[cachedVehicleKey])
                     end
 
-                    -- Clear cached ref, snapshots, and custom memory
+                    -- Clear session state
                     cachedConfig         = nil
+                    cachedVehicleKey     = nil
                     vehicleDefaults      = {}
                     customSettings.MaxSpeed      = 0
                     customSettings.SteerAngle    = 0
