@@ -14,7 +14,7 @@ return {
     { Name = "Straight Conveyor Switch Right", Image = "Conveyor_Straight_Switch_Right.png", Price = 480, BoxItemName = "", },
     { Name = "Sweeper Conveyor", Image = "Conveyor_Sweeper.png", Price = 430, BoxItemName = "", },
     { Name = "Conveyor Supports", Image = "Conveyor_Supports.png", Price = 12, BoxItemName = "", },
-    { Name = "Turn Conveyor Suppords", Image = "Conveyor_Tiled_Supports.png", Price = 20, BoxItemName = "", },
+    { Name = "Turn Conveyor Suppords", Image = "Conveyor_Tilted_Supports.png", Price = 20, BoxItemName = "", },
 }
 
 --{ Name = "", Image = ".png", Price = , BoxItemName = "", },
