@@ -219,47 +219,43 @@ end
 --  10. Restore camera to whatever state the player was in
 --
 local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock, origCamType, origCamMode)
-    -- 1. Kill the ghostLock so it stops enforcing Scriptable camera / root lock
+    -- 1. Kill ghostLock immediately — nothing should be competing from here on
     if ghostLock then ghostLock:Disconnect() end
 
-    -- 2-3. Zero velocities, then snap to saved position
-    root.AssemblyLinearVelocity  = Vector3.zero
-    root.AssemblyAngularVelocity = Vector3.zero
-    root.CFrame = originalCharCFrame
+    -- 2. Release PlatformStand RIGHT AWAY before anything else.
+    --    This is what causes the ragdoll — the longer it stays true the worse it is.
+    hum.PlatformStand = false
 
-    -- 4. Un-ghost (restores LocalTransparencyModifier + CanCollide)
-    SetCharacterGhosting(char, false)
+    -- 3. Restore camera immediately so controls feel responsive the instant
+    --    the batch ends. CameraSubject must be re-attached before CameraType
+    --    switches back or Roblox may not track the humanoid correctly.
+    local hum2 = char:FindFirstChildOfClass("Humanoid")
+    if hum2 then
+        Camera.CameraSubject = hum2
+    end
+    Camera.CameraType = origCamType
+    Player.CameraMode = origCamMode
+    UIS.MouseBehavior = Enum.MouseBehavior.Default
 
-    -- 5. One physics frame for the engine to acknowledge the new state
-    task.wait()
-
-    -- 6-7. Re-enforce position after the physics tick (catches any kick)
+    -- 4. Zero velocities and snap back to saved position
     if root and root.Parent then
         root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         root.CFrame = originalCharCFrame
     end
 
-    -- 8. Now release PlatformStand — character is already in the right spot
-    hum.PlatformStand = false
+    -- 5. Un-ghost the character
+    SetCharacterGhosting(char, false)
 
-    -- 9. One more frame; PlatformStand release can cause a small nudge
-    task.wait()
-    if root and root.Parent then
-        root.AssemblyLinearVelocity  = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    -- 10. FIX 3: Restore the camera to exactly what the player had.
-    --     Re-attach the camera subject so third-person tracking resumes.
-    Camera.CameraType = origCamType
-    Player.CameraMode = origCamMode
-    local hum2 = char:FindFirstChildOfClass("Humanoid")
-    if hum2 then
-        Camera.CameraSubject = hum2
-    end
-
-    UIS.MouseBehavior = Enum.MouseBehavior.Default
+    -- 6. One single deferred re-enforce to catch any physics kick from un-ghosting.
+    --    task.defer runs after the current frame without yielding — no freeze.
+    task.defer(function()
+        if root and root.Parent then
+            root.AssemblyLinearVelocity  = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+            root.CFrame = originalCharCFrame
+        end
+    end)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -600,8 +596,6 @@ local function RunBatch(jobs)
         end
         GrabAndTeleport(job.target, job.goalCF, char, head, root, originalParents)
     end
-
-    task.wait(Settings.PostBatchDelay)
 
     -- FIX 1 + FIX 3: Pass saved camera state into restore so it resets properly.
     RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock, origCamType, origCamMode)
