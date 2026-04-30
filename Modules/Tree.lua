@@ -344,6 +344,7 @@ local _hoverOutline = nil
 local _hoverPlank   = nil
 local _plankConn    = nil
 local _clickConn    = nil
+local _isSelling    = false   -- guard: true while a TP is in flight
 
 -- Walks up from any part to find the parent Plank model owned by local player
 local function FindOwnedPlank(part)
@@ -394,6 +395,7 @@ end
 
 local function StopSellPlanks()
     _sellPlanksOn = false
+    _isSelling    = false
     ClearHoverOutline()
     if _plankConn then _plankConn:Disconnect(); _plankConn = nil end
     if _clickConn then _clickConn:Disconnect(); _clickConn = nil end
@@ -406,11 +408,19 @@ local function StartSellPlanks(LOT)
     end
 
     _sellPlanksOn = true
+    _isSelling    = false
     local mouse = player:GetMouse()
 
-    -- Hover: runs every frame, checks what the mouse is over
+    -- Hover: runs every frame, checks what the mouse is over.
+    -- Suppressed while a TP is in flight so the outline doesn't flicker
+    -- onto the plank as it arrives at the sell point.
     _plankConn = RunService.RenderStepped:Connect(function()
         if not _sellPlanksOn then return end
+        if _isSelling then
+            -- Hide outline during TP to avoid confusing visual feedback
+            ClearHoverOutline()
+            return
+        end
         local plank = FindOwnedPlank(mouse.Target)
         if plank then
             ApplyHoverOutline(plank)
@@ -419,13 +429,17 @@ local function StartSellPlanks(LOT)
         end
     end)
 
-    -- Click: sell the currently highlighted plank
+    -- Click: sell the currently highlighted plank.
+    -- Bails immediately if a sale is already in progress.
     _clickConn = mouse.Button1Down:Connect(function()
         if not _sellPlanksOn then return end
+        if _isSelling then return end                -- prevent re-entry during TP
         if not _hoverPlank or not _hoverPlank.Parent then return end
 
         local plank = _hoverPlank
         ClearHoverOutline()
+
+        _isSelling = true    -- disable clicks & hover until TP completes
 
         task.spawn(function()
             if LOT.IsBusy() then
@@ -442,10 +456,16 @@ local function StartSellPlanks(LOT)
 
             if not target then
                 warn("[TreeModule] Plank has no BasePart to teleport.")
+                _isSelling = false   -- release lock on failure
                 return
             end
 
             LOT.TeleportObjectTo(target, PLANK_SELL_CF)
+
+            -- Wait for LOT to finish before re-enabling clicks
+            repeat task.wait(0.05) until not LOT.IsBusy()
+
+            _isSelling = false   -- re-enable hover & click
         end)
     end)
 end
