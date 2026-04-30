@@ -17,8 +17,12 @@ local Settings = {
     -- High damage axes only need 1-2 passes; lower damage axes may need more.
     -- The loop will keep firing until the section is actually gone.
     FiresPerSection = 50,
+    -- Delay between individual fires within a single pass (lets server register each cut)
+    FireDelay       = 0.03,
     -- Delay between full section sweeps (lets the server process cuts)
-    SweepDelay      = 0.05,
+    SweepDelay      = 0.1,
+    -- How long (seconds) to keep hammering the base before giving up
+    ChopTimeout     = 30,
 
     -- [ LOT Settings ]
     LogDropDistance = 6,
@@ -332,15 +336,14 @@ local function RunLOTBatch(LOT, stumps, goalCFBuilder, onComplete)
 end
 
 -- ==========================================
---   REMOTE CUT  (replaces VirtualInput)
---
---   Fires the tree's own CutEvent via
---   ReplicatedStorage.Interaction.RemoteProxy
---   for every WoodSection from bottom to top,
---   repeating until the section disappears.
+--   REMOTE CUT
 -- ==========================================
 local RemoteProxy = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
 
+-- FIX 1: Height is now near the BOTTOM of the section (10% up from base)
+--         instead of the center. This makes the cut register lower on the log.
+-- FIX 2: Small FireDelay between individual fires so the server can process
+--         each cut before the next one arrives (prevents silent drops).
 local function FireCutSection(section, tool, axeName, treeClass)
     if not section or not section.Parent then return end
 
@@ -348,8 +351,10 @@ local function FireCutSection(section, tool, axeName, treeClass)
     if not idObj then return end
 
     local damage = GetDamage(axeName, treeClass)
-    -- Cut at the vertical center of the section (height relative to section = 0)
-    local height = section.Size.Y / 2
+
+    -- Cut near the bottom of the section instead of the center.
+    -- section.Size.Y * 0.1 = 10% up from the base of the log.
+    local height = section.Size.Y * 0.1
 
     local args = {
         sectionId    = idObj.Value,
@@ -362,8 +367,9 @@ local function FireCutSection(section, tool, axeName, treeClass)
     }
 
     for _ = 1, Settings.FiresPerSection do
-        if not section.Parent then break end   -- section already cut off
+        if not section.Parent then break end  -- section was cut, stop early
         RemoteProxy:FireServer(section.Parent.CutEvent, args)
+        task.wait(Settings.FireDelay)         -- let the server register each fire
     end
 end
 
@@ -437,21 +443,40 @@ local function StartChopping(treeClass, LOT, onComplete)
 
     task.wait(Settings.SyncDelay)
 
-    -- 6. Chop all sections bottom-to-top
+    -- 6. Keep firing at the BASE section until it's fully gone,
+    --    then wait for the whole tree to fall before TPing back.
     task.spawn(function()
-    local stump    = GetSectionsBottomFirst(treeModel)[1]
-    local attempts = 0
-    while stump and stump.Parent and isChopping do
-        FireCutSection(stump, tool, axeName, treeClass)
-        attempts += 1
-        task.wait(Settings.SweepDelay)
-        if attempts > 20 then
-            warn("[TreeModule] Base section not falling after 20 sweeps — aborting.")
-            break
-        end
-    end
+        local baseSection = GetSectionsBottomFirst(treeModel)[1]
 
-        -- 7. Return player, wait for logs, deliver
+        if not baseSection then
+            warn("[TreeModule] Base section missing before chop started.")
+            CleanupState()
+            if onComplete then onComplete() end
+            return
+        end
+
+        -- FIX: Use a time-based deadline instead of an arbitrary attempt cap.
+        -- Keep hammering the base section until it disappears (tree falls)
+        -- or we hit the timeout. Each sweep = FiresPerSection fires + SweepDelay.
+        local deadline = tick() + Settings.ChopTimeout
+
+        while baseSection.Parent ~= nil and isChopping and tick() < deadline do
+            FireCutSection(baseSection, tool, axeName, treeClass)
+            task.wait(Settings.SweepDelay)
+        end
+
+        if tick() >= deadline then
+            warn("[TreeModule] ChopTimeout reached — base section never fell. Aborting.")
+        elseif not isChopping then
+            -- User cancelled
+            CleanupState()
+            if onComplete then onComplete() end
+            return
+        else
+            print("[TreeModule] Base section gone — tree is loose. Waiting for logs to settle.")
+        end
+
+        -- 7. Tree is down. Return player, wait for physics to settle, then deliver.
         CleanupState()
         WaitForLogsToSettle(treeClass)
 
