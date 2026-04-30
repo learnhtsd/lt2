@@ -338,23 +338,37 @@ end
 -- ==========================================
 --   PLANK SELLING
 -- ==========================================
-local PLANK_SELL_CF  = CFrame.new(315.5, 0, 83)
-local _sellPlanksOn  = false
-local _hoverOutline  = nil
-local _hoverPlank    = nil
-local _plankConn     = nil
-local _clickConn     = nil
+local PLANK_SELL_CF = CFrame.new(315.5, 0, 83)
+local _sellPlanksOn = false
+local _hoverOutline = nil
+local _hoverPlank   = nil
+local _plankConn    = nil
+local _clickConn    = nil
 
-local function IsOwnedPlank(part)
-    if not part then return false end
-    if part.Name ~= "Plank" then return false end
-    local playerModels = Workspace:FindFirstChild("PlayerModels")
-    if not playerModels or part.Parent ~= playerModels then return false end
-    local owner = part:FindFirstChild("Owner")
-    if not owner then return false end
-    local ownerStr = owner:FindFirstChild("OwnerString")
-    if not ownerStr or not ownerStr:IsA("StringValue") then return false end
-    return ownerStr.Value == player.Name
+-- Walks up from any part to find the parent Plank model owned by local player
+local function FindOwnedPlank(part)
+    if not part then return nil end
+
+    -- Walk up the hierarchy to find the model named "Plank"
+    local current = part
+    while current and current ~= Workspace do
+        if current.Name == "Plank" and current:IsA("Model") then
+            local playerModels = Workspace:FindFirstChild("PlayerModels")
+            if not playerModels then return nil end
+            if current.Parent ~= playerModels then return nil end
+
+            -- Check ownership
+            local owner = current:FindFirstChild("Owner")
+            if not owner then return nil end
+            local ownerStr = owner:FindFirstChild("OwnerString")
+            if not ownerStr or not ownerStr:IsA("StringValue") then return nil end
+            if ownerStr.Value ~= player.Name then return nil end
+
+            return current
+        end
+        current = current.Parent
+    end
+    return nil
 end
 
 local function ClearHoverOutline()
@@ -365,24 +379,24 @@ local function ClearHoverOutline()
     _hoverPlank = nil
 end
 
-local function ApplyHoverOutline(part)
-    if _hoverPlank == part then return end
+local function ApplyHoverOutline(model)
+    if _hoverPlank == model then return end
     ClearHoverOutline()
-    _hoverPlank   = part
-    _hoverOutline = Instance.new("SelectionBox")
-    _hoverOutline.Adornee        = part
-    _hoverOutline.Color3         = Color3.fromRGB(74, 120, 255)   -- THEME.Accent
-    _hoverOutline.LineThickness  = 0.06
-    _hoverOutline.SurfaceColor3  = Color3.fromRGB(74, 120, 255)
-    _hoverOutline.SurfaceTransparency = 0.6
-    _hoverOutline.Parent         = Workspace
+    _hoverPlank              = model
+    _hoverOutline            = Instance.new("SelectionBox")
+    _hoverOutline.Adornee    = model
+    _hoverOutline.Color3     = Color3.fromRGB(74, 120, 255)
+    _hoverOutline.LineThickness      = 0.08
+    _hoverOutline.SurfaceColor3      = Color3.fromRGB(74, 120, 255)
+    _hoverOutline.SurfaceTransparency = 0.65
+    _hoverOutline.Parent     = Workspace
 end
 
 local function StopSellPlanks()
     _sellPlanksOn = false
     ClearHoverOutline()
-    if _plankConn  then _plankConn:Disconnect();  _plankConn  = nil end
-    if _clickConn  then _clickConn:Disconnect();  _clickConn  = nil end
+    if _plankConn then _plankConn:Disconnect(); _plankConn = nil end
+    if _clickConn then _clickConn:Disconnect(); _clickConn = nil end
 end
 
 local function StartSellPlanks(LOT)
@@ -392,37 +406,47 @@ local function StartSellPlanks(LOT)
     end
 
     _sellPlanksOn = true
+    local mouse = player:GetMouse()
 
-    -- Hover detection via mouse RenderStepped
+    -- Hover: runs every frame, checks what the mouse is over
     _plankConn = RunService.RenderStepped:Connect(function()
         if not _sellPlanksOn then return end
-
-        local mouse     = player:GetMouse()
-        local target    = mouse.Target
-
-        if target and IsOwnedPlank(target) then
-            ApplyHoverOutline(target)
+        local plank = FindOwnedPlank(mouse.Target)
+        if plank then
+            ApplyHoverOutline(plank)
         else
             ClearHoverOutline()
         end
     end)
 
-    -- Click to sell the hovered plank
-    _clickConn = game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
-        if processed then return end
+    -- Click: sell the currently highlighted plank
+    _clickConn = mouse.Button1Down:Connect(function()
         if not _sellPlanksOn then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
         if not _hoverPlank or not _hoverPlank.Parent then return end
-        if not IsOwnedPlank(_hoverPlank) then return end
 
         local plank = _hoverPlank
         ClearHoverOutline()
 
-        if LOT.IsBusy() then
-            repeat task.wait(0.05) until not LOT.IsBusy()
-        end
+        task.spawn(function()
+            if LOT.IsBusy() then
+                repeat task.wait(0.05) until not LOT.IsBusy()
+            end
 
-        LOT.TeleportObjectTo(plank, PLANK_SELL_CF)
+            -- Get the PrimaryPart or first BasePart to teleport
+            local target = plank.PrimaryPart
+            if not target then
+                for _, v in ipairs(plank:GetDescendants()) do
+                    if v:IsA("BasePart") then target = v break end
+                end
+            end
+
+            if not target then
+                warn("[TreeModule] Plank has no BasePart to teleport.")
+                return
+            end
+
+            LOT.TeleportObjectTo(target, PLANK_SELL_CF)
+        end)
     end)
 end
 
