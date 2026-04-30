@@ -336,6 +336,97 @@ local function RunLOTBatch(LOT, stumps, goalCFBuilder, onComplete)
 end
 
 -- ==========================================
+--   PLANK SELLING
+-- ==========================================
+local PLANK_SELL_CF  = CFrame.new(315.5, 0, 83)
+local _sellPlanksOn  = false
+local _hoverOutline  = nil
+local _hoverPlank    = nil
+local _plankConn     = nil
+local _clickConn     = nil
+
+local function IsOwnedPlank(part)
+    if not part then return false end
+    if part.Name ~= "Plank" then return false end
+    local playerModels = Workspace:FindFirstChild("PlayerModels")
+    if not playerModels or part.Parent ~= playerModels then return false end
+    local owner = part:FindFirstChild("Owner")
+    if not owner then return false end
+    local ownerStr = owner:FindFirstChild("OwnerString")
+    if not ownerStr or not ownerStr:IsA("StringValue") then return false end
+    return ownerStr.Value == player.Name
+end
+
+local function ClearHoverOutline()
+    if _hoverOutline then
+        _hoverOutline:Destroy()
+        _hoverOutline = nil
+    end
+    _hoverPlank = nil
+end
+
+local function ApplyHoverOutline(part)
+    if _hoverPlank == part then return end
+    ClearHoverOutline()
+    _hoverPlank   = part
+    _hoverOutline = Instance.new("SelectionBox")
+    _hoverOutline.Adornee        = part
+    _hoverOutline.Color3         = Color3.fromRGB(74, 120, 255)   -- THEME.Accent
+    _hoverOutline.LineThickness  = 0.06
+    _hoverOutline.SurfaceColor3  = Color3.fromRGB(74, 120, 255)
+    _hoverOutline.SurfaceTransparency = 0.6
+    _hoverOutline.Parent         = Workspace
+end
+
+local function StopSellPlanks()
+    _sellPlanksOn = false
+    ClearHoverOutline()
+    if _plankConn  then _plankConn:Disconnect();  _plankConn  = nil end
+    if _clickConn  then _clickConn:Disconnect();  _clickConn  = nil end
+end
+
+local function StartSellPlanks(LOT)
+    if not LOT then
+        warn("[TreeModule] LOT not available for Sell Planks.")
+        return
+    end
+
+    _sellPlanksOn = true
+
+    -- Hover detection via mouse RenderStepped
+    _plankConn = RunService.RenderStepped:Connect(function()
+        if not _sellPlanksOn then return end
+
+        local mouse     = player:GetMouse()
+        local target    = mouse.Target
+
+        if target and IsOwnedPlank(target) then
+            ApplyHoverOutline(target)
+        else
+            ClearHoverOutline()
+        end
+    end)
+
+    -- Click to sell the hovered plank
+    _clickConn = game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if not _sellPlanksOn then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        if not _hoverPlank or not _hoverPlank.Parent then return end
+        if not IsOwnedPlank(_hoverPlank) then return end
+
+        local plank = _hoverPlank
+        ClearHoverOutline()
+
+        if LOT.IsBusy() then
+            repeat task.wait(0.05) until not LOT.IsBusy()
+        end
+
+        LOT.TeleportObjectTo(plank, PLANK_SELL_CF)
+    end)
+end
+
+-- ==========================================
 --   REMOTE CUT
 -- ==========================================
 local RemoteProxy = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
@@ -590,7 +681,7 @@ function TreeModule.Init(Tab, LOT)
         end)
     end)
 
-    local sellButton = Tab:CreateAction("Sell All Logs", "Sell", function()
+    local sellButton = Tab:CreateAction("Sell All Logs/Trees", "Sell", function()
         if not LOT then warn("[TreeModule] LOT not available.") return end
         if LOT.IsBusy() then warn("[TreeModule] LOT busy.") return end
 
@@ -609,6 +700,13 @@ function TreeModule.Init(Tab, LOT)
                 sellButton:SetText("Sell")
             end
         end)
+    end)
+    Tab:CreateToggle("Click To Sell (Planks)", false, function(state)
+        if state then
+            StartSellPlanks(LOT)
+        else
+            StopSellPlanks()
+        end
     end)
 end
 
