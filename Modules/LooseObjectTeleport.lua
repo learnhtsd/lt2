@@ -222,8 +222,7 @@ local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, g
     -- 1. Kill ghostLock — no more competing writes
     if ghostLock then ghostLock:Disconnect() end
 
-    -- 2. Restore camera and input immediately so the player feels
-    --    responsive the instant the batch ends
+    -- 2. Restore camera and input FIRST so the player feels responsive immediately
     local hum2 = char:FindFirstChildOfClass("Humanoid")
     if hum2 then
         Camera.CameraSubject = hum2
@@ -232,58 +231,42 @@ local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, g
     Player.CameraMode = origCamMode
     UIS.MouseBehavior = Enum.MouseBehavior.Default
 
-    -- 3. Zero velocities and snap to saved position before un-ghosting
-    --    so the character materialises in the right place
+    -- 3. Hard zero velocities and snap to saved position
     if root and root.Parent then
         root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         root.CFrame = originalCharCFrame
     end
 
-    -- 4. Un-ghost — restores CanCollide and visibility
+    -- 4. Un-ghost — restores per-part CanCollide and transparency correctly
     SetCharacterGhosting(char, false)
 
-    -- 5. Start a stabilisation lock BEFORE releasing PlatformStand.
-    --    This holds the character in place during the physics hand-off
-    --    window so it can't ragdoll or get nudged.
-    local stabiliseFrames = 0
-    local STABLE_FRAME_TARGET = 6  -- hold for 6 heartbeat frames (~0.1s), then release
-
-    local stabiliseLock = RunService.Heartbeat:Connect(function()
-        stabiliseFrames = stabiliseFrames + 1
-
-        if root and root.Parent then
-            root.AssemblyLinearVelocity  = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-            root.CFrame = originalCharCFrame
+    -- 5. Zero ALL part velocities in the character to kill any
+    --    residual physics momentum that would cause the ragdoll spike
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.AssemblyLinearVelocity  = Vector3.zero
+            part.AssemblyAngularVelocity = Vector3.zero
         end
+    end
 
-        -- Also keep CanCollide enforced during the window so nothing
-        -- can knock the character over while PlatformStand is releasing
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and not part.CanCollide then
-                part.CanCollide = true
-            end
-        end
-    end)
-
-    -- 6. Release PlatformStand — character physics is now active but
-    --    stabiliseLock is already holding it in place above
+    -- 6. Release PlatformStand NOW — humanoid controller takes over immediately
+    --    Do NOT lock root.CFrame after this point or player inputs get overridden
     hum.PlatformStand = false
 
-    -- 7. Let the stabilise lock run for its target frames then cleanly stop.
-    --    task.delay doesn't yield the caller so RunBatch returns immediately.
-    task.delay(0, function()
-        -- Wait until we've accumulated enough stable frames
-        while stabiliseFrames < STABLE_FRAME_TARGET do
-            RunService.Heartbeat:Wait()
-        end
-        stabiliseLock:Disconnect()
-
-        -- Final zero after lock releases — catches any last physics kick
-        if root and root.Parent then
-            root.AssemblyLinearVelocity  = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
+    -- 7. One deferred velocity wipe after the physics engine ticks once.
+    --    This catches the impulse Roblox applies on PlatformStand release
+    --    without blocking player movement at all.
+    task.defer(function()
+        if not root or not root.Parent then return end
+        root.AssemblyLinearVelocity  = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        -- Wipe all limbs one more time
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.AssemblyLinearVelocity  = Vector3.zero
+                part.AssemblyAngularVelocity = Vector3.zero
+            end
         end
     end)
 end
