@@ -517,7 +517,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         ShopModule.UpdateDisplay()
     end)
 
-    local PurchaseBtn = Tab:CreateAction("Finalize Order", "$0", function()
+    local PurchaseBtn = Tab:CreateAction("Finalize Order", ("$%d"):format(ShopItems[1].Price * 1), function()
         if not SelectedItem then return end
 
         if _LOT == nil then
