@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.276"
+local Version = "v0.0.277"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -57,6 +57,7 @@ local TweenService     = game:GetService("TweenService")
 
 for _, v in pairs(CoreGui:GetChildren()) do
     if v.Name == "DynxeLT2Hub" then v:Destroy() end
+    if v.Name == "DynxeLT2Notifications" then v:Destroy() end
 end
 
 -- ── Image helper (unchanged) ─────────────────────────────────
@@ -249,12 +250,19 @@ function Library:CreateWindow()
     ContentContainer.Parent            = MainFrame
 
     -- NOTIFICATIONS
+    local NotifGui = Instance.new("ScreenGui")
+    NotifGui.Name            = "DynxeLT2Notifications"
+    NotifGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+    NotifGui.DisplayOrder    = 999   -- always renders above everything
+    NotifGui.ResetOnSpawn    = false
+    NotifGui.Parent          = CoreGui
+    
     local NotificationContainer = Instance.new("Frame")
-    NotificationContainer.Name             = "NotificationContainer"
-    NotificationContainer.Size             = UDim2.new(0, 250, 1, -20)
-    NotificationContainer.Position         = UDim2.new(1, -260, 0, 10)
+    NotificationContainer.Name                   = "NotificationContainer"
+    NotificationContainer.Size                   = UDim2.new(0, 250, 1, -20)
+    NotificationContainer.Position               = UDim2.new(1, -260, 0, 10)
     NotificationContainer.BackgroundTransparency = 1
-    NotificationContainer.Parent           = ScreenGui
+    NotificationContainer.Parent                 = NotifGui
 
     local NotifList = Instance.new("UIListLayout")
     NotifList.Parent           = NotificationContainer
