@@ -200,7 +200,7 @@ function HardDragger.Init(Tab, Library)
     end)
 
     -- UI
-    Tab:CreateToggle("Enable Dragger", false, function(state)
+    Tab:CreateToggle("Hard Dragger", false, function(state)
         Config.Enabled = state
         if not state then stopPhysics() end
     end)
