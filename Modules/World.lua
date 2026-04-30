@@ -17,17 +17,20 @@ function World.Init(Tab, Lib)
     _G.BouldersRemoved = false 
     _G.VolcanoBouldersRemoved = false
     _G.PostProcessing = true
-    _G.EnhancedGraphics = false -- New State
+    _G.EnhancedGraphics = false
+    _G.LeavesRemoved = false -- NEW
 
     local waterParts = {}
-    local boulderParts = {} 
+    local boulderParts = {}
+    local leafParts = {}      -- NEW
     local effectCache = {}
-    local originalLightingSettings = {} -- To restore visuals
+    local originalLightingSettings = {}
 
     -- IMPROVED: Incremental Scan
     local function ScanWorld()
         waterParts = {}
         boulderParts = {}
+        leafParts = {}  -- NEW: reset on rescan
         
         local descendants = Workspace:GetDescendants()
         local count = 0
@@ -43,6 +46,21 @@ function World.Init(Tab, Lib)
                 if obj.Name == "Boulder" or obj.Name == "SmallBoulder" then
                     if not (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
                         table.insert(boulderParts, {Instance = obj, OriginalTransparency = obj.Transparency})
+                    end
+                end
+            end
+        end
+
+        -- NEW: Scan all TreeRegions for Leaves
+        for _, region in pairs(Workspace:GetChildren()) do
+            if region.Name == "TreeRegion" then
+                for _, model in pairs(region:GetChildren()) do
+                    local leaves = model:FindFirstChild("Leaves")
+                    if leaves and leaves:IsA("BasePart") then
+                        table.insert(leafParts, {
+                            Instance = leaves,
+                            OrigTrans = leaves.Transparency
+                        })
                     end
                 end
             end
@@ -66,16 +84,13 @@ function World.Init(Tab, Lib)
     -- ===========================
     local function ToggleEnhanced(state)
         if state then
-            -- Save original settings before changing
             originalLightingSettings.Brightness = Lighting.Brightness
             originalLightingSettings.OutdoorAmbient = Lighting.OutdoorAmbient
             originalLightingSettings.ExposureCompensation = Lighting.ExposureCompensation
             
-            -- Apply "High End" Visuals
             Lighting.Brightness = 3
             Lighting.ExposureCompensation = 0.5
             
-            -- Create/Adjust Effects
             local bloom = Lighting:FindFirstChild("EnhancedBloom") or Instance.new("BloomEffect", Lighting)
             bloom.Name = "EnhancedBloom"
             bloom.Intensity = 1
@@ -96,7 +111,6 @@ function World.Init(Tab, Lib)
             sunrays.Spread = 1
             sunrays.Enabled = true
         else
-            -- Restore original settings
             Lighting.Brightness = originalLightingSettings.Brightness or 2
             Lighting.ExposureCompensation = originalLightingSettings.ExposureCompensation or 0
             
@@ -122,6 +136,17 @@ function World.Init(Tab, Lib)
             local part = data.Instance
             if part and part.Parent then
                 part.Transparency = state and 1 or data.OriginalTransparency
+                part.CanCollide = not state
+            end
+        end
+    end
+
+    -- NEW: Toggle all tree leaves across every TreeRegion
+    local function ToggleLeaves(state)
+        for _, data in pairs(leafParts) do
+            local part = data.Instance
+            if part and part.Parent then
+                part.Transparency = state and 1 or data.OrigTrans
                 part.CanCollide = not state
             end
         end
@@ -153,7 +178,6 @@ function World.Init(Tab, Lib)
 
     Tab:CreateSection("Environment")
 
-    -- THE NEW ENHANCED TOGGLE
     Tab:CreateToggle("Enhanced Visuals", false, function(s)
         _G.EnhancedGraphics = s
         ToggleEnhanced(s)
@@ -183,6 +207,13 @@ function World.Init(Tab, Lib)
         _G.VolcanoBouldersRemoved = s
     end)
 
+    -- NEW: Leaves toggle
+    Tab:CreateToggle("Toggle Tree Leaves", false, function(s)
+        _G.LeavesRemoved = s
+        ToggleLeaves(s)
+        if Lib and Lib.Notify then Lib:Notify("Environment", s and "Leaves removed." or "Leaves restored.", 2) end
+    end)
+
     -- ===========================
     -- MASTER LOOP
     -- ===========================
@@ -205,7 +236,6 @@ function World.Init(Tab, Lib)
             if atm then atm.Density = 0 end
         end
 
-        -- DYNAMIC Boulders logic
         if _G.VolcanoBouldersRemoved then
             for _, obj in pairs(Workspace:GetChildren()) do
                 if obj.Name == "Boulder" and (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
