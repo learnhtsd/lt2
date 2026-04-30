@@ -156,11 +156,10 @@ end
 -- └─────────────────────────────────────────────────────────────────┘
 local POE_PRICE    = 10009000
 local POE_TP_CF    = CFrame.new(1059.4, 17.2, 1130.3)
-local POE_TIMEOUT  = 60  -- seconds to wait for money deduction
-local POE_INTERVAL = 0.2 -- polling interval
+local POE_TIMEOUT  = 60
+local POE_INTERVAL = 0.2
 
 local function PurchasePowerOfEase()
-    -- 1. Check funds
     local funds = FetchFunds()
     if funds == nil then
         Notify("❌ Funds Error", "Could not retrieve your balance. Try again.", 4)
@@ -178,7 +177,6 @@ local function PurchasePowerOfEase()
         return
     end
 
-    -- 2. Resolve the NPC/remote args (reuse existing NPC fetch infrastructure)
     FetchNPCIDs()
 
     local char = Player.Character
@@ -188,15 +186,13 @@ local function PurchasePowerOfEase()
         return
     end
 
-    local returnCF = root.CFrame  -- save position before TP
+    local returnCF = root.CFrame
 
-    -- 3. Teleport player to the Power of Ease location
     root.CFrame = POE_TP_CF
     task.wait(0.15)
 
     Notify("Shop", "Teleported — initiating Power of Ease purchase…", 4)
 
-    -- 4. Find the nearest NPC at the new position
     local npcArg = GetNearestNPCArg(root)
     if not npcArg or not npcArg.ID then
         Notify("❌ No NPC", "Could not find an NPC at the Power of Ease location.", 4)
@@ -204,7 +200,6 @@ local function PurchasePowerOfEase()
         return
     end
 
-    -- 5. Fire purchase remote until player's balance drops (verification)
     local fireCount = 0
     local deadline  = tick() + POE_TIMEOUT
     local purchased = false
@@ -218,7 +213,6 @@ local function PurchasePowerOfEase()
 
         fireCount += 1
 
-        -- Poll balance every fire to detect successful deduction
         local newFunds = FetchFunds()
         if newFunds and newFunds < funds then
             purchased = true
@@ -232,7 +226,6 @@ local function PurchasePowerOfEase()
         task.wait(POE_INTERVAL)
     end
 
-    -- 6. Report result and TP back
     if purchased then
         Notify("✅ Power of Ease!", ("Purchased after %d fires. Returning…"):format(fireCount), 5)
     else
@@ -364,28 +357,6 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                     REMOTE ITEM LIST LOADER                     │
--- │                                                                 │
--- │  Fetches LT2ItemList.lua from the root of your GitHub repo     │
--- │  and runs it. The file must return a table of item entries,    │
--- │  for example:                                                   │
--- │                                                                 │
--- │  return {                                                       │
--- │      {                                                          │
--- │          Name        = "Basic Hatchet",                        │
--- │          Image       = "BasicHatchet.png",                     │
--- │          Price       = 12,                                      │
--- │          BoxItemName = "BasicHatchet",                         │
--- │      },                                                         │
--- │      {                                                          │
--- │          Name        = "Large Axe",                            │
--- │          Image       = "LargeAxe.png",                         │
--- │          Price       = 800,                                     │
--- │          BoxItemName = "LargeAxe",                             │
--- │      },                                                         │
--- │  }                                                              │
--- │                                                                 │
--- │  User / Repo / Branch are read from getgenv() so they always   │
--- │  stay in sync with whatever the main script has set.           │
 -- └─────────────────────────────────────────────────────────────────┘
 local function LoadItemList()
     local genv   = getgenv()
@@ -395,7 +366,7 @@ local function LoadItemList()
 
     local url = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/LT2ItemList.lua?t=%s",
-        user, repo, branch, tick()  -- cache-bust so edits are picked up immediately
+        user, repo, branch, tick()
     )
 
     local ok, result = pcall(function()
@@ -479,8 +450,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                   or getgenv().GetImage
                   or function() return nil end
 
-    -- Fetch the item list from GitHub. If it fails, leave the tab
-    -- empty rather than crashing halfway through UI construction.
     local ShopItems = LoadItemList()
     if not ShopItems or #ShopItems == 0 then
         warn("[ShopModule] No items loaded — shop tab will be empty.")
@@ -491,11 +460,23 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     local SelectedItem = ShopItems[1]
     local Quantity     = 1
 
+    -- Forward-declared so all callbacks share the same upvalue
+    -- regardless of when the UI library fires them
+    local PurchaseBtn
+    local function UpdateDisplay()
+        if not SelectedItem then return end
+        local newText = string.format("$%d", SelectedItem.Price * Quantity)
+        if PurchaseBtn then
+            if PurchaseBtn.Set        then PurchaseBtn:Set(newText)
+            elseif PurchaseBtn.Update then PurchaseBtn:Update(newText) end
+        end
+    end
+
     Tab:CreateSection("Stores")
 
     local Catalog = Tab:CreateImageSelector("Wood R Us", {
         MultiSelect = false,
-        VisibleRows        = 3,
+        VisibleRows = 3,
         SlotSize    = UDim2.new(0, 70, 0, 70),
     }, function(name)
         for _, item in pairs(ShopItems) do
@@ -504,7 +485,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                 break
             end
         end
-        ShopModule.UpdateDisplay()
+        UpdateDisplay()
     end)
 
     for _, item in pairs(ShopItems) do
@@ -514,10 +495,10 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
     Tab:CreateSlider("Quantity", 1, 100, 1, function(val)
         Quantity = val
-        ShopModule.UpdateDisplay()
+        UpdateDisplay()
     end)
 
-    local PurchaseBtn = Tab:CreateAction("Finalize Order", ("$%d"):format(ShopItems[1].Price * 1), function()
+    PurchaseBtn = Tab:CreateAction("Finalize Order", ("$%d"):format(ShopItems[1].Price), function()
         if not SelectedItem then return end
 
         if _LOT == nil then
@@ -601,22 +582,15 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         end)
     end, false)
 
-    ShopModule.UpdateDisplay = function()
-        if not SelectedItem then return end
-        local newText = string.format("$%d", SelectedItem.Price * Quantity)
-        if PurchaseBtn then
-            if PurchaseBtn.Set        then PurchaseBtn:Set(newText)
-            elseif PurchaseBtn.Update then PurchaseBtn:Update(newText) end
-        end
-    end
-
-    ShopModule.UpdateDisplay()
+    -- Seed correct price on load and expose externally if needed
+    UpdateDisplay()
+    ShopModule.UpdateDisplay = UpdateDisplay
 
     Tab:CreateSection("Special")
 
     Tab:CreateAction("Buy Power of Ease ($10,009,000)", "Buy", function()
-    task.spawn(PurchasePowerOfEase)
-end, false)
+        task.spawn(PurchasePowerOfEase)
+    end, false)
 end
 
 return ShopModule
