@@ -503,7 +503,15 @@ local function StartChopping(treeClass, LOT, onComplete)
             print("[TreeModule] New logs detected — tree is down. Returning player.")
         end
 
-        -- 7. Tree is down. Return player, wait for physics to settle, then deliver.
+        -- 7. Unequip the axe so LOT can TP logs freely,
+        --    then return player, wait for physics to settle, then deliver.
+        do
+            local equippedTool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+            if equippedTool then
+                equippedTool.Parent = player.Backpack
+            end
+        end
+
         CleanupState()
         WaitForLogsToSettle(treeClass)
 
