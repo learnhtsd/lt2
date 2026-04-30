@@ -527,45 +527,57 @@ local function StartSellPlanks(LOT, toggleElement)
         end
     end)
 
-    _clickConn = mouse.Button1Down:Connect(function()
-        if not _sellPlanksOn then return end
-        if not _hoverPlank or not _hoverPlank.Parent then return end
-        if not FindOwnedPlank(_hoverPlank.PrimaryPart or _hoverPlank:FindFirstChildWhichIsA("BasePart")) then return end
+    local function AttachClickConn()
+        _clickConn = mouse.Button1Down:Connect(function()
+            if not _sellPlanksOn then return end
+            if not _hoverPlank or not _hoverPlank.Parent then return end
 
-        local plank = _hoverPlank
-        ClearHoverOutline()
+            local plank = _hoverPlank
+            ClearHoverOutline()
 
-        -- Disable the toggle so it can't be double-clicked during TP
-        if toggleElement then toggleElement:SetDisabled(true) end
-
-        task.spawn(function()
-            if LOT.IsBusy() then
-                repeat task.wait(0.05) until not LOT.IsBusy()
+            -- Disconnect click IMMEDIATELY before LOT runs so its
+            -- internal click can't retrigger this handler
+            if _clickConn then
+                _clickConn:Disconnect()
+                _clickConn = nil
             end
 
-            local target = plank.PrimaryPart
-            if not target then
-                for _, v in ipairs(plank:GetDescendants()) do
-                    if v:IsA("BasePart") then target = v break end
+            if toggleElement then toggleElement:SetDisabled(true) end
+
+            task.spawn(function()
+                if LOT.IsBusy() then
+                    repeat task.wait(0.05) until not LOT.IsBusy()
                 end
-            end
 
-            if not target then
-                warn("[TreeModule] Plank has no BasePart to teleport.")
+                local target = plank.PrimaryPart
+                if not target then
+                    for _, v in ipairs(plank:GetDescendants()) do
+                        if v:IsA("BasePart") then target = v break end
+                    end
+                end
+
+                if not target then
+                    warn("[TreeModule] Plank has no BasePart to teleport.")
+                    if toggleElement then toggleElement:SetDisabled(false) end
+                    if _sellPlanksOn then AttachClickConn() end
+                    return
+                end
+
+                local success = LOT.TeleportObjectTo(target, PLANK_SELL_CF)
+
+                if not success then
+                    warn("[TreeModule] Plank teleport failed.")
+                end
+
                 if toggleElement then toggleElement:SetDisabled(false) end
-                return
-            end
 
-            local success = LOT.TeleportObjectTo(target, PLANK_SELL_CF)
-
-            if not success then
-                warn("[TreeModule] Plank teleport failed.")
-            end
-
-            -- Re-enable the toggle once LOT confirms it's done
-            if toggleElement then toggleElement:SetDisabled(false) end
+                -- Only reconnect if the toggle is still on
+                if _sellPlanksOn then AttachClickConn() end
+            end)
         end)
-    end)
+    end
+
+    AttachClickConn()
 end
 
 -- ==========================================
