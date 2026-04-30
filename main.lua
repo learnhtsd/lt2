@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.270"
+local Version = "v0.0.271"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1852,6 +1852,10 @@ local function LoadModule(ModuleName)
     warn("Failed to load module: " .. ModuleName)
 end
 
+local Theme = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
+))()
+
 local HomeModule = LoadModule("Home")
 if HomeModule and HomeModule.Init then HomeModule.Init(HomeTab, Library) end
 
@@ -1912,7 +1916,3 @@ if ShopScript and ShopScript.Init then ShopScript.Init(ShopTab, LooseObjectTelep
 
 local Duplicationodule = LoadModule("Duplication")
 if Duplicationodule and Duplicationodule.Init then Duplicationodule.Init(DuplicationTab) end
-
-local Theme = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
-))()
