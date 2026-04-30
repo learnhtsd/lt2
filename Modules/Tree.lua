@@ -4,40 +4,23 @@ local TreeModule = {}
 --             SYSTEM SETTINGS
 -- ==========================================
 local Settings = {
-    AxePriority = {
-        "ManyAxe", "Rukiryaxe", "AxeAlphaTesters", "IceAxe", "AxeTwitter",
-        "Beesaxe", "CandyCaneAxe", "RustyAxe", "GingerbreadAxe", "FireAxe",
-        "AxeChicken", "InverseAxe", "AxeSwamp", "AxePig", "SilverAxe",
-        "Axe3", "Axe2", "Axe1", "BasicHatchet"
-    },
-
-    LogBindings = {
-        ["Cherry"]      = "PieAxe",
-        ["Volcano"]     = "FireAxe",
-        ["Frost"]       = "IceAxe",
-        ["GoldSwampy"]  = "AxeSwamp",
-        ["GreenSwampy"] = "AxeSwamp",
-        ["Walnut"]      = "GingerbreadAxe",
-        ["Koa"]         = "GingerbreadAxe",
-        ["CaveCrawler"] = "CaveAxe",
-        ["LoneCave"]    = "EndTimesAxe",
-    },
-
     -- [ Movement & View ]
     DistanceToTree  = 3.5,
     VerticalOffset  = 0.4,
     HideGround      = true,
 
     SyncDelay       = 0.25,
-    ReadyDelay      = 0.3,
+    ReadyDelay      = 0.1,
 
-    -- [ Chopping Speed ]
-    SwingHoldTime   = 0.1,
-    SwingCooldown   = 0.12,
-    RandomVariation = 0.02,
+    -- [ Cut Settings ]
+    -- How many FireServer calls per WoodSection per pass.
+    -- High damage axes only need 1-2 passes; lower damage axes may need more.
+    -- The loop will keep firing until the section is actually gone.
+    FiresPerSection = 50,
+    -- Delay between full section sweeps (lets the server process cuts)
+    SweepDelay      = 0.05,
 
     -- [ LOT Settings ]
-    LogSettleDelay  = 1.5,
     LogDropDistance = 6,
     ResizeTarget    = Vector3.new(3, 3, 3),
 
@@ -46,70 +29,104 @@ local Settings = {
 }
 
 -- ==========================================
+--             DAMAGE TABLE
+--   Mirrors the Xeno script damage values.
+--   Used to set hitPoints in CutArguments.
+-- ==========================================
+local AxeDamage = {
+    ["Basic Hatchet"]       = function(_)      return 0.2        end,
+    ["Plain Axe"]           = function(_)      return 0.55       end,
+    ["Steel Axe"]           = function(_)      return 0.93       end,
+    ["Hardened Axe"]        = function(_)      return 1.45       end,
+    ["Silver Axe"]          = function(_)      return 1.6        end,
+    ["Rukiryaxe"]           = function(_)      return 1.68       end,
+    ["Beta Axe of Bosses"]  = function(_)      return 1.45       end,
+    ["Alpha Axe of Testing"]= function(_)      return 1.5        end,
+    ["Johiro"]              = function(_)      return 1.8        end,
+    ["Beesaxe"]             = function(_)      return 1.4        end,
+    ["CHICKEN AXE"]         = function(_)      return 0.9        end,
+    ["Amber Axe"]           = function(_)      return 3.39       end,
+    ["The Many Axe"]        = function(_)      return 10.2       end,
+    ["Candy Cane Axe"]      = function(_)      return 0          end,
+    ["Fire Axe"]            = function(tc)     return tc == "Volcano"     and 6.35 or 0.6    end,
+    ["End Times Axe"]       = function(tc)     return tc == "LoneCave"    and 1e7  or 1.58   end,
+    ["Gingerbread Axe"]     = function(tc)
+        if tc == "Walnut" then return 8.5
+        elseif tc == "Koa" then return 11
+        else return 1.2 end
+    end,
+    ["Bird Axe"]            = function(tc)
+        if tc == "Volcano"     then return 2.5
+        elseif tc == "CaveCrawler" then return 3.9
+        else return 1.65 end
+    end,
+}
+
+local function GetDamage(axeName, treeClass)
+    local fn = AxeDamage[axeName]
+    return fn and fn(treeClass) or 1.0   -- default fallback
+end
+
+-- ==========================================
 --             CORE SERVICES & VARS
 -- ==========================================
-local Players             = game:GetService("Players")
-local Workspace           = game:GetService("Workspace")
-local RunService          = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players  = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local player  = Players.LocalPlayer
-local camera  = Workspace.CurrentCamera
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
 
 local isChopping          = false
-local currentTargetWood   = nil
 local preChopCFrame       = nil
 local preChopCameraCFrame = nil
 local lockConn            = nil
-
 local preChopLogModels    = {}
 
 local groundObject         = Workspace:FindFirstChild("Baseplate")
 local originalTransparency = groundObject and groundObject.Transparency or 0
 
 -- ==========================================
---             UTILITY FUNCTIONS
+--             UTILITY
 -- ==========================================
 local function SetGroundVisible(visible)
     if not groundObject or not Settings.HideGround then return end
     groundObject.Transparency = visible and originalTransparency or 1
 end
 
-local function GetAxeFromBackpack(targetAxeName)
-    local backpack = player:FindFirstChild("Backpack")
-    if not backpack then return nil end
-    for _, item in ipairs(backpack:GetChildren()) do
-        if item.Name == "Tool" then
-            local toolNameObj = item:FindFirstChild("ToolName")
-            if toolNameObj and toolNameObj.Value == targetAxeName then
-                return item
+-- Returns the equipped Tool and its display name (via ToolTip child or property)
+local function GetEquippedAxe()
+    local char = player.Character
+    if not char then return nil, nil end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return nil, nil end
+    local tipChild = tool:FindFirstChild("ToolTip")
+    local name = (tipChild and tipChild:IsA("StringValue")) and tipChild.Value or tool.ToolTip
+    return tool, name
+end
+
+local function ScanForTreeTypes()
+    local found, seen = {}, {}
+    for _, folder in ipairs(Workspace:GetChildren()) do
+        if folder.Name:lower():match("treeregion") then
+            for _, model in ipairs(folder:GetChildren()) do
+                if model:IsA("Model") then
+                    local tc = model:FindFirstChild("TreeClass")
+                    if tc and tc:IsA("StringValue") and not seen[tc.Value] then
+                        seen[tc.Value] = true
+                        table.insert(found, tc.Value)
+                    end
+                end
             end
         end
     end
-    return nil
+    return #found > 0 and found or {"None Found"}
 end
 
-local function DetermineAndEquipAxe(treeClass)
-    local targetAxe = nil
-    local boundName = Settings.LogBindings[treeClass]
-    if boundName then targetAxe = GetAxeFromBackpack(boundName) end
-
-    if not targetAxe then
-        for _, name in ipairs(Settings.AxePriority) do
-            local found = GetAxeFromBackpack(name)
-            if found then targetAxe = found; break end
-        end
-    end
-
-    if targetAxe and player.Character then
-        targetAxe.Parent = player.Character
-        return targetAxe
-    end
-    return player.Character and player.Character:FindFirstChildOfClass("Tool")
-end
-
-local function FindPriorityWood(treeClass)
-    local targetPart  = nil
+-- Finds the tree of treeClass with the most WoodSections (biggest tree)
+local function FindPriorityTree(treeClass)
+    local bestModel   = nil
     local maxSections = -1
 
     for _, folder in ipairs(Workspace:GetChildren()) do
@@ -118,50 +135,34 @@ local function FindPriorityWood(treeClass)
                 if model:IsA("Model")
                 and model:FindFirstChild("TreeClass")
                 and model.TreeClass.Value == treeClass then
-                    local sectionCount   = 0
-                    local tempLowestPart = nil
-                    local lowestY        = math.huge
-
+                    local count = 0
                     for _, part in ipairs(model:GetChildren()) do
-                        if part.Name == "WoodSection" then
-                            sectionCount = sectionCount + 1
-                            if part.Position.Y < lowestY then
-                                lowestY        = part.Position.Y
-                                tempLowestPart = part
-                            end
-                        end
+                        if part.Name == "WoodSection" then count += 1 end
                     end
-
-                    if treeClass == "Generic" and sectionCount < 12 then continue end
-
-                    if sectionCount > maxSections and tempLowestPart then
-                        maxSections = sectionCount
-                        targetPart  = tempLowestPart
+                    if treeClass == "Generic" and count < 12 then continue end
+                    if count > maxSections then
+                        maxSections = count
+                        bestModel   = model
                     end
                 end
             end
         end
     end
-    return targetPart
+    return bestModel
 end
 
-local function ScanForTreeTypes()
-    local foundTypes = {}
-    local seen = {}
-    for _, folder in ipairs(Workspace:GetChildren()) do
-        if folder.Name:lower():match("treeregion") then
-            for _, model in ipairs(folder:GetChildren()) do
-                if model:IsA("Model") then
-                    local treeClass = model:FindFirstChild("TreeClass")
-                    if treeClass and treeClass:IsA("StringValue") and not seen[treeClass.Value] then
-                        seen[treeClass.Value] = true
-                        table.insert(foundTypes, treeClass.Value)
-                    end
-                end
-            end
+-- Returns all WoodSection parts in a tree model, bottom-first
+local function GetSectionsBottomFirst(treeModel)
+    local sections = {}
+    for _, part in ipairs(treeModel:GetChildren()) do
+        if part.Name == "WoodSection" then
+            table.insert(sections, part)
         end
     end
-    return #foundTypes > 0 and foundTypes or {"None Found"}
+    table.sort(sections, function(a, b)
+        return a.Position.Y < b.Position.Y
+    end)
+    return sections
 end
 
 local function SnapshotLogModels()
@@ -175,43 +176,26 @@ end
 
 -- ==========================================
 --   OWNERSHIP CHECK
---   Checks both Owner (ObjectValue → Player)
---   and OwnerString (StringValue → player.Name)
 -- ==========================================
 local function IsOwnedByLocalPlayer(model)
     local ownerObj = model:FindFirstChild("Owner")
     if ownerObj then
-        if ownerObj:IsA("ObjectValue") and ownerObj.Value == player then
-            return true
-        end
-        if ownerObj:IsA("StringValue") and ownerObj.Value == player.Name then
-            return true
-        end
+        if ownerObj:IsA("ObjectValue") and ownerObj.Value == player then return true end
+        if ownerObj:IsA("StringValue") and ownerObj.Value == player.Name then return true end
     end
-
     local ownerStr = model:FindFirstChild("OwnerString")
     if ownerStr and ownerStr:IsA("StringValue") and ownerStr.Value == player.Name then
         return true
     end
-
     return false
 end
 
--- ==========================================
---   COLLECT STUMPS (WoodSection with ID=1)
---   from models that are NEW since snapshot
--- ==========================================
 local function CollectNewStumps(treeClass)
     local results   = {}
     local logModels = Workspace:FindFirstChild("LogModels")
-    if not logModels then
-        warn("[TreeModule] workspace.LogModels not found.")
-        return results
-    end
-
+    if not logModels then return results end
     for _, model in ipairs(logModels:GetChildren()) do
         if preChopLogModels[model] then continue end
-
         if model:IsA("Model") then
             local tc = model:FindFirstChild("TreeClass")
             if tc and tc.Value == treeClass then
@@ -222,51 +206,36 @@ local function CollectNewStumps(treeClass)
             end
         end
     end
-
     if #results == 0 then
         warn("[TreeModule] No InnerWood found after chop for TreeClass:", treeClass)
     end
-
     return results
 end
 
 local function CollectAllOwnedStumps()
     local results   = {}
     local logModels = Workspace:FindFirstChild("LogModels")
-    if not logModels then
-        warn("[TreeModule] workspace.LogModels not found.")
-        return results
-    end
-
+    if not logModels then return results end
     for _, model in ipairs(logModels:GetChildren()) do
         if not model:IsA("Model") then continue end
         if not IsOwnedByLocalPlayer(model) then continue end
-
         local iw = model:FindFirstChild("InnerWood")
         if iw and iw:IsA("BasePart") then
             table.insert(results, iw)
         end
     end
-
     if #results == 0 then
-        warn("[TreeModule] No owned InnerWood found in workspace.LogModels.")
+        warn("[TreeModule] No owned InnerWood found.")
     end
-
     return results
 end
 
 local function CleanupState()
-    isChopping        = false
-    currentTargetWood = nil
+    isChopping = false
     SetGroundVisible(true)
 
     local char = player.Character
     local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-
-    if char then
-        local tool = char:FindFirstChildOfClass("Tool")
-        if tool then tool.Parent = player:FindFirstChild("Backpack") end
-    end
 
     if hrp and preChopCFrame then
         hrp.CFrame = preChopCFrame
@@ -285,67 +254,14 @@ local function CleanupState()
     end
 end
 
--- ==========================================
---   SHARED LOT BATCH HELPER
---   Teleports a list of stump parts to a
---   list of goal CFrames via LOT, one by one.
--- ==========================================
-local function RunLOTBatch(LOT, stumps, goalCFBuilder, onComplete)
-    if not LOT then
-        if onComplete then onComplete() end
-        return
-    end
-
-    if #stumps == 0 then
-        warn("[TreeModule] RunLOTBatch: nothing to teleport.")
-        if onComplete then onComplete() end
-        return
-    end
-
-    task.spawn(function()
-        for i, stump in ipairs(stumps) do
-            if LOT.IsBusy() then
-                repeat task.wait(0.1) until not LOT.IsBusy()
-            end
-
-            local goalCF = goalCFBuilder(i, stump)
-
-            local originalSize = stump.Size
-            stump.Size = Settings.ResizeTarget
-
-            LOT.TeleportObjectTo(stump, goalCF)
-
-            task.spawn(function()
-                repeat task.wait(0.1) until not LOT.IsBusy()
-                if stump and stump.Parent then
-                    stump.Size = originalSize
-                end
-            end)
-        end
-
-        if onComplete then onComplete() end
-    end)
-end
-
--- ==========================================
---   WAIT FOR LOGS TO SETTLE
---   Polls the AssemblyLinearVelocity of each
---   new InnerWood until it stops moving,
---   with a max timeout so we never hang.
---
---   *** MUST remain above StartChopping ***
--- ==========================================
 local function WaitForLogsToSettle(treeClass)
-    local VELOCITY_THRESHOLD = 0.5   -- studs/s — below this = "still"
-    local STABLE_DURATION    = 0.3   -- must stay still for this many seconds
-    local TIMEOUT            = 10    -- give up after this many seconds regardless
-    local POLL_RATE          = 0.05  -- how often to check (seconds)
+    local VELOCITY_THRESHOLD = 0.5
+    local STABLE_DURATION    = 0.3
+    local TIMEOUT            = 10
+    local POLL_RATE          = 0.05
 
     local logModels = Workspace:FindFirstChild("LogModels")
-    if not logModels then
-        task.wait(Settings.LogSettleDelay)
-        return
-    end
+    if not logModels then task.wait(1.5) return end
 
     local innerWoods = {}
     for _, model in ipairs(logModels:GetChildren()) do
@@ -361,17 +277,13 @@ local function WaitForLogsToSettle(treeClass)
         end
     end
 
-    if #innerWoods == 0 then
-        task.wait(Settings.LogSettleDelay)
-        return
-    end
+    if #innerWoods == 0 then task.wait(1.5) return end
 
     local deadline   = tick() + TIMEOUT
     local stableFrom = nil
 
     while tick() < deadline do
         local allStill = true
-
         for _, iw in ipairs(innerWoods) do
             if not iw or not iw.Parent then continue end
             if iw.AssemblyLinearVelocity.Magnitude > VELOCITY_THRESHOLD then
@@ -379,105 +291,176 @@ local function WaitForLogsToSettle(treeClass)
                 break
             end
         end
-
         if allStill then
-            if not stableFrom then
-                stableFrom = tick()
-            elseif tick() - stableFrom >= STABLE_DURATION then
-                return
-            end
+            if not stableFrom then stableFrom = tick()
+            elseif tick() - stableFrom >= STABLE_DURATION then return end
         else
             stableFrom = nil
         end
-
         task.wait(POLL_RATE)
     end
-
-    warn("[TreeModule] WaitForLogsToSettle timed out after", TIMEOUT, "seconds — proceeding anyway.")
+    warn("[TreeModule] WaitForLogsToSettle timed out — proceeding anyway.")
 end
 
 -- ==========================================
---             CHOP + DELIVER
+--   LOT BATCH HELPER
+-- ==========================================
+local function RunLOTBatch(LOT, stumps, goalCFBuilder, onComplete)
+    if not LOT then if onComplete then onComplete() end return end
+    if #stumps == 0 then
+        warn("[TreeModule] RunLOTBatch: nothing to teleport.")
+        if onComplete then onComplete() end
+        return
+    end
+
+    task.spawn(function()
+        for i, stump in ipairs(stumps) do
+            if LOT.IsBusy() then
+                repeat task.wait(0.1) until not LOT.IsBusy()
+            end
+            local goalCF      = goalCFBuilder(i, stump)
+            local originalSize = stump.Size
+            stump.Size        = Settings.ResizeTarget
+            LOT.TeleportObjectTo(stump, goalCF)
+            task.spawn(function()
+                repeat task.wait(0.1) until not LOT.IsBusy()
+                if stump and stump.Parent then stump.Size = originalSize end
+            end)
+        end
+        if onComplete then onComplete() end
+    end)
+end
+
+-- ==========================================
+--   REMOTE CUT  (replaces VirtualInput)
+--
+--   Fires the tree's own CutEvent via
+--   ReplicatedStorage.Interaction.RemoteProxy
+--   for every WoodSection from bottom to top,
+--   repeating until the section disappears.
+-- ==========================================
+local RemoteProxy = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
+
+local function FireCutSection(section, tool, axeName, treeClass)
+    if not section or not section.Parent then return end
+
+    local idObj = section:FindFirstChild("ID")
+    if not idObj then return end
+
+    local damage = GetDamage(axeName, treeClass)
+    -- Cut at the vertical center of the section (height relative to section = 0)
+    local height = section.Size.Y / 2
+
+    local args = {
+        sectionId    = idObj.Value,
+        faceVector   = Vector3.new(0, 0, -1),
+        height       = height,
+        hitPoints    = damage,
+        cooldown     = 0,
+        cuttingClass = "Axe",
+        tool         = tool,
+    }
+
+    for _ = 1, Settings.FiresPerSection do
+        if not section.Parent then break end   -- section already cut off
+        RemoteProxy:FireServer(section.Parent.CutEvent, args)
+    end
+end
+
+-- ==========================================
+--   MAIN CHOP SEQUENCE
 -- ==========================================
 local function StartChopping(treeClass, LOT, onComplete)
     if isChopping then return end
 
+    -- 1. Snapshot existing logs so we can detect new ones later
     SnapshotLogModels()
 
-    local targetWood = FindPriorityWood(treeClass)
-    if not targetWood then return end
+    -- 2. Find the best tree
+    local treeModel = FindPriorityTree(treeClass)
+    if not treeModel then
+        warn("[TreeModule] No tree found for class:", treeClass)
+        if onComplete then onComplete() end
+        return
+    end
+
+    -- 3. Find the lowest WoodSection as our stand-near target
+    local sections = GetSectionsBottomFirst(treeModel)
+    if #sections == 0 then
+        warn("[TreeModule] Tree has no WoodSections.")
+        if onComplete then onComplete() end
+        return
+    end
+
+    -- 4. Get equipped axe — player must have one in hand
+    local tool, axeName = GetEquippedAxe()
+    if not tool then
+        warn("[TreeModule] No axe equipped. Please equip an axe before chopping.")
+        if onComplete then onComplete() end
+        return
+    end
 
     local char = player.Character
     local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    if not hrp then
+        if onComplete then onComplete() end
+        return
+    end
 
-    local equippedTool = DetermineAndEquipAxe(treeClass)
-    if not equippedTool then return end
-
+    -- 5. Save state, TP player next to the lowest section
     preChopCFrame       = hrp.CFrame
     preChopCameraCFrame = camera.CFrame
-
-    isChopping        = true
-    currentTargetWood = targetWood
-    local originalSizeY = currentTargetWood.Size.Y
+    isChopping          = true
 
     SetGroundVisible(false)
 
-    local logUp      = targetWood.CFrame.UpVector
-    local halfHeight = targetWood.Size.Y / 2
-    local aimPoint   = targetWood.Position - (logUp * (halfHeight * 0.7))
+    local targetPart = sections[1]
+    local aimPoint   = targetPart.Position
+    local lookDir    = targetPart.CFrame.LookVector
+    local standPos   = aimPoint
+                     + (lookDir * Settings.DistanceToTree)
+                     + Vector3.new(0, Settings.VerticalOffset, 0)
 
-    local lookDir        = targetWood.CFrame.LookVector
-    local standPos       = aimPoint
-                         + (lookDir * Settings.DistanceToTree)
-                         + Vector3.new(0, Settings.VerticalOffset, 0)
-    local baseLook       = CFrame.lookAt(standPos, aimPoint)
-    local upsideDownCFrame = baseLook * CFrame.Angles(0, 0, math.pi)
-
-    hrp.CFrame = upsideDownCFrame
+    local standCF = CFrame.lookAt(standPos, aimPoint)
+    hrp.CFrame    = standCF
     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 
-    task.wait(Settings.SyncDelay)
-    player.CameraMode = Enum.CameraMode.LockFirstPerson
-
+    -- Lock player in place while chopping
     lockConn = RunService.RenderStepped:Connect(function()
-        if isChopping and currentTargetWood then
-            hrp.CFrame = upsideDownCFrame
+        if isChopping then
+            hrp.CFrame = standCF
             hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, aimPoint)
-                          * CFrame.Angles(0, 0, math.pi)
         else
-            if lockConn then lockConn:Disconnect() end
+            if lockConn then lockConn:Disconnect() lockConn = nil end
         end
     end)
 
-    task.wait(Settings.ReadyDelay)
+    task.wait(Settings.SyncDelay)
 
+    -- 6. Chop all sections bottom-to-top
     task.spawn(function()
-        local center = camera.ViewportSize / 2
-        local rng    = Random.new()
+        local currentSections = GetSectionsBottomFirst(treeModel)
+        for _, section in ipairs(currentSections) do
+            if not isChopping then break end
 
-        -- ── PHASE 1: CHOP ─────────────────────────────────────────────
-        while isChopping
-        and currentTargetWood.Parent
-        and currentTargetWood:IsDescendantOf(Workspace) do
-            if math.abs(currentTargetWood.Size.Y - originalSizeY) > 0.4 then
-                break
+            -- Keep firing until this section is gone or tree is felled
+            local attempts = 0
+            while section.Parent and isChopping do
+                FireCutSection(section, tool, axeName, treeClass)
+                attempts += 1
+                task.wait(Settings.SweepDelay)
+                -- Safety: stop after too many attempts on one section
+                if attempts > 20 then
+                    warn("[TreeModule] Section not falling after 20 sweeps, moving on.")
+                    break
+                end
             end
-            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true,  game, 1)
-            task.wait(Settings.SwingHoldTime)
-            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
-            task.wait(Settings.SwingCooldown
-                     + rng:NextNumber(-Settings.RandomVariation, Settings.RandomVariation))
         end
 
-        -- ── PHASE 2: RETURN PLAYER HOME ───────────────────────────────
+        -- 7. Return player, wait for logs, deliver
         CleanupState()
-
-        -- ── PHASE 3: WAIT FOR LOGS TO SETTLE ─────────────────────────
         WaitForLogsToSettle(treeClass)
 
-        -- ── PHASE 4: DELIVER NEW LOGS ─────────────────────────────────
         local stumps     = CollectNewStumps(treeClass)
         local currentHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 
@@ -490,61 +473,53 @@ local function StartChopping(treeClass, LOT, onComplete)
 end
 
 -- ==========================================
---             DYNXE UI INITIALIZATION
+--             DYNXE UI
 -- ==========================================
 function TreeModule.Init(Tab, LOT)
     Tab:CreateSection("Auto-Tree Configuration")
 
     local treeTypes    = ScanForTreeTypes()
     local selectedTree = treeTypes[1] or "Error"
-    local chopActionButton
+    local chopButton
 
-    Tab:CreateDropdown("Target Tree Type", treeTypes, selectedTree, function(selected)
-        selectedTree = selected
+    Tab:CreateDropdown("Target Tree Type", treeTypes, selectedTree, function(sel)
+        selectedTree = sel
     end)
 
-    chopActionButton = Tab:CreateAction("Get Tree", "Start", function()
+    chopButton = Tab:CreateAction("Get Tree", "Start", function()
         if isChopping then
             isChopping = false
-            if type(chopActionButton) == "table" and chopActionButton.SetText then
-                chopActionButton:SetText("Start")
+            if type(chopButton) == "table" and chopButton.SetText then
+                chopButton:SetText("Start")
             end
         else
             if selectedTree == "None Found" then return end
-
-            if type(chopActionButton) == "table" and chopActionButton.SetText then
-                chopActionButton:SetText("Stop")
+            local _, axeName = GetEquippedAxe()
+            if not axeName then
+                warn("[TreeModule] Equip an axe before starting.")
+                return
             end
-
+            if type(chopButton) == "table" and chopButton.SetText then
+                chopButton:SetText("Stop")
+            end
             StartChopping(selectedTree, LOT, function()
-                if type(chopActionButton) == "table" and chopActionButton.SetText then
-                    chopActionButton:SetText("Start")
+                if type(chopButton) == "table" and chopButton.SetText then
+                    chopButton:SetText("Start")
                 end
             end)
         end
     end)
 
-    -- ── LOG MANAGEMENT SECTION ────────────────────────────────────────
+    -- ── LOG MANAGEMENT ────────────────────────────────────────────
     Tab:CreateSection("Log Management")
 
-    -- TP ALL LOGS TO PLAYER
     local tpAllButton = Tab:CreateAction("Teleport All Logs To Me", "TP", function()
-        if not LOT then
-            warn("[TreeModule] LOT not available.")
-            return
-        end
-        if LOT.IsBusy() then
-            warn("[TreeModule] LOT is busy — try again shortly.")
-            return
-        end
+        if not LOT then warn("[TreeModule] LOT not available.") return end
+        if LOT.IsBusy() then warn("[TreeModule] LOT busy.") return end
 
         local stumps     = CollectAllOwnedStumps()
         local currentHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-
-        if #stumps == 0 then
-            warn("[TreeModule] No owned logs found to teleport.")
-            return
-        end
+        if #stumps == 0 then return end
 
         if type(tpAllButton) == "table" and tpAllButton.SetText then
             tpAllButton:SetText("Working...")
@@ -560,23 +535,13 @@ function TreeModule.Init(Tab, LOT)
             end
         end)
     end)
-    -- SELL ALL LOGS
+
     local sellButton = Tab:CreateAction("Sell All Logs", "Sell", function()
-        if not LOT then
-            warn("[TreeModule] LOT not available.")
-            return
-        end
-        if LOT.IsBusy() then
-            warn("[TreeModule] LOT is busy — try again shortly.")
-            return
-        end
+        if not LOT then warn("[TreeModule] LOT not available.") return end
+        if LOT.IsBusy() then warn("[TreeModule] LOT busy.") return end
 
         local stumps = CollectAllOwnedStumps()
-
-        if #stumps == 0 then
-            warn("[TreeModule] No owned logs found to sell.")
-            return
-        end
+        if #stumps == 0 then return end
 
         if type(sellButton) == "table" and sellButton.SetText then
             sellButton:SetText("Selling...")
@@ -584,11 +549,7 @@ function TreeModule.Init(Tab, LOT)
 
         local sellPos = Settings.SellPosition
         RunLOTBatch(LOT, stumps, function(i, _)
-            return CFrame.new(
-                sellPos.X + ((i - 1) * 5),
-                sellPos.Y,
-                sellPos.Z
-            )
+            return CFrame.new(sellPos.X + ((i - 1) * 5), sellPos.Y, sellPos.Z)
         end, function()
             if type(sellButton) == "table" and sellButton.SetText then
                 sellButton:SetText("Sell")
