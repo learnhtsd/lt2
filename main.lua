@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.271"
+local Version = "v0.0.273"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1858,61 +1858,88 @@ local Theme = loadstring(game:HttpGet(
 
 local HomeModule = LoadModule("Home")
 if HomeModule and HomeModule.Init then HomeModule.Init(HomeTab, Library) end
+Library:Notify("Loaded", "Home", 2)
 
 local MovementModule = LoadModule("PlayerMovement")
 if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end
+Library:Notify("Loaded", "Player Movement", 2)
+
 local FlashlightModule = LoadModule("FlashLight")
 if FlashlightModule and FlashlightModule.Init then FlashlightModule.Init(PlayerTab) end
+Library:Notify("Loaded", "Flashlight", 2)
 
 local TeleportModule = LoadModule("Teleport")
 if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) end
+Library:Notify("Loaded", "Teleport", 2)
 
 local GhostModule = LoadModule("GhostSuite")
 if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
+Library:Notify("Loaded", "Ghost Suite", 2)
 
 local WorldModule = LoadModule("World")
 if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end
+Library:Notify("Loaded", "World", 2)
 
 local SettingsModule = LoadModule("Settings")
 if SettingsModule and SettingsModule.Init then
     SettingsModule.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch}, Config)
 end
+Library:Notify("Loaded", "Settings", 2)
 
 local DraggerModule = LoadModule("HardDragger")
 if DraggerModule and DraggerModule.Init then DraggerModule.Init(PlayerTab) end
+Library:Notify("Loaded", "Hard Dragger", 2)
 
 local AntiFlingModule = LoadModule("AntiFling")
 if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(ProtectionTab) end
+Library:Notify("Loaded", "Anti-Fling", 2)
+
 local AntiVoidModule = LoadModule("AntiVoid")
 if AntiVoidModule and AntiVoidModule.Init then AntiVoidModule.Init(ProtectionTab) end
+Library:Notify("Loaded", "Anti-Void", 2)
+
 local AntiRagdollModule = LoadModule("AntiRagdoll")
 if AntiRagdollModule and AntiRagdollModule.Init then AntiRagdollModule.Init(ProtectionTab) end
+Library:Notify("Loaded", "Anti-Ragdoll", 2)
+
 local AntiAFKModule = LoadModule("AntiAFK")
 if AntiAFKModule and AntiAFKModule.Init then AntiAFKModule.Init(ProtectionTab) end
+Library:Notify("Loaded", "Anti-AFK", 2)
 
 local LooseObjectTeleportModule = LoadModule("LooseObjectTeleport")
 if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(ToolTab, Library) end
+Library:Notify("Loaded", "Loose Object Teleport", 2)
 
 local PlayPositionNotifyModule = LoadModule("PlayPositionNotify")
 if PlayPositionNotifyModule and PlayPositionNotifyModule.Init then PlayPositionNotifyModule.Init(ToolTab, Library) end
+Library:Notify("Loaded", "Play Position Notify", 2)
 
 local TreeCamModule = LoadModule("TreeCam")
 if TreeCamModule and TreeCamModule.Init then TreeCamModule.Init(WoodTab) end
+Library:Notify("Loaded", "Tree Cam", 2)
 
 local VehicleModule = LoadModule("Vehicle")
 if VehicleModule and VehicleModule.Init then VehicleModule.Init(VehicleTab) end
+Library:Notify("Loaded", "Vehicle", 2)
 
 local PlotModule = LoadModule("Plot")
 if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
+Library:Notify("Loaded", "Plot", 2)
 
 local AxeDupeModule = LoadModule("AxeDupe")
 if AxeDupeModule and AxeDupeModule.Init then AxeDupeModule.Init(DuplicationTab) end
+Library:Notify("Loaded", "Axe Dupe", 2)
 
 local TreeModule = LoadModule("Tree")
 if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, LooseObjectTeleportModule) end
+Library:Notify("Loaded", "Tree", 2)
 
 local ShopScript = LoadModule("Shop")
 if ShopScript and ShopScript.Init then ShopScript.Init(ShopTab, LooseObjectTeleportModule) end
+Library:Notify("Loaded", "Shop", 2)
 
 local Duplicationodule = LoadModule("Duplication")
 if Duplicationodule and Duplicationodule.Init then Duplicationodule.Init(DuplicationTab) end
+Library:Notify("Loaded", "Duplication", 2)
+
+Library:Notify("Dynxe LT2", "All modules loaded!", 5)
