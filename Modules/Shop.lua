@@ -467,8 +467,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         if not SelectedItem then return end
         local newText = string.format("$%d", SelectedItem.Price * Quantity)
         if PurchaseBtn then
-            if PurchaseBtn.Set        then PurchaseBtn:Set(newText)
-            elseif PurchaseBtn.Update then PurchaseBtn:Update(newText) end
+            PurchaseBtn:SetText(newText)
         end
     end
 
