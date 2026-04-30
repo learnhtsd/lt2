@@ -374,6 +374,26 @@ local function FireCutSection(section, tool, axeName, treeClass)
 end
 
 -- ==========================================
+--   FALL DETECTION
+--   In LT2, WoodSections are NOT removed when the tree falls —
+--   they just drop with it. The real signal is new LogModels
+--   appearing in Workspace.LogModels for our treeClass.
+-- ==========================================
+local function TreeHasFallen(treeClass)
+    local logModels = Workspace:FindFirstChild("LogModels")
+    if not logModels then return false end
+    for _, model in ipairs(logModels:GetChildren()) do
+        if preChopLogModels[model] then continue end   -- existed before chop
+        if not model:IsA("Model") then continue end
+        local tc = model:FindFirstChild("TreeClass")
+        if tc and tc.Value == treeClass then
+            return true   -- new log appeared — tree is down
+        end
+    end
+    return false
+end
+
+-- ==========================================
 --   MAIN CHOP SEQUENCE
 -- ==========================================
 local function StartChopping(treeClass, LOT, onComplete)
@@ -455,25 +475,32 @@ local function StartChopping(treeClass, LOT, onComplete)
             return
         end
 
-        -- FIX: Use a time-based deadline instead of an arbitrary attempt cap.
-        -- Keep hammering the base section until it disappears (tree falls)
-        -- or we hit the timeout. Each sweep = FiresPerSection fires + SweepDelay.
+        -- Keep hammering the base section until new LogModels appear
+        -- (meaning the tree has actually fallen) or we hit the timeout.
+        -- NOTE: WoodSections are NOT removed when a tree falls in LT2 —
+        -- they fall with the tree. We detect the fell by watching LogModels.
         local deadline = tick() + Settings.ChopTimeout
 
-        while baseSection.Parent ~= nil and isChopping and tick() < deadline do
+        while not TreeHasFallen(treeClass) and isChopping and tick() < deadline do
+            if not baseSection or not baseSection.Parent then
+                -- Section ref is gone somehow; re-grab the current lowest one
+                local fresh = GetSectionsBottomFirst(treeModel)
+                if #fresh == 0 then break end
+                baseSection = fresh[1]
+            end
             FireCutSection(baseSection, tool, axeName, treeClass)
             task.wait(Settings.SweepDelay)
         end
 
         if tick() >= deadline then
-            warn("[TreeModule] ChopTimeout reached — base section never fell. Aborting.")
+            warn("[TreeModule] ChopTimeout reached — tree never fell. Aborting.")
         elseif not isChopping then
             -- User cancelled
             CleanupState()
             if onComplete then onComplete() end
             return
         else
-            print("[TreeModule] Base section gone — tree is loose. Waiting for logs to settle.")
+            print("[TreeModule] New logs detected — tree is down. Returning player.")
         end
 
         -- 7. Tree is down. Return player, wait for physics to settle, then deliver.
