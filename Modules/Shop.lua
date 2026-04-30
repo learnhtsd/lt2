@@ -419,22 +419,20 @@ local function ResolveItemParts(item, quantity)
             if nameVal.Value ~= item.BoxItemName then continue end
 
             local main = box:FindFirstChild("Main")
-            if main and main:IsA("BasePart") and not main.Anchored then
+            if not (main and main:IsA("BasePart") and not main.Anchored) then continue end
+
+            -- ── Ownership check ───────────────────────────────────
+            -- Only include items whose OwnerString is blank (unclaimed)
+            local owner    = box:FindFirstChild("Owner")
+            local ownerStr = owner and owner:FindFirstChild("OwnerString")
+            local isBlank  = not ownerStr
+                          or not ownerStr:IsA("StringValue")
+                          or ownerStr.Value == ""
+
+            if isBlank then
                 table.insert(results, main)
             end
         end
-    end
-
-    if #results == 0 then
-        warn(string.format(
-            "[ShopModule] No Box with BoxItemName='%s' found in any ShopItems folder.",
-            item.BoxItemName
-        ))
-    elseif #results < quantity then
-        warn(string.format(
-            "[ShopModule] Requested %d × '%s' but only %d found.",
-            quantity, item.Name, #results
-        ))
     end
 
     return results
@@ -538,30 +536,83 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
         task.spawn(function()
             FetchNPCIDs()
-
-            local bought    = 0
-            local failed    = 0
-            local itemName  = SelectedItem.Name
+        
+            local bought   = 0
+            local failed   = 0
+            local itemName = SelectedItem.Name
+            local totalCost = SelectedItem.Price * Quantity
+        
+            -- Resolve with ownership filter
+            local parts = ResolveItemParts(SelectedItem, Quantity)
+        
+            -- If not enough unowned items found, wait up to 5s for one to appear
+            if #parts < Quantity then
+                Notify(
+                    "Shop — Waiting",
+                    ("Only %d unowned '%s' found (need %d). Waiting up to 5s…"):format(
+                        #parts, itemName, Quantity
+                    ),
+                    5
+                )
+        
+                local deadline = tick() + 5
+                while #parts < Quantity and tick() < deadline do
+                    task.wait(0.5)
+                    parts = ResolveItemParts(SelectedItem, Quantity)
+                end
+        
+                if #parts == 0 then
+                    Notify(
+                        "❌ No Stock",
+                        ("No unowned '%s' available after waiting. Purchase cancelled."):format(itemName),
+                        5
+                    )
+                    return
+                elseif #parts < Quantity then
+                    Notify(
+                        "⚠️ Partial Stock",
+                        ("Only %d unowned '%s' found after waiting — purchasing what's available."):format(
+                            #parts, itemName
+                        ),
+                        4
+                    )
+                end
+            end
+        
             local liveFunds = FetchFunds() or funds
-
             Notify(
                 "Shop",
                 ("Purchasing %d × %s  ($%d)\nBalance: $%d"):format(
-                    #parts, itemName, totalCost, liveFunds
+                    #parts, itemName, SelectedItem.Price * #parts, liveFunds
                 ),
                 4
             )
-
+        
             for _, mainPart in ipairs(parts) do
                 if not mainPart or not mainPart.Parent then
                     failed += 1
                     continue
                 end
-
+        
+                -- Re-check ownership right before each individual purchase
+                -- in case another player claimed it between scan and buy
+                local box      = mainPart.Parent
+                local owner    = box and box:FindFirstChild("Owner")
+                local ownerStr = owner and owner:FindFirstChild("OwnerString")
+                if ownerStr and ownerStr:IsA("StringValue") and ownerStr.Value ~= "" then
+                    Notify(
+                        "⚠️ Claimed",
+                        ("'%s' was claimed by someone else — skipping."):format(itemName),
+                        3
+                    )
+                    failed += 1
+                    continue
+                end
+        
                 if _LOT.IsBusy() then
                     _LOT.WaitForBatch()
                 end
-
+        
                 local ok = PurchasePart(mainPart, itemName, pressedCF)
                 if ok then
                     bought += 1
@@ -569,7 +620,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                     failed += 1
                 end
             end
-
+        
             Notify(
                 "Shop — Done",
                 ("Bought %d / %d × %s.%s"):format(
