@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.291"
+local Version = "v0.0.292"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -691,104 +691,131 @@ function Library:CreateWindow()
         
             return AttachTooltip(TitleLabel, Element)
         end
-
+        
         -- ── IMAGE ─────────────────────────────────────────────────────────
-        -- Full-width image card that loads from your GitHub Images/ folder
-        -- via the existing GetImage() helper. Height auto-sizes from the
-        -- aspect ratio using UIAspectRatioConstraint. Corners are clipped
-        -- by the rounded frame.
+        -- Full-width image card. Height is a fixed value you supply (in
+        -- unscaled pts). The image stretches to fill the card. Corners are
+        -- properly rounded — a two-frame approach ensures the UIStroke is
+        -- never painted over by the image.
         --
-        -- Tab:CreateImage(Folder, FileName, AspectRatio)
-        --   Folder       string   subfolder inside Images/  (e.g. "Banners")
-        --   FileName     string   file name with extension  (e.g. "logo.png")
-        --   AspectRatio  number   width ÷ height  (default 16/9 = 1.778)
-        --                         Examples: 1 = square, 4/3, 21/9, etc.
+        -- Tab:CreateImage(FileName, Height)
+        --   FileName  string   file name in your Images/ folder  (e.g. "banner.png")
+        --   Height    number   card height in unscaled pts        (e.g. 80)
+        --
+        -- Loads from:  Images/<FileName>  on GitHub
+        -- Caches to:   Dynxe/Images/<FileName>  locally
         --
         -- Returns an Element with:
-        --   Element:SetImage(folder, fileName, aspectRatio?)  — swap image
-        --   Element:SetAspectRatio(w, h?)                    — update ratio only
-        --   Element:SetImageColor(color3)                    — tint
-        --   Element:SetTransparency(0–1)                     — fade
-        --   Element:SetVisible(bool)                         — show / hide card
+        --   Element:SetImage(fileName)     — swap image at runtime
+        --   Element:SetHeight(pts)        — resize the card
+        --   Element:SetImageColor(color3) — tint
+        --   Element:SetTransparency(0–1)  — fade
+        --   Element:SetVisible(bool)      — show / hide
         -- ──────────────────────────────────────────────────────────────────
-        function Tab:CreateImage(Folder, FileName, AspectRatio)
+        function Tab:CreateImage(FileName, Height)
             local Element = {}
-         
-            -- ── Card frame — height driven by the aspect ratio constraint.
+            local CardH   = ES(Height or 80)
+        
+            -- ── OUTER frame: Surface background + UICorner + UIStroke.
+            --    ClipsDescendants is OFF so the stroke is never covered by
+            --    children. The background shows through before the image loads.
             local ImageFrame = Instance.new("Frame")
-            ImageFrame.Size             = UDim2.new(1, 0, 0, 0)
+            ImageFrame.Size             = UDim2.new(1, 0, 0, CardH)
             ImageFrame.BackgroundColor3 = T.Surface
-            ImageFrame.ClipsDescendants = true
+            ImageFrame.ClipsDescendants = false
             ImageFrame.Parent           = self.Container
             Instance.new("UICorner", ImageFrame).CornerRadius = UDim.new(0, 6)
-            AddDepthStroke(ImageFrame)
-         
-            -- ── Aspect ratio constraint — width is always full column,
-            --    so Roblox solves height = absoluteWidth / ratio for us.
-            local Constraint = Instance.new("UIAspectRatioConstraint")
-            Constraint.AspectRatio  = AspectRatio or (16 / 9)
-            Constraint.AspectType   = Enum.AspectType.ScaleWithParentSize
-            Constraint.DominantAxis = Enum.DominantAxis.Width
-            Constraint.Parent       = ImageFrame
-         
-            -- ── Image label — stretches to fill the constrained card.
+        
+            -- ── INNER clip frame: same size, same corner radius, transparent.
+            --    ClipsDescendants = true crops the image to the rounded shape
+            --    without touching the outer stroke.
+            local ClipFrame = Instance.new("Frame")
+            ClipFrame.Size                   = UDim2.new(1, 0, 1, 0)
+            ClipFrame.BackgroundTransparency = 1
+            ClipFrame.ClipsDescendants       = true
+            ClipFrame.Parent                 = ImageFrame
+            Instance.new("UICorner", ClipFrame).CornerRadius = UDim.new(0, 6)
+        
+            -- ── Image — stretches to fill the clip frame.
             local Img = Instance.new("ImageLabel")
             Img.Size                   = UDim2.new(1, 0, 1, 0)
-            Img.Position               = UDim2.new(0, 0, 0, 0)
             Img.BackgroundTransparency = 1
             Img.Image                  = ""
             Img.ScaleType              = Enum.ScaleType.Stretch
             Img.ImageColor3            = Color3.new(1, 1, 1)
-            Img.Parent                 = ImageFrame
-         
-            -- ── Internal loader — fetches via GetImage() off the main thread
-            --    so the card is visible immediately while the asset resolves.
-            local function LoadImage(folder, fileName)
+            Img.Parent                 = ClipFrame
+        
+            -- ── STROKE overlay: transparent frame parented to the OUTER frame
+            --    with a high ZIndex so it always renders on top of the image.
+            --    This is what draws the visible matching border.
+            local StrokeFrame = Instance.new("Frame")
+            StrokeFrame.Size                   = UDim2.new(1, 0, 1, 0)
+            StrokeFrame.BackgroundTransparency = 1
+            StrokeFrame.ZIndex                 = 10
+            StrokeFrame.Parent                 = ImageFrame
+            Instance.new("UICorner", StrokeFrame).CornerRadius = UDim.new(0, 6)
+            local Stroke = Instance.new("UIStroke", StrokeFrame)
+            Stroke.Color           = T.Stroke
+            Stroke.Thickness       = 1
+            Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        
+            -- ── Loader — fetches Images/<fileName> directly (no subfolder).
+            local function LoadImage(fileName)
+                if not fileName or fileName == "" then return end
                 task.spawn(function()
-                    local asset = GetImage(folder, fileName)
-                    Img.Image   = asset or ""
+                    local localPath = "Dynxe/Images/" .. fileName
+                    local asset
+        
+                    if isfile and getcustomasset and isfile(localPath) then
+                        asset = getcustomasset(localPath)
+                    else
+                        local url = string.format(
+                            "https://raw.githubusercontent.com/%s/%s/%s/Images/%s",
+                            User, Repo, Branch, fileName
+                        )
+                        local ok, content = pcall(function() return game:HttpGet(url) end)
+                        if ok and content
+                        and not content:find("404: Not Found")
+                        and #content > 100 then
+                            if isfolder and makefolder and writefile and getcustomasset then
+                                if not isfolder("Dynxe")        then makefolder("Dynxe")        end
+                                if not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
+                                writefile(localPath, content)
+                                asset = getcustomasset(localPath)
+                            end
+                        else
+                            warn("[CreateImage] Asset missing: " .. fileName)
+                        end
+                    end
+        
+                    if asset then Img.Image = asset end
                 end)
             end
-         
-            -- Kick off the initial load.
-            if Folder and FileName then
-                LoadImage(Folder, FileName)
-            end
-         
+        
+            LoadImage(FileName)
+        
             -- ── Public API ────────────────────────────────────────────────
-         
-            -- Swap to a different GitHub-hosted image.
-            -- Optionally update the aspect ratio at the same time.
-            --   banner:SetImage("Banners", "new_banner.png", 21/9)
-            function Element:SetImage(folder, fileName, newRatio)
-                if newRatio then
-                    Constraint.AspectRatio = newRatio
-                end
-                LoadImage(folder, fileName)
+        
+            function Element:SetImage(fileName)
+                LoadImage(fileName)
             end
-         
-            -- Update the aspect ratio independently.
-            -- Single number:      banner:SetAspectRatio(1.5)
-            -- Width and height:   banner:SetAspectRatio(3, 2)
-            function Element:SetAspectRatio(w, h)
-                Constraint.AspectRatio = h and (w / h) or w
+        
+            function Element:SetHeight(pts)
+                ImageFrame.Size = UDim2.new(1, 0, 0, ES(pts))
             end
-         
-            -- Tint the image.
+        
             function Element:SetImageColor(color)
                 Img.ImageColor3 = color
             end
-         
-            -- Fade: 0 = fully visible, 1 = invisible.
+        
             function Element:SetTransparency(value)
                 Img.ImageTransparency = math.clamp(value, 0, 1)
             end
-         
-            -- Show or hide the entire card.
+        
             function Element:SetVisible(state)
                 ImageFrame.Visible = state
             end
-         
+        
             return Element
         end
         
