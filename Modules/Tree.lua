@@ -508,76 +508,137 @@ local function TreeHasFallen(treeClass)
     return false
 end
 
-local function StartSellPlanks(LOT, toggleElement)
-    if not LOT then
-        warn("[TreeModule] LOT not available for Sell Planks.")
+-- ==========================================
+--   MAIN CHOP SEQUENCE
+-- ==========================================
+local function StartChopping(treeClass, LOT, onComplete)
+    if isChopping then return end
+
+    -- 1. Snapshot existing logs so we can detect new ones later
+    SnapshotLogModels()
+
+    -- 2. Find the best tree
+    local treeModel = FindPriorityTree(treeClass)
+    if not treeModel then
+        warn("[TreeModule] No tree found for class:", treeClass)
+        if onComplete then onComplete() end
         return
     end
 
-    _sellPlanksOn = true
-    local mouse = player:GetMouse()
+    -- 3. Find the lowest WoodSection as our stand-near target
+    local sections = GetSectionsBottomFirst(treeModel)
+    if #sections == 0 then
+        warn("[TreeModule] Tree has no WoodSections.")
+        if onComplete then onComplete() end
+        return
+    end
 
-    _plankConn = RunService.RenderStepped:Connect(function()
-        if not _sellPlanksOn then return end
-        local plank = FindOwnedPlank(mouse.Target)
-        if plank then
-            ApplyHoverOutline(plank)
+    -- 4. Get equipped axe — player must have one in hand
+    local tool, axeName = GetEquippedAxe()
+    if not tool then
+        warn("[TreeModule] No axe equipped. Please equip an axe before chopping.")
+        if onComplete then onComplete() end
+        return
+    end
+
+    local char = player.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        if onComplete then onComplete() end
+        return
+    end
+
+    -- 5. Save state, TP player next to the lowest section
+    preChopCFrame       = hrp.CFrame
+    preChopCameraCFrame = camera.CFrame
+    isChopping          = true
+
+    SetGroundVisible(false)
+
+    local targetPart = sections[1]
+    local aimPoint   = targetPart.Position
+    local lookDir    = targetPart.CFrame.LookVector
+    local standPos   = aimPoint
+                     + (lookDir * Settings.DistanceToTree)
+                     + Vector3.new(0, Settings.VerticalOffset, 0)
+
+    local standCF = CFrame.lookAt(standPos, aimPoint)
+    hrp.CFrame    = standCF
+    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+
+    -- Lock player in place while chopping
+    lockConn = RunService.RenderStepped:Connect(function()
+        if isChopping then
+            hrp.CFrame = standCF
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         else
-            ClearHoverOutline()
+            if lockConn then lockConn:Disconnect() lockConn = nil end
         end
     end)
 
-    local function AttachClickConn()
-        _clickConn = mouse.Button1Down:Connect(function()
-            if not _sellPlanksOn then return end
-            if not _hoverPlank or not _hoverPlank.Parent then return end
+    task.wait(Settings.SyncDelay)
 
-            local plank = _hoverPlank
-            ClearHoverOutline()
+    -- 6. Keep firing at the BASE section until it's fully gone,
+    --    then wait for the whole tree to fall before TPing back.
+    task.spawn(function()
+        local baseSection = GetSectionsBottomFirst(treeModel)[1]
 
-            -- Disconnect click IMMEDIATELY before LOT runs so its
-            -- internal click can't retrigger this handler
-            if _clickConn then
-                _clickConn:Disconnect()
-                _clickConn = nil
+        if not baseSection then
+            warn("[TreeModule] Base section missing before chop started.")
+            CleanupState()
+            if onComplete then onComplete() end
+            return
+        end
+
+        -- Keep hammering the base section until new LogModels appear
+        -- (meaning the tree has actually fallen) or we hit the timeout.
+        -- NOTE: WoodSections are NOT removed when a tree falls in LT2 —
+        -- they fall with the tree. We detect the fell by watching LogModels.
+        local deadline = tick() + Settings.ChopTimeout
+
+        while not TreeHasFallen(treeClass) and isChopping and tick() < deadline do
+            if not baseSection or not baseSection.Parent then
+                -- Section ref is gone somehow; re-grab the current lowest one
+                local fresh = GetSectionsBottomFirst(treeModel)
+                if #fresh == 0 then break end
+                baseSection = fresh[1]
             end
+            FireCutSection(baseSection, tool, axeName, treeClass)
+            task.wait(Settings.SweepDelay)
+        end
 
-            if toggleElement then toggleElement:SetDisabled(true) end
+        if tick() >= deadline then
+            warn("[TreeModule] ChopTimeout reached — tree never fell. Aborting.")
+        elseif not isChopping then
+            -- User cancelled
+            CleanupState()
+            if onComplete then onComplete() end
+            return
+        else
+            print("[TreeModule] New logs detected — tree is down. Returning player.")
+        end
 
-            task.spawn(function()
-                if LOT.IsBusy() then
-                    repeat task.wait(0.05) until not LOT.IsBusy()
-                end
+        -- 7. Unequip the axe so LOT can TP logs freely,
+        --    then return player, wait for physics to settle, then deliver.
+        do
+            local equippedTool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+            if equippedTool then
+                equippedTool.Parent = player.Backpack
+            end
+        end
 
-                local target = plank.PrimaryPart
-                if not target then
-                    for _, v in ipairs(plank:GetDescendants()) do
-                        if v:IsA("BasePart") then target = v break end
-                    end
-                end
+        CleanupState()
+        WaitForLogsToSettle(treeClass)
 
-                if not target then
-                    warn("[TreeModule] Plank has no BasePart to teleport.")
-                    if toggleElement then toggleElement:SetDisabled(false) end
-                    if _sellPlanksOn then AttachClickConn() end
-                    return
-                end
+        local stumps     = CollectNewStumps(treeClass)
+        local currentHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 
-                local success = LOT.TeleportObjectTo(target, PLANK_SELL_CF)
-
-                if not success then
-                    warn("[TreeModule] Plank teleport failed.")
-                end
-
-                if toggleElement then toggleElement:SetDisabled(false) end
-
-                -- Only reconnect if the toggle is still on
-                if _sellPlanksOn then AttachClickConn() end
-            end)
-        end)
-    end
-
-    AttachClickConn()
+        RunLOTBatch(LOT, stumps, function(i, _)
+            return currentHRP
+                and (currentHRP.CFrame * CFrame.new((i - 1) * 5, 0, -Settings.LogDropDistance))
+                or CFrame.new(0, 0, 0)
+        end, onComplete)
+    end)
 end
 
 -- ==========================================
@@ -664,10 +725,9 @@ function TreeModule.Init(Tab, LOT)
             end
         end)
     end)
-    local sellPlanksToggle
-    sellPlanksToggle = Tab:CreateToggle("Click To Sell (Planks)", false, function(state)
+    Tab:CreateToggle("Click To Sell (Planks)", false, function(state)
         if state then
-            StartSellPlanks(LOT, sellPlanksToggle)
+            StartSellPlanks(LOT)
         else
             StopSellPlanks()
         end
