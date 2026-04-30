@@ -537,15 +537,14 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         task.spawn(function()
             FetchNPCIDs()
         
-            local bought   = 0
-            local failed   = 0
-            local itemName = SelectedItem.Name
-            local totalCost = SelectedItem.Price * Quantity
+            local bought    = 0
+            local failed    = 0
+            local itemName  = SelectedItem.Name
         
-            -- Resolve with ownership filter
+            -- Initial scan
             local parts = ResolveItemParts(SelectedItem, Quantity)
         
-            -- If not enough unowned items found, wait up to 5s for one to appear
+            -- If not enough unowned items, keep rescanning for up to 5s
             if #parts < Quantity then
                 Notify(
                     "Shop — Waiting",
@@ -558,7 +557,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                 local deadline = tick() + 5
                 while #parts < Quantity and tick() < deadline do
                     task.wait(0.5)
-                    parts = ResolveItemParts(SelectedItem, Quantity)
+                    parts = ResolveItemParts(SelectedItem, Quantity)  -- rescan each poll
                 end
         
                 if #parts == 0 then
@@ -590,21 +589,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         
             for _, mainPart in ipairs(parts) do
                 if not mainPart or not mainPart.Parent then
-                    failed += 1
-                    continue
-                end
-        
-                -- Re-check ownership right before each individual purchase
-                -- in case another player claimed it between scan and buy
-                local box      = mainPart.Parent
-                local owner    = box and box:FindFirstChild("Owner")
-                local ownerStr = owner and owner:FindFirstChild("OwnerString")
-                if ownerStr and ownerStr:IsA("StringValue") and ownerStr.Value ~= "" then
-                    Notify(
-                        "⚠️ Claimed",
-                        ("'%s' was claimed by someone else — skipping."):format(itemName),
-                        3
-                    )
                     failed += 1
                     continue
                 end
