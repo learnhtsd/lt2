@@ -50,12 +50,12 @@ function SettingsModule.Init(Tab, MainUI, RepoConfig, Config)
     -- ════════════════════════════════════════════════════════
     -- SYSTEM
     -- ════════════════════════════════════════════════════════
+    Tab:CreateSection("System")
     Tab:CreateKeybind("Toggle Menu", Enum.KeyCode.LeftAlt, function()
         if ScreenGui then
             ScreenGui.Enabled = not ScreenGui.Enabled
         end
-    end):AddTooltip("Hotkey to show/hide the menu.")
-    Tab:CreateSection("System")
+    end)
 
     local function Unload()
         _G.NexusActive = false
