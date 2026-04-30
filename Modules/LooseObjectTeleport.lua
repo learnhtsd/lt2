@@ -219,16 +219,11 @@ end
 --  10. Restore camera to whatever state the player was in
 --
 local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock, origCamType, origCamMode)
-    -- 1. Kill ghostLock immediately — nothing should be competing from here on
+    -- 1. Kill ghostLock — no more competing writes
     if ghostLock then ghostLock:Disconnect() end
 
-    -- 2. Release PlatformStand RIGHT AWAY before anything else.
-    --    This is what causes the ragdoll — the longer it stays true the worse it is.
-    hum.PlatformStand = false
-
-    -- 3. Restore camera immediately so controls feel responsive the instant
-    --    the batch ends. CameraSubject must be re-attached before CameraType
-    --    switches back or Roblox may not track the humanoid correctly.
+    -- 2. Restore camera and input immediately so the player feels
+    --    responsive the instant the batch ends
     local hum2 = char:FindFirstChildOfClass("Humanoid")
     if hum2 then
         Camera.CameraSubject = hum2
@@ -237,23 +232,58 @@ local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, g
     Player.CameraMode = origCamMode
     UIS.MouseBehavior = Enum.MouseBehavior.Default
 
-    -- 4. Zero velocities and snap back to saved position
+    -- 3. Zero velocities and snap to saved position before un-ghosting
+    --    so the character materialises in the right place
     if root and root.Parent then
         root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         root.CFrame = originalCharCFrame
     end
 
-    -- 5. Un-ghost the character
+    -- 4. Un-ghost — restores CanCollide and visibility
     SetCharacterGhosting(char, false)
 
-    -- 6. One single deferred re-enforce to catch any physics kick from un-ghosting.
-    --    task.defer runs after the current frame without yielding — no freeze.
-    task.defer(function()
+    -- 5. Start a stabilisation lock BEFORE releasing PlatformStand.
+    --    This holds the character in place during the physics hand-off
+    --    window so it can't ragdoll or get nudged.
+    local stabiliseFrames = 0
+    local STABLE_FRAME_TARGET = 6  -- hold for 6 heartbeat frames (~0.1s), then release
+
+    local stabiliseLock = RunService.Heartbeat:Connect(function()
+        stabiliseFrames = stabiliseFrames + 1
+
         if root and root.Parent then
             root.AssemblyLinearVelocity  = Vector3.zero
             root.AssemblyAngularVelocity = Vector3.zero
             root.CFrame = originalCharCFrame
+        end
+
+        -- Also keep CanCollide enforced during the window so nothing
+        -- can knock the character over while PlatformStand is releasing
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and not part.CanCollide then
+                part.CanCollide = true
+            end
+        end
+    end)
+
+    -- 6. Release PlatformStand — character physics is now active but
+    --    stabiliseLock is already holding it in place above
+    hum.PlatformStand = false
+
+    -- 7. Let the stabilise lock run for its target frames then cleanly stop.
+    --    task.delay doesn't yield the caller so RunBatch returns immediately.
+    task.delay(0, function()
+        -- Wait until we've accumulated enough stable frames
+        while stabiliseFrames < STABLE_FRAME_TARGET do
+            RunService.Heartbeat:Wait()
+        end
+        stabiliseLock:Disconnect()
+
+        -- Final zero after lock releases — catches any last physics kick
+        if root and root.Parent then
+            root.AssemblyLinearVelocity  = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
         end
     end)
 end
