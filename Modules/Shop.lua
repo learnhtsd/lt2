@@ -399,7 +399,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
     local Catalog = Tab:CreateImageSelector("Wood R Us", {
         MultiSelect = false,
-        Rows        = 3,
+        VisibleRows        = 3,
         SlotSize    = UDim2.new(0, 70, 0, 70),
     }, function(name)
         for _, item in pairs(ShopItems) do
