@@ -219,10 +219,10 @@ end
 --  10. Restore camera to whatever state the player was in
 --
 local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, ghostLock, origCamType, origCamMode)
-    -- 1. Kill ghostLock — no more competing writes
+    -- 1. Kill ghostLock
     if ghostLock then ghostLock:Disconnect() end
 
-    -- 2. Restore camera and input FIRST so the player feels responsive immediately
+    -- 2. Restore camera and input immediately
     local hum2 = char:FindFirstChildOfClass("Humanoid")
     if hum2 then
         Camera.CameraSubject = hum2
@@ -231,18 +231,7 @@ local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, g
     Player.CameraMode = origCamMode
     UIS.MouseBehavior = Enum.MouseBehavior.Default
 
-    -- 3. Hard zero velocities and snap to saved position
-    if root and root.Parent then
-        root.AssemblyLinearVelocity  = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        root.CFrame = originalCharCFrame
-    end
-
-    -- 4. Un-ghost — restores per-part CanCollide and transparency correctly
-    SetCharacterGhosting(char, false)
-
-    -- 5. Zero ALL part velocities in the character to kill any
-    --    residual physics momentum that would cause the ragdoll spike
+    -- 3. Wipe all velocity on every character part before un-ghosting
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.AssemblyLinearVelocity  = Vector3.zero
@@ -250,23 +239,28 @@ local function RestoreCharacterAfterBatch(char, root, hum, originalCharCFrame, g
         end
     end
 
-    -- 6. Release PlatformStand NOW — humanoid controller takes over immediately
-    --    Do NOT lock root.CFrame after this point or player inputs get overridden
+    -- 4. Snap root back to saved position
+    if root and root.Parent then
+        root.CFrame = originalCharCFrame
+    end
+
+    -- 5. Un-ghost
+    SetCharacterGhosting(char, false)
+
+    -- 6. Release PlatformStand
     hum.PlatformStand = false
 
-    -- 7. One deferred velocity wipe after the physics engine ticks once.
-    --    This catches the impulse Roblox applies on PlatformStand release
-    --    without blocking player movement at all.
+    -- 7. THE KEY FIX: explicitly drive the humanoid into Running state.
+    --    Without this, Roblox runs an internal GettingUp transition that
+    --    blocks all movement input for ~1 second before resolving itself.
     task.defer(function()
-        if not root or not root.Parent then return end
-        root.AssemblyLinearVelocity  = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        -- Wipe all limbs one more time
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.AssemblyLinearVelocity  = Vector3.zero
-                part.AssemblyAngularVelocity = Vector3.zero
-            end
+        if hum and hum.Parent then
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end
+        -- Wipe velocities one final time after state change
+        if root and root.Parent then
+            root.AssemblyLinearVelocity  = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
         end
     end)
 end
