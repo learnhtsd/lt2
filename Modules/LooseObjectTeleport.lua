@@ -67,7 +67,7 @@ local Settings = {
     GapDistance            = 6,
     CleanRadius            = 12,
     LockMouseMovement      = true,
-    SelectionColor         = Color3.fromRGB(50, 50, 255),
+    SelectionColor         = Color3.fromRGB(74,  120, 255),
     OutlineThickness       = 0.02,
 
     -- Stack settings
