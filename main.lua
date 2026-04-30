@@ -691,6 +691,106 @@ function Library:CreateWindow()
         
             return AttachTooltip(TitleLabel, Element)
         end
+
+        -- ── IMAGE ─────────────────────────────────────────────────────────
+        -- Full-width image card that loads from your GitHub Images/ folder
+        -- via the existing GetImage() helper. Height auto-sizes from the
+        -- aspect ratio using UIAspectRatioConstraint. Corners are clipped
+        -- by the rounded frame.
+        --
+        -- Tab:CreateImage(Folder, FileName, AspectRatio)
+        --   Folder       string   subfolder inside Images/  (e.g. "Banners")
+        --   FileName     string   file name with extension  (e.g. "logo.png")
+        --   AspectRatio  number   width ÷ height  (default 16/9 = 1.778)
+        --                         Examples: 1 = square, 4/3, 21/9, etc.
+        --
+        -- Returns an Element with:
+        --   Element:SetImage(folder, fileName, aspectRatio?)  — swap image
+        --   Element:SetAspectRatio(w, h?)                    — update ratio only
+        --   Element:SetImageColor(color3)                    — tint
+        --   Element:SetTransparency(0–1)                     — fade
+        --   Element:SetVisible(bool)                         — show / hide card
+        -- ──────────────────────────────────────────────────────────────────
+        function Tab:CreateImage(Folder, FileName, AspectRatio)
+            local Element = {}
+         
+            -- ── Card frame — height driven by the aspect ratio constraint.
+            local ImageFrame = Instance.new("Frame")
+            ImageFrame.Size             = UDim2.new(1, 0, 0, 0)
+            ImageFrame.BackgroundColor3 = T.Surface
+            ImageFrame.ClipsDescendants = true
+            ImageFrame.Parent           = self.Container
+            Instance.new("UICorner", ImageFrame).CornerRadius = UDim.new(0, 6)
+            AddDepthStroke(ImageFrame)
+         
+            -- ── Aspect ratio constraint — width is always full column,
+            --    so Roblox solves height = absoluteWidth / ratio for us.
+            local Constraint = Instance.new("UIAspectRatioConstraint")
+            Constraint.AspectRatio  = AspectRatio or (16 / 9)
+            Constraint.AspectType   = Enum.AspectType.ScaleWithParentSize
+            Constraint.DominantAxis = Enum.DominantAxis.Width
+            Constraint.Parent       = ImageFrame
+         
+            -- ── Image label — stretches to fill the constrained card.
+            local Img = Instance.new("ImageLabel")
+            Img.Size                   = UDim2.new(1, 0, 1, 0)
+            Img.Position               = UDim2.new(0, 0, 0, 0)
+            Img.BackgroundTransparency = 1
+            Img.Image                  = ""
+            Img.ScaleType              = Enum.ScaleType.Stretch
+            Img.ImageColor3            = Color3.new(1, 1, 1)
+            Img.Parent                 = ImageFrame
+         
+            -- ── Internal loader — fetches via GetImage() off the main thread
+            --    so the card is visible immediately while the asset resolves.
+            local function LoadImage(folder, fileName)
+                task.spawn(function()
+                    local asset = GetImage(folder, fileName)
+                    Img.Image   = asset or ""
+                end)
+            end
+         
+            -- Kick off the initial load.
+            if Folder and FileName then
+                LoadImage(Folder, FileName)
+            end
+         
+            -- ── Public API ────────────────────────────────────────────────
+         
+            -- Swap to a different GitHub-hosted image.
+            -- Optionally update the aspect ratio at the same time.
+            --   banner:SetImage("Banners", "new_banner.png", 21/9)
+            function Element:SetImage(folder, fileName, newRatio)
+                if newRatio then
+                    Constraint.AspectRatio = newRatio
+                end
+                LoadImage(folder, fileName)
+            end
+         
+            -- Update the aspect ratio independently.
+            -- Single number:      banner:SetAspectRatio(1.5)
+            -- Width and height:   banner:SetAspectRatio(3, 2)
+            function Element:SetAspectRatio(w, h)
+                Constraint.AspectRatio = h and (w / h) or w
+            end
+         
+            -- Tint the image.
+            function Element:SetImageColor(color)
+                Img.ImageColor3 = color
+            end
+         
+            -- Fade: 0 = fully visible, 1 = invisible.
+            function Element:SetTransparency(value)
+                Img.ImageTransparency = math.clamp(value, 0, 1)
+            end
+         
+            -- Show or hide the entire card.
+            function Element:SetVisible(state)
+                ImageFrame.Visible = state
+            end
+         
+            return Element
+        end
         
         -- ── INPUT ─────────────────────────────────────────────
         function Tab:CreateInput(Title, Placeholder, Callback)
