@@ -439,23 +439,17 @@ local function StartChopping(treeClass, LOT, onComplete)
 
     -- 6. Chop all sections bottom-to-top
     task.spawn(function()
-        local currentSections = GetSectionsBottomFirst(treeModel)
-        for _, section in ipairs(currentSections) do
-            if not isChopping then break end
-
-            -- Keep firing until this section is gone or tree is felled
-            local attempts = 0
-            while section.Parent and isChopping do
-                FireCutSection(section, tool, axeName, treeClass)
-                attempts += 1
-                task.wait(Settings.SweepDelay)
-                -- Safety: stop after too many attempts on one section
-                if attempts > 20 then
-                    warn("[TreeModule] Section not falling after 20 sweeps, moving on.")
-                    break
-                end
-            end
+    local stump    = GetSectionsBottomFirst(treeModel)[1]
+    local attempts = 0
+    while stump and stump.Parent and isChopping do
+        FireCutSection(stump, tool, axeName, treeClass)
+        attempts += 1
+        task.wait(Settings.SweepDelay)
+        if attempts > 20 then
+            warn("[TreeModule] Base section not falling after 20 sweeps — aborting.")
+            break
         end
+    end
 
         -- 7. Return player, wait for logs, deliver
         CleanupState()
