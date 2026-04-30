@@ -152,6 +152,102 @@ local function GetNearestNPCArg(mainPart)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
+-- │                     POWER OF EASE PURCHASE                      │
+-- └─────────────────────────────────────────────────────────────────┘
+local POE_PRICE    = 10009000
+local POE_TP_CF    = CFrame.new(1059.4, 17.2, 1130.3)
+local POE_TIMEOUT  = 60  -- seconds to wait for money deduction
+local POE_INTERVAL = 0.2 -- polling interval
+
+local function PurchasePowerOfEase()
+    -- 1. Check funds
+    local funds = FetchFunds()
+    if funds == nil then
+        Notify("❌ Funds Error", "Could not retrieve your balance. Try again.", 4)
+        return
+    end
+
+    if funds < POE_PRICE then
+        Notify(
+            "❌ Insufficient Funds",
+            ("Need $%s  •  Have $%s  •  Short $%s"):format(
+                tostring(POE_PRICE), tostring(funds), tostring(POE_PRICE - funds)
+            ),
+            5
+        )
+        return
+    end
+
+    -- 2. Resolve the NPC/remote args (reuse existing NPC fetch infrastructure)
+    FetchNPCIDs()
+
+    local char = Player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then
+        Notify("❌ Error", "No character found.", 3)
+        return
+    end
+
+    local returnCF = root.CFrame  -- save position before TP
+
+    -- 3. Teleport player to the Power of Ease location
+    root.CFrame = POE_TP_CF
+    task.wait(0.15)
+
+    Notify("Shop", "Teleported — initiating Power of Ease purchase…", 4)
+
+    -- 4. Find the nearest NPC at the new position
+    local npcArg = GetNearestNPCArg(root)
+    if not npcArg or not npcArg.ID then
+        Notify("❌ No NPC", "Could not find an NPC at the Power of Ease location.", 4)
+        root.CFrame = returnCF
+        return
+    end
+
+    -- 5. Fire purchase remote until player's balance drops (verification)
+    local fireCount = 0
+    local deadline  = tick() + POE_TIMEOUT
+    local purchased = false
+
+    while tick() < deadline do
+        pcall(function()
+            Remote:InvokeServer(npcArg, "Initiate")
+            Remote:InvokeServer(npcArg, "ConfirmPurchase")
+            Remote:InvokeServer(npcArg, "EndChat")
+        end)
+
+        fireCount += 1
+
+        -- Poll balance every fire to detect successful deduction
+        local newFunds = FetchFunds()
+        if newFunds and newFunds < funds then
+            purchased = true
+            break
+        end
+
+        if fireCount % 25 == 0 then
+            Notify("⏳ Purchasing…", ("Fired %d times — waiting for deduction…"):format(fireCount), 3)
+        end
+
+        task.wait(POE_INTERVAL)
+    end
+
+    -- 6. Report result and TP back
+    if purchased then
+        Notify("✅ Power of Ease!", ("Purchased after %d fires. Returning…"):format(fireCount), 5)
+    else
+        Notify("❌ Timeout", ("Purchase not confirmed after %d fires."):format(fireCount), 5)
+    end
+
+    task.wait(0.1)
+    local returnChar = Player.Character
+    local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
+    if returnRoot then
+        returnRoot.CFrame = returnCF
+    end
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
 -- │                       PURCHASE SEQUENCE                         │
 -- └─────────────────────────────────────────────────────────────────┘
 local SPAM_INTERVAL    = 0.1
@@ -515,6 +611,12 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     end
 
     ShopModule.UpdateDisplay()
+
+    Tab:CreateSection("Special")
+
+    Tab:CreateAction("Buy Power of Ease ($10,009,000)", "Buy", function()
+    task.spawn(PurchasePowerOfEase)
+end, false)
 end
 
 return ShopModule
