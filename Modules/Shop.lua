@@ -473,6 +473,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
     Tab:CreateSection("Stores")
 
+    local banner = Tab:CreateImage("Shops", "WoodRUs.png")
     local Catalog = Tab:CreateImageSelector("Wood R Us", {
         MultiSelect = false,
         VisibleRows = 3,
