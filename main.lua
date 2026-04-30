@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.262"
+local Version = "v0.0.263"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1248,7 +1248,7 @@ function Library:CreateWindow()
 
             local SearchBox = Instance.new("TextBox")
             SearchBox.Name              = "SearchBox"
-            SearchBox.Size              = UDim2.new(0, ES(90), 0, ES(20))
+            SearchBox.Size              = UDim2.new(0, ES(150), 0, ES(20))
             SearchBox.AnchorPoint       = Vector2.new(1, 0)
             SearchBox.Position          = UDim2.new(1, -ES(10), 0, ES(8))
             SearchBox.BackgroundColor3  = T.SurfaceDeep
