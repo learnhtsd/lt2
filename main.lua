@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.275"
+local Version = "v0.0.276"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1856,9 +1856,9 @@ local Theme = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
 ))()
 
-local BrandModule = LoadModule("Brand")
-if BrandModule and BrandModule.Init then
-    BrandModule.Init(Version, Vector3.new(43.5, 18, 55.3), Vector3.new(0, -105, 0), 60, 20)
+local LogoModule = LoadModule("Logo")
+if LogoModule and LogoModule.Init then
+    LogoModule.Init(Version, Vector3.new(43.5, 18, 55.3), Vector3.new(0, -105, 0), 60, 20)
 end
 Library:Notify("Loaded", "Brand", 2)
 
