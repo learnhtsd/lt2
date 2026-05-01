@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.318"
+local Version = "v0.0.319"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -216,6 +216,64 @@ function Library:CreateWindow()
     ActiveTabLabel.TextXAlignment  = Enum.TextXAlignment.Right
     ActiveTabLabel.Parent          = MainFrame
 
+    -- ── UPDATE NOTICE ─────────────────────────────────────────────
+    local UpdateLabel = Instance.new("TextLabel")
+    UpdateLabel.Size               = UDim2.new(0, 200, 0, 20)
+    UpdateLabel.AnchorPoint        = Vector2.new(0.5, 0)
+    UpdateLabel.Position           = UDim2.new(0.5, 0, 0, 12)
+    UpdateLabel.BackgroundColor3   = Color3.fromRGB(190, 120, 15)
+    UpdateLabel.BackgroundTransparency = 0.25
+    UpdateLabel.Text               = "Update available — reload!"
+    UpdateLabel.TextColor3         = Color3.fromRGB(255, 235, 180)
+    UpdateLabel.Font               = Enum.Font.GothamBold
+    UpdateLabel.TextSize           = FS(10)
+    UpdateLabel.TextXAlignment     = Enum.TextXAlignment.Center
+    UpdateLabel.Visible            = false
+    UpdateLabel.ZIndex             = 5
+    UpdateLabel.Parent             = MainFrame
+    Instance.new("UICorner", UpdateLabel).CornerRadius = UDim.new(0, 4)
+    local UpdateStroke = Instance.new("UIStroke", UpdateLabel)
+    UpdateStroke.Color     = Color3.fromRGB(220, 150, 30)
+    UpdateStroke.Thickness = 1
+
+    -- Pulse animation that plays once the label is shown
+    local function StartUpdatePulse()
+        task.spawn(function()
+            while UpdateLabel and UpdateLabel.Parent do
+                TweenService:Create(UpdateLabel, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    BackgroundTransparency = 0.55
+                }):Play()
+                task.wait(0.8)
+                TweenService:Create(UpdateLabel, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    BackgroundTransparency = 0.25
+                }):Play()
+                task.wait(0.8)
+            end
+        end)
+    end
+
+    -- Fetch the remote version and compare to the local one
+    task.spawn(function()
+        -- Small delay so the rest of the UI finishes loading first
+        task.wait(3)
+        local url = string.format(
+            "https://raw.githubusercontent.com/%s/%s/%s/main.lua?t=%s",
+            User, Repo, Branch, tick()
+        )
+        local ok, body = pcall(function() return game:HttpGet(url) end)
+        if not ok or not body then return end
+
+        -- Pull the version string out of the first few lines
+        local remoteVersion = body:match('local%s+Version%s*=%s*"([^"]+)"')
+        if not remoteVersion then return end
+
+        if remoteVersion ~= Version then
+            UpdateLabel.Text    = "Update " .. remoteVersion .. " available — reload!"
+            UpdateLabel.Visible = true
+            StartUpdatePulse()
+        end
+    end)
+    
     -- TAB CONTAINER (inside sidebar)
     local TabContainer = Instance.new("ScrollingFrame")
     TabContainer.Name              = "TabContainer"
