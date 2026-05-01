@@ -64,9 +64,9 @@ local Settings = {
     SelectionColor  = Color3.fromRGB(74, 120, 255),
     OutlineThickness = 0.02,
 
-    StackX       = 1,
-    StackY       = 5,
-    StackZ       = 1,
+    StackX       = 2,
+    StackY       = 1,
+    StackZ       = 5,
     StackPadding = 0.05,
 
     KeepSelected = false,
