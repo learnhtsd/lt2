@@ -756,7 +756,7 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     local Notice = Tab:CreateInfoBox()
     Notice:AddText("⚠  Server Performance Notice", {
         Bold  = true,
-        Size  = 13,
+        Size  = 14,
     })
     Notice:AddDivider()
     Notice:AddText(
@@ -764,8 +764,8 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
         "or on low tick-rate servers. If objects fail to move, try increasing " ..
         "the Ownership Timeout slider below.",
         {
-            Size    = 11,
-            Opacity = 0.75,
+            Size    = 12,
+            Opacity = 0.80,
             Italic  = true,
             Wrap    = true,
         }
