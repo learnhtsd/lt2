@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.297"
+local Version = "v0.0.298"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -693,25 +693,6 @@ function Library:CreateWindow()
         end
         
         -- ── IMAGE ─────────────────────────────────────────────────────────
-        -- Full-width image card. Height is a fixed value you supply (in
-        -- unscaled pts). The image stretches to fill the card. Corners are
-        -- properly rounded — a two-frame approach ensures the UIStroke is
-        -- never painted over by the image.
-        --
-        -- Tab:CreateImage(FileName, Height)
-        --   FileName  string   file name in your Images/ folder  (e.g. "banner.png")
-        --   Height    number   card height in unscaled pts        (e.g. 80)
-        --
-        -- Loads from:  Images/<FileName>  on GitHub
-        -- Caches to:   Dynxe/Images/<FileName>  locally
-        --
-        -- Returns an Element with:
-        --   Element:SetImage(fileName)     — swap image at runtime
-        --   Element:SetHeight(pts)        — resize the card
-        --   Element:SetImageColor(color3) — tint
-        --   Element:SetTransparency(0–1)  — fade
-        --   Element:SetVisible(bool)      — show / hide
-        -- ──────────────────────────────────────────────────────────────────
         function Tab:CreateImage(FileName, Height)
             local Element = {}
             local CardH   = ES(Height or 80)
@@ -781,31 +762,6 @@ function Library:CreateWindow()
             function Element:SetImageColor(color) ImageFrame.ImageColor3 = color               end
             function Element:SetTransparency(v)   ImageFrame.ImageTransparency = math.clamp(v, 0, 1) end
             function Element:SetVisible(state)    ImageFrame.Visible = state                   end
-        
-            return Element
-        end
-        
-            -- ── Public API ────────────────────────────────────────────────
-        
-            function Element:SetImage(fileName)
-                LoadImage(fileName)
-            end
-        
-            function Element:SetHeight(pts)
-                ImageFrame.Size = UDim2.new(1, 0, 0, ES(pts))
-            end
-        
-            function Element:SetImageColor(color)
-                Img.ImageColor3 = color
-            end
-        
-            function Element:SetTransparency(value)
-                Img.ImageTransparency = math.clamp(value, 0, 1)
-            end
-        
-            function Element:SetVisible(state)
-                ImageFrame.Visible = state
-            end
         
             return Element
         end
