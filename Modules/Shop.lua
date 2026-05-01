@@ -440,38 +440,121 @@ end
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                      WORLD PATH RESOLVER                        │
 -- └─────────────────────────────────────────────────────────────────┘
-local function ResolveItemParts(item, quantity)
-    local stores = workspace:FindFirstChild("Stores")
-    if not stores then
-        warn("[ShopModule] workspace.Stores not found.")
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │               SHOP FOLDER RESOLVER (runs once at init)          │
+-- │                                                                  │
+-- │  workspace.Stores has multiple children all named "ShopItems"   │
+-- │  (one per store, all siblings). We can't reference them by      │
+-- │  name so we resolve which folder belongs to which store at      │
+-- │  startup using proximity — each folder's boxes sit physically   │
+-- │  next to their own store's NPC.                                 │
+-- │                                                                  │
+-- │  Result is cached in store.ShopItemsFolder for the session.     │
+-- └─────────────────────────────────────────────────────────────────┘
+local function GetModelPosition(model)
+    if model:IsA("BasePart") then return model.Position end
+    local hrp  = model:FindFirstChild("HumanoidRootPart")
+    if hrp  then return hrp.Position end
+    local part = model:FindFirstChildWhichIsA("BasePart")
+    if part then return part.Position end
+    return nil
+end
+
+local function ResolveShopFolders()
+    local storesRoot = workspace:FindFirstChild("Stores")
+    if not storesRoot then
+        warn("[ShopModule] workspace.Stores not found — cannot resolve ShopItems folders.")
+        return
+    end
+
+    -- Collect every ShopItems folder sitting under workspace.Stores
+    local allShopFolders = {}
+    for _, child in ipairs(storesRoot:GetChildren()) do
+        if child.Name == "ShopItems" then
+            table.insert(allShopFolders, child)
+        end
+    end
+
+    if #allShopFolders == 0 then
+        warn("[ShopModule] No ShopItems folders found under workspace.Stores.")
+        return
+    end
+
+    -- For each store, pick the ShopItems folder whose first box is nearest
+    -- to that store's NPC. Boxes always live next to their own store.
+    for storeKey, store in pairs(STORES) do
+        local npcPos = GetModelPosition(store.NPC)
+        if not npcPos then
+            warn(("[ShopModule] Cannot get position for NPC in store '%s' — skipping."):format(storeKey))
+            continue
+        end
+
+        local bestFolder, bestDist = nil, math.huge
+
+        for _, folder in ipairs(allShopFolders) do
+            -- Sample the first available box to gauge the folder's location
+            for _, child in ipairs(folder:GetChildren()) do
+                if child:IsA("Model") then
+                    local part = child:FindFirstChild("Main")
+                              or child:FindFirstChildWhichIsA("BasePart")
+                    if part then
+                        local dist = (part.Position - npcPos).Magnitude
+                        if dist < bestDist then
+                            bestDist   = dist
+                            bestFolder = folder
+                        end
+                        break   -- one sample per folder is enough
+                    end
+                end
+            end
+        end
+
+        if bestFolder then
+            store.ShopItemsFolder = bestFolder
+            print(("[ShopModule] '%s' → ShopItems resolved (%.0f studs from NPC)"):format(
+                storeKey, bestDist))
+        else
+            warn(("[ShopModule] Could not resolve a ShopItems folder for '%s'."):format(storeKey))
+        end
+    end
+end
+
+-- storeKey scopes the search to that store's resolved ShopItems folder,
+-- so items shared across stores always come from the right one.
+local function ResolveItemParts(item, quantity, storeKey)
+    local store = STORES[storeKey]
+    if not store then
+        warn(("[ShopModule] Unknown store key '%s'"):format(tostring(storeKey)))
+        return {}
+    end
+
+    local shopItems = store.ShopItemsFolder
+    if not shopItems then
+        warn(("[ShopModule] ShopItems folder not resolved for '%s' — was ResolveShopFolders called?"):format(storeKey))
         return {}
     end
 
     local results = {}
 
-    for _, shopItems in ipairs(stores:GetChildren()) do
+    for _, box in ipairs(shopItems:GetChildren()) do
         if #results >= quantity then break end
-        if shopItems.Name ~= "ShopItems" then continue end
+        if not (box:IsA("Model") and box.Name == "Box") then continue end
 
-        for _, box in ipairs(shopItems:GetChildren()) do
-            if #results >= quantity then break end
-            if not (box:IsA("Model") and box.Name == "Box") then continue end
+        local nameVal = box:FindFirstChild("BoxItemName")
+        if not (nameVal and nameVal:IsA("StringValue")) then continue end
+        if nameVal.Value ~= item.BoxItemName then continue end
 
-            local nameVal = box:FindFirstChild("BoxItemName")
-            if not (nameVal and nameVal:IsA("StringValue")) then continue end
-            if nameVal.Value ~= item.BoxItemName then continue end
-
-            local main = box:FindFirstChild("Main")
-            if main and main:IsA("BasePart") and not main.Anchored then
-                table.insert(results, main)
-            end
+        local main = box:FindFirstChild("Main")
+        if main and main:IsA("BasePart") and not main.Anchored then
+            table.insert(results, main)
         end
     end
 
     if #results == 0 then
-        warn(("[ShopModule] No Box '%s' found."):format(item.BoxItemName))
+        warn(("[ShopModule] No Box '%s' in %s."):format(item.BoxItemName, storeKey))
     elseif #results < quantity then
-        warn(("[ShopModule] Wanted %d × '%s', found %d."):format(quantity, item.Name, #results))
+        warn(("[ShopModule] Wanted %d × '%s' from %s, only found %d."):format(
+            quantity, item.Name, storeKey, #results))
     end
 
     return results
@@ -482,6 +565,10 @@ end
 -- └─────────────────────────────────────────────────────────────────┘
 function ShopModule.Init(Tab, lot, GetImageFunc)
     if lot ~= nil then _LOT = lot end
+
+    -- Resolve which ShopItems folder belongs to each store before anything else.
+    -- This only needs to happen once — results are cached in store.ShopItemsFolder.
+    ResolveShopFolders()
 
     local GetImage = GetImageFunc or getgenv().GetImage or function() return nil end
 
@@ -556,7 +643,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
             return
         end
 
-        local parts = ResolveItemParts(SelectedItem, Quantity)
+        local parts = ResolveItemParts(SelectedItem, Quantity, storeKey)
         if #parts == 0 then return end
 
         local char      = Player.Character
