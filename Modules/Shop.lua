@@ -9,12 +9,6 @@ local StarterGui        = game:GetService("StarterGui")
 local Player            = Players.LocalPlayer
 
 -- ┌─────────────────────────────────────────────────────────────────┐
--- │                     PURCHASE COORDINATES                        │
--- └─────────────────────────────────────────────────────────────────┘
-local ITEM_DROP_CF  = CFrame.new(268.5, 5.2,  67.4)
-local PLAYER_BUY_CF = CFrame.new(262.1, 3.2,  64.8)
-
--- ┌─────────────────────────────────────────────────────────────────┐
 -- │                     LOT REFERENCE                               │
 -- └─────────────────────────────────────────────────────────────────┘
 local _LOT = nil
@@ -38,6 +32,51 @@ local NPCs = {
 local Remote      = ReplicatedStorage.NPCDialog.PlayerChatted
 local PromptChat  = ReplicatedStorage.NPCDialog.PromptChat
 local SetChatting = ReplicatedStorage.NPCDialog.SetChattingValue
+
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                   PER-STORE CONFIGURATION                       │
+-- │                                                                 │
+-- │  Each key matches a child name under workspace.Stores.          │
+-- │  NPCName    → key in the NPCs table above.                      │
+-- │  ItemDropCF → where the bought box is teleported to.            │
+-- │  PlayerBuyCF→ where your character stands during purchase.      │
+-- │                                                                 │
+-- │  Items in LT2ItemList.lua must include  Store = "WoodRUs"       │
+-- │  (or whichever key applies) so the module knows which config    │
+-- │  to use.                                                        │
+-- └─────────────────────────────────────────────────────────────────┘
+local StoreConfigs = {
+    WoodRUs = {
+        NPCName     = "Thom",
+        ItemDropCF  = CFrame.new(268.5, 5.2,  67.4),
+        PlayerBuyCF = CFrame.new(262.1, 3.2,  64.8),
+    },
+    FurnitureStore = {
+        NPCName     = "Corey",
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+    },
+    CarStore = {
+        NPCName     = "Jenny",
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+    },
+    ShackShop = {
+        NPCName     = "Bob",
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+    },
+    FineArt = {
+        NPCName     = "Timothy",
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+    },
+    LogicStore = {
+        NPCName     = "Lincoln",
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+    },
+}
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                       FUNDS REMOTE                              │
@@ -120,34 +159,35 @@ local function FetchNPCIDs()
     Notify("Shop", "NPC IDs ready.", 3)
 end
 
-local function GetNearestNPCArg(mainPart)
-    if not mainPart then return nil end
-
-    local bestDist = math.huge
-    local bestNPC, bestName
-
-    for name, npc in pairs(NPCs) do
-        local store = npc.Parent
-        if store and store:FindFirstChild("Counter") then
-            local dist = (store.Counter.CFrame.p - mainPart.Position).Magnitude
-            if dist < bestDist then
-                bestDist = dist
-                bestNPC  = npc
-                bestName = name
-            end
-        end
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                   NPC ARG — BY STORE NAME                       │
+-- │                                                                  │
+-- │  Looks up the store config directly instead of finding the      │
+-- │  nearest counter. Guarantees the right NPC is always used.      │
+-- └─────────────────────────────────────────────────────────────────┘
+local function GetNPCArgForStore(storeName)
+    local config = StoreConfigs[storeName]
+    if not config then
+        warn("[ShopModule] No StoreConfig found for store: " .. tostring(storeName))
+        return nil
     end
 
-    if not bestNPC then return nil end
-    if not bestNPC:FindFirstChild("Dialog") then
-        Instance.new("Dialog", bestNPC)
+    local npcName = config.NPCName
+    local npc     = NPCs[npcName]
+    if not npc then
+        warn("[ShopModule] NPC '" .. tostring(npcName) .. "' not found in NPCs table.")
+        return nil
+    end
+
+    if not npc:FindFirstChild("Dialog") then
+        Instance.new("Dialog", npc)
     end
 
     return {
-        ID        = NPCIDs[bestName],
-        Character = bestNPC,
-        Name      = bestName,
-        Dialog    = bestNPC.Dialog,
+        ID        = NPCIDs[npcName],
+        Character = npc,
+        Name      = npcName,
+        Dialog    = npc.Dialog,
     }
 end
 
@@ -222,12 +262,38 @@ local function PurchasePowerOfEase()
 
     Notify("Shop", "Teleported — initiating Power of Ease purchase…", 4)
 
-    local npcArg = GetNearestNPCArg(root)
-    if not npcArg or not npcArg.ID then
+    -- POE has no specific store config, so fall back to nearest-counter logic
+    local bestDist = math.huge
+    local bestNPC, bestName
+
+    for name, npc in pairs(NPCs) do
+        local store = npc.Parent
+        if store and store:FindFirstChild("Counter") then
+            local dist = (store.Counter.CFrame.p - root.Position).Magnitude
+            if dist < bestDist then
+                bestDist = dist
+                bestNPC  = npc
+                bestName = name
+            end
+        end
+    end
+
+    if not bestNPC then
         Notify("❌ No NPC", "Could not find an NPC at the Power of Ease location.", 4)
         root.CFrame = returnCF
         return
     end
+
+    if not bestNPC:FindFirstChild("Dialog") then
+        Instance.new("Dialog", bestNPC)
+    end
+
+    local npcArg = {
+        ID        = NPCIDs[bestName],
+        Character = bestNPC,
+        Name      = bestName,
+        Dialog    = bestNPC.Dialog,
+    }
 
     local fireCount = 0
     local deadline  = tick() + POE_TIMEOUT
@@ -364,8 +430,26 @@ local function SpamPurchase(mainPart, npcArg, itemName)
     return false
 end
 
-local function PurchasePart(mainPart, itemName, originalCF)
-    local success = _LOT.TeleportMany({ { target = mainPart, goalCF = ITEM_DROP_CF } })
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                      PURCHASE PART                              │
+-- │                                                                 │
+-- │  Now accepts the full item table so it can read item.Store      │
+-- │  and pull the correct ItemDropCF / PlayerBuyCF / NPC.           │
+-- └─────────────────────────────────────────────────────────────────┘
+local function PurchasePart(mainPart, item, originalCF)
+    local storeName = item.Store
+    local config    = StoreConfigs[storeName]
+
+    if not config then
+        warn("[ShopModule] No StoreConfig for store '" .. tostring(storeName) .. "' — skipping purchase.")
+        return false
+    end
+
+    local itemDropCF  = config.ItemDropCF
+    local playerBuyCF = config.PlayerBuyCF
+    local itemName    = item.Name
+
+    local success = _LOT.TeleportMany({ { target = mainPart, goalCF = itemDropCF } })
 
     if _LOT.IsBusy() then
         Notify("Shop", "Waiting for TP to settle…", 2)
@@ -385,12 +469,12 @@ local function PurchasePart(mainPart, itemName, originalCF)
     end
 
     originalCF = originalCF or root.CFrame
-    root.CFrame = PLAYER_BUY_CF
+    root.CFrame = playerBuyCF
     task.wait(0.1)
 
-    local npcArg = GetNearestNPCArg(mainPart)
+    local npcArg = GetNPCArgForStore(storeName)
     if not npcArg or not npcArg.ID then
-        Notify("❌ No NPC", ("Could not find NPC for '%s'."):format(itemName), 4)
+        Notify("❌ No NPC", ("Could not find NPC for store '%s'."):format(tostring(storeName)), 4)
         return false
     end
 
@@ -451,11 +535,95 @@ local function LoadItemList()
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
+-- │                   SHOPITEMS ↔ STORE MATCHER                     │
+-- │                                                                  │
+-- │  workspace.Stores has multiple children named "ShopItems".      │
+-- │  We identify which one belongs to a given store by finding      │
+-- │  the ShopItems container whose parts sit closest to that        │
+-- │  store's Counter (same landmark used by the NPC distance code). │
+-- │                                                                  │
+-- │  Results are cached so the scan only runs once per store.       │
+-- └─────────────────────────────────────────────────────────────────┘
+local ShopItemsCache = {}  -- storeName → ShopItems instance (or false if not found)
+
+local function GetShopItemsForStore(storeName)
+    -- Return cached result (false means "already searched, not found")
+    if ShopItemsCache[storeName] ~= nil then
+        return ShopItemsCache[storeName] or nil
+    end
+
+    local config = StoreConfigs[storeName]
+    if not config then
+        ShopItemsCache[storeName] = false
+        return nil
+    end
+
+    -- Anchor point: the store's Counter position (same as NPC proximity logic)
+    local npc   = NPCs[config.NPCName]
+    local store = npc and npc.Parent
+    local anchor
+
+    if store and store:FindFirstChild("Counter") then
+        anchor = store.Counter.CFrame.p
+    elseif store and store:IsA("Model") then
+        local ok, piv = pcall(function() return store:GetPivot().Position end)
+        if ok then anchor = piv end
+    end
+
+    if not anchor then
+        warn("[ShopModule] Could not determine position for store: " .. storeName)
+        ShopItemsCache[storeName] = false
+        return nil
+    end
+
+    -- Scan all ShopItems containers and pick the closest one
+    local stores = workspace:FindFirstChild("Stores")
+    if not stores then
+        warn("[ShopModule] workspace.Stores not found.")
+        ShopItemsCache[storeName] = false
+        return nil
+    end
+
+    local bestContainer, bestDist = nil, math.huge
+
+    for _, child in ipairs(stores:GetChildren()) do
+        if child.Name ~= "ShopItems" then continue end
+
+        -- Sample the first BasePart we find inside to get a position
+        local samplePos
+        for _, desc in ipairs(child:GetDescendants()) do
+            if desc:IsA("BasePart") then
+                samplePos = desc.Position
+                break
+            end
+        end
+
+        if samplePos then
+            local dist = (samplePos - anchor).Magnitude
+            if dist < bestDist then
+                bestDist      = dist
+                bestContainer = child
+            end
+        end
+    end
+
+    if bestContainer then
+        print(("[ShopModule] Matched ShopItems for '%s' → %s (dist %.1f)"):format(
+            storeName, bestContainer:GetFullName(), bestDist))
+    else
+        warn("[ShopModule] No ShopItems container found near store: " .. storeName)
+    end
+
+    ShopItemsCache[storeName] = bestContainer or false
+    return bestContainer
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
 -- │                      WORLD PATH RESOLVER                        │
 -- │                                                                  │
--- │  Returns however many boxes are on the shelf RIGHT NOW,         │
--- │  capped at `limit`. Finding fewer than limit is normal —        │
--- │  the buy loop handles restocking automatically.                 │
+-- │  Searches only the ShopItems container that belongs to the      │
+-- │  item's linked store. Falls back to all containers if the       │
+-- │  item has no Store field or the match fails.                    │
 -- └─────────────────────────────────────────────────────────────────┘
 local function ResolveItemParts(item, limit)
     local stores = workspace:FindFirstChild("Stores")
@@ -466,10 +634,7 @@ local function ResolveItemParts(item, limit)
 
     local results = {}
 
-    for _, shopItems in ipairs(stores:GetChildren()) do
-        if #results >= limit then break end
-        if shopItems.Name ~= "ShopItems" then continue end
-
+    local function searchContainer(shopItems)
         for _, box in ipairs(shopItems:GetChildren()) do
             if #results >= limit then break end
             if not (box:IsA("Model") and box.Name == "Box") then continue end
@@ -485,21 +650,35 @@ local function ResolveItemParts(item, limit)
         end
     end
 
+    local storeName = item.Store
+    if storeName then
+        local targetContainer = GetShopItemsForStore(storeName)
+        if targetContainer then
+            searchContainer(targetContainer)
+            return results
+        end
+        -- If the match failed, fall through to the broad scan below
+        warn("[ShopModule] Falling back to full scan for item: " .. tostring(item.Name))
+    end
+
+    -- Broad fallback: search every ShopItems container (original behaviour)
+    for _, child in ipairs(stores:GetChildren()) do
+        if #results >= limit then break end
+        if child.Name ~= "ShopItems" then continue end
+        searchContainer(child)
+    end
+
     return results
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                    RESTOCK-AWARE BUY LOOP                       │
--- │                                                                  │
--- │  Buys in waves — however many boxes are on the shelf right now. │
--- │  When the shelf empties mid-order, polls until new stock        │
--- │  appears (or times out / user cancels), then keeps buying.      │
 -- └─────────────────────────────────────────────────────────────────┘
-local RESTOCK_POLL_RATE    = 0.5   -- how often to scan the shelf while waiting (seconds)
-local RESTOCK_NOTIFY_EVERY = 10    -- send a "still waiting" ping every N seconds
-local RESTOCK_TIMEOUT      = 120   -- give up if shelf stays empty this long (seconds)
+local RESTOCK_POLL_RATE    = 0.5
+local RESTOCK_NOTIFY_EVERY = 10
+local RESTOCK_TIMEOUT      = 120
 
-local _isBuying = false  -- cancellation flag; set false to abort from outside
+local _isBuying = false
 
 local function RunBuyLoop(item, totalQty, pressedCF, onDone)
     _isBuying = true
@@ -509,21 +688,16 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
     local bought       = 0
     local failed       = 0
     local itemName     = item.Name
-    local restockTimer = 0   -- seconds spent waiting for a restock
+    local restockTimer = 0
 
     Notify("Shop", ("Starting order: %d × %s"):format(totalQty, itemName), 4)
 
     while bought < totalQty and _isBuying do
         local stillNeed = totalQty - bought
-
-        -- ── Scan the shelf for whatever is available right now ────
-        local parts = ResolveItemParts(item, stillNeed)
+        local parts     = ResolveItemParts(item, stillNeed)
 
         if #parts == 0 then
-            -- Shelf is empty — start / continue waiting for restock
-
             if restockTimer == 0 then
-                -- First time the shelf runs dry this order
                 Notify(
                     "⏳ Waiting for restock…",
                     ("Bought %d / %d × %s — shelf is empty."):format(bought, totalQty, itemName),
@@ -534,7 +708,6 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
             task.wait(RESTOCK_POLL_RATE)
             restockTimer += RESTOCK_POLL_RATE
 
-            -- Periodic "still waiting" reminder so the user knows we're alive
             if restockTimer % RESTOCK_NOTIFY_EVERY < RESTOCK_POLL_RATE then
                 Notify(
                     "⏳ Still waiting for restock…",
@@ -556,10 +729,9 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
                 break
             end
 
-            continue  -- re-scan on next iteration
+            continue
         end
 
-        -- Stock found — reset the restock wait timer and announce the wave
         if restockTimer > 0 then
             Notify(
                 "🛒 Restock detected!",
@@ -569,7 +741,6 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
             restockTimer = 0
         end
 
-        -- ── Buy every item in this wave ───────────────────────────
         for _, mainPart in ipairs(parts) do
             if not _isBuying      then break end
             if bought >= totalQty then break end
@@ -581,7 +752,8 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
 
             if _LOT.IsBusy() then _LOT.WaitForBatch() end
 
-            local ok = PurchasePart(mainPart, itemName, pressedCF)
+            -- Pass the full item table so PurchasePart can read item.Store
+            local ok = PurchasePart(mainPart, item, pressedCF)
             if ok then
                 bought += 1
                 if bought % 5 == 0 and bought < totalQty then
@@ -595,8 +767,6 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
                 failed += 1
             end
         end
-        -- After the wave finishes, loop back immediately.
-        -- If more stock appeared during buying we grab it; otherwise we wait.
     end
 
     _isBuying = false
@@ -679,18 +849,27 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
     PurchaseBtn = Tab:CreateAction("Finalize Order", ("$%d"):format(ShopItems[1].Price), function()
 
-        -- ── Cancel a running order ────────────────────────────────
         if _isBuying then
             _isBuying = false
             Notify("🛑 Cancelling…", "Stopping after the current item finishes.", 3)
             return
         end
 
-        -- ── Pre-flight checks ─────────────────────────────────────
         if not SelectedItem then return end
 
         if _LOT == nil then
             warn("[ShopModule] LOT is not set. Call ShopModule.SetLOT(lot) or pass it to Init.")
+            return
+        end
+
+        if not SelectedItem.Store then
+            Notify("❌ Config Error", ("Item '%s' has no Store field set."):format(SelectedItem.Name), 5)
+            warn("[ShopModule] Item '" .. SelectedItem.Name .. "' is missing the Store field in LT2ItemList.lua")
+            return
+        end
+
+        if not StoreConfigs[SelectedItem.Store] then
+            Notify("❌ Config Error", ("Unknown store '%s' for item '%s'."):format(SelectedItem.Store, SelectedItem.Name), 5)
             return
         end
 
@@ -705,7 +884,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
             return
         end
 
-        -- Can't afford even one
         if funds < SelectedItem.Price then
             Notify(
                 "❌ Insufficient Funds",
@@ -715,7 +893,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
             return
         end
 
-        -- Can afford some but not the full order — clamp and warn
         local totalCost = SelectedItem.Price * Quantity
         local targetQty = Quantity
         if funds < totalCost then
