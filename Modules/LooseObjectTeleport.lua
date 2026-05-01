@@ -201,19 +201,12 @@ end
 local function TeleportSingle(target, goalCF, root)
     if not target or not target.Parent then return end
 
-    local model         = target:FindFirstAncestorOfClass("Model") or target.Parent
+    local model          = target:FindFirstAncestorOfClass("Model") or target.Parent
     local lastInteracted = FindLastInteraction(model)
 
-    -- Capture the value RIGHT NOW, before anything fires.
-    local initialValue = lastInteracted and lastInteracted.Value
-
-    -- 1. TP player next to the object so the server accepts the remote.
     root.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0))
     task.wait(Settings.PreFireWait)
 
-    -- 2. Fire ClientIsDragging in a background thread while the main
-    --    coroutine sleeps. The moment LastInteraction changes the signal
-    --    wakes us up immediately — no polling, no frame delay.
     if lastInteracted then
         local co    = coroutine.running()
         local fired = false
@@ -221,39 +214,54 @@ local function TeleportSingle(target, goalCF, root)
         local conn = lastInteracted:GetPropertyChangedSignal("Value"):Connect(function()
             if not fired then
                 fired = true
-                task.spawn(co)   -- wake the sleeping coroutine instantly
+                task.spawn(co)
             end
         end)
 
-        -- Fire loop runs in its own thread so it doesn't block the yield below
         local fireLoop = task.spawn(function()
             local deadline = tick() + Settings.OwnershipTimeout
-            while not fired and tick() < deadline do
-                ClientIsDragging:FireServer(model)
-                task.wait()
-            end
-            -- Timeout: wake the coroutine if the signal never fired
+
+            -- pcall wraps the entire loop so any remote error (throttle,
+            -- model destroyed mid-fire, etc.) exits cleanly instead of
+            -- crashing the thread and leaving `co` suspended forever.
+            local ok, err = pcall(function()
+                while not fired and tick() < deadline do
+                    ClientIsDragging:FireServer(model)
+                    task.wait()
+                end
+            end)
+
+            -- Always wake the coroutine — whether we timed out, errored, or succeeded.
             if not fired then
                 fired = true
                 task.spawn(co)
-                warn(("[LOT] LastInteraction on '%s' never changed within %.1fs — proceeding anyway.")
-                    :format(model.Name, Settings.OwnershipTimeout))
+                if not ok then
+                    warn(("[LOT] FireServer errored on '%s': %s")
+                        :format(model.Name, tostring(err)))
+                else
+                    warn(("[LOT] LastInteraction on '%s' never changed within %.1fs — proceeding anyway.")
+                        :format(model.Name, Settings.OwnershipTimeout))
+                end
             end
         end)
 
-        coroutine.yield()   -- sleep here until signal or timeout wakes us
+        coroutine.yield()
         conn:Disconnect()
         task.cancel(fireLoop)
     else
         warn(("[LOT] No Owner.LastInteraction found on '%s' — using fallback wait."):format(model.Name))
         local deadline = tick() + Settings.FallbackWait
         while tick() < deadline do
-            ClientIsDragging:FireServer(model)
+            -- pcall here too so a remote error doesn't abort the fallback path
+            local ok, err = pcall(ClientIsDragging.FireServer, ClientIsDragging, model)
+            if not ok then
+                warn(("[LOT] Fallback FireServer errored on '%s': %s"):format(model.Name, tostring(err)))
+                break
+            end
             task.wait()
         end
     end
 
-    -- 4. Move the object
     if target and target.Parent then
         target.CFrame = goalCF
     end
@@ -286,7 +294,12 @@ local function RunBatch(jobs)
     for _, job in ipairs(jobs) do
         if State.BatchCancelled then break end
         if job.target and job.target.Parent then
-            TeleportSingle(job.target, job.goalCF, root)
+            -- A single object failing (destroyed, bad CFrame, etc.)
+            -- must never abort the rest of the batch.
+            local ok, err = pcall(TeleportSingle, job.target, job.goalCF, root)
+            if not ok then
+                warn(("[LOT] TeleportSingle failed, skipping object: %s"):format(tostring(err)))
+            end
         end
     end
 
