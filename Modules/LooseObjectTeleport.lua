@@ -48,9 +48,9 @@ end
 -- │                     CONFIGURATION & STATE                       │
 -- └─────────────────────────────────────────────────────────────────┘
 local Settings = {
-    -- Max seconds to wait for LastInteracted to change before giving up
+    -- Max seconds to wait for LastInteraction to change before giving up
     OwnershipTimeout = 3,
-    -- Fallback wait (s) used when no LastInteracted is found on the model
+    -- Fallback wait (s) used when no LastInteraction is found on the model
     FallbackWait     = 0.5,
     -- Small pause after TPing the player before firing the remote.
     -- Needed so the server registers the player's new position first.
@@ -188,21 +188,21 @@ local function PlayerAlignedCFrame(position, root)
     return CFrame.lookAt(position, position + flatLook.Unit)
 end
 
-local function FindLastInteracted(model)
+local function FindLastInteraction(model)
     local ownerFolder = model:FindFirstChild("Owner")
     if ownerFolder then
-        local li = ownerFolder:FindFirstChild("LastInteracted")
+        local li = ownerFolder:FindFirstChild("LastInteraction")
         if li then return li end
     end
     -- Flat fallback in case it sits directly on the model
-    return model:FindFirstChild("LastInteracted")
+    return model:FindFirstChild("LastInteraction")
 end
 
 local function TeleportSingle(target, goalCF, root)
     if not target or not target.Parent then return end
 
     local model         = target:FindFirstAncestorOfClass("Model") or target.Parent
-    local lastInteracted = FindLastInteracted(model)
+    local lastInteracted = FindLastInteraction(model)
 
     -- Capture the value RIGHT NOW, before anything fires.
     local initialValue = lastInteracted and lastInteracted.Value
@@ -212,7 +212,7 @@ local function TeleportSingle(target, goalCF, root)
     task.wait(Settings.PreFireWait)
 
     -- 2. Fire ClientIsDragging in a background thread while the main
-    --    coroutine sleeps. The moment LastInteracted changes the signal
+    --    coroutine sleeps. The moment LastInteraction changes the signal
     --    wakes us up immediately — no polling, no frame delay.
     if lastInteracted then
         local co    = coroutine.running()
@@ -236,7 +236,7 @@ local function TeleportSingle(target, goalCF, root)
             if not fired then
                 fired = true
                 task.spawn(co)
-                warn(("[LOT] LastInteracted on '%s' never changed within %.1fs — proceeding anyway.")
+                warn(("[LOT] LastInteraction on '%s' never changed within %.1fs — proceeding anyway.")
                     :format(model.Name, Settings.OwnershipTimeout))
             end
         end)
@@ -245,7 +245,7 @@ local function TeleportSingle(target, goalCF, root)
         conn:Disconnect()
         task.cancel(fireLoop)
     else
-        warn(("[LOT] No Owner.LastInteracted found on '%s' — using fallback wait."):format(model.Name))
+        warn(("[LOT] No Owner.LastInteraction found on '%s' — using fallback wait."):format(model.Name))
         local deadline = tick() + Settings.FallbackWait
         while tick() < deadline do
             ClientIsDragging:FireServer(model)
