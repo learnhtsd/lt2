@@ -86,33 +86,73 @@ function Plot.Init(Tab, Library)
             if Library and Library.Notify then Library:Notify("SUCCESS", "Plot fully expanded!", 3) end
         end
     end)
-    Tab:CreateAction("Clear Entire Base", "Wipe", function()
+    Tab:CreateAction("Whipe Plot", "Wipe", function()
         local playerModels = Workspace:FindFirstChild("PlayerModels")
         local destroyRemote = interaction and interaction:FindFirstChild("DestroyStructure")
-
+    
         if not playerModels or not destroyRemote then
             if Library and Library.Notify then Library:Notify("ERROR", "Wipe system unavailable", 3) end
             return
         end
-
-        if Library and Library.Notify then 
-            Library:Notify("WIPE", "Clearing your base... this may take a moment.", 4) 
+    
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not char or not root then
+            if Library and Library.Notify then Library:Notify("ERROR", "Character missing.", 2) end
+            return
         end
-
-        local count = 0
+    
+        -- Snapshot the list up front so destroyed models don't affect iteration
+        local toDestroy = {}
         for _, model in pairs(playerModels:GetChildren()) do
             local owner = model:FindFirstChild("Owner")
-            -- Verify you are the owner before firing
             if owner and owner.Value == LocalPlayer then
-                destroyRemote:FireServer(model)
-                count = count + 1
-                -- Wait every 20 items to prevent the server from lagging out
-                if count % 20 == 0 then task.wait(0.1) end
+                local main = model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
+                if main then
+                    table.insert(toDestroy, { model = model, main = main })
+                end
             end
         end
-
-        if Library and Library.Notify then 
-            Library:Notify("SUCCESS", "Base wipe complete!", 3) 
+    
+        if #toDestroy == 0 then
+            if Library and Library.Notify then Library:Notify("WIPE", "Nothing found to clear.", 3) end
+            return
+        end
+    
+        if Library and Library.Notify then
+            Library:Notify("WIPE", "Clearing " .. #toDestroy .. " object(s)…", math.ceil(#toDestroy * 0.1))
+        end
+    
+        -- Save player position to restore after
+        local savedCFrame = root.CFrame
+        local count = 0
+    
+        for _, entry in ipairs(toDestroy) do
+            -- Skip if already gone (another player or previous fire removed it)
+            if not entry.model.Parent or not entry.main.Parent then continue end
+    
+            -- TP next to the object so the server's distance check passes
+            root.CFrame = CFrame.new(entry.main.Position + Vector3.new(0, 3, 0))
+            task.wait(0.05)
+    
+            local ok, err = pcall(destroyRemote.FireServer, destroyRemote, entry.model)
+            if not ok then
+                warn(("[Wipe] FireServer failed on '%s': %s"):format(entry.model.Name, tostring(err)))
+            else
+                count = count + 1
+            end
+    
+            -- Small yield so the server can process each destroy before the next
+            task.wait(0.05)
+        end
+    
+        -- Return player to original position
+        if root and root.Parent then
+            root.CFrame = savedCFrame
+        end
+    
+        if Library and Library.Notify then
+            Library:Notify("SUCCESS", "Wiped " .. count .. " object(s).", 4)
         end
     end)
 end
