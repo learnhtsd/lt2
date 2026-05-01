@@ -753,6 +753,24 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
 
     InitLassoGui()
 
+    local Notice = Tab:CreateInfoBox()
+    Notice:AddText("⚠  Server Performance Notice", {
+        Bold  = true,
+        Size  = 13,
+    })
+    Notice:AddDivider()
+    Notice:AddText(
+        "You may experience delays or failures in heavily populated servers " ..
+        "or on low tick-rate servers. If objects fail to move, try increasing " ..
+        "the Ownership Timeout slider below.",
+        {
+            Size    = 11,
+            Opacity = 0.75,
+            Italic  = true,
+            Wrap    = true,
+        }
+    )
+    
     Tab:CreateSection("Teleportation Tools")
     Tab:CreateToggle("Click Selection", false, function(val) State.ClickSelectMode = val end)
     Tab:CreateToggle("Group Selection", false, function(val) State.GroupSelectMode = val end)
