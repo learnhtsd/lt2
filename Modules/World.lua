@@ -17,12 +17,19 @@ function World.Init(Tab, Lib)
     _G.BouldersRemoved = false 
     _G.VolcanoBouldersRemoved = false
     _G.PostProcessing = true
+    _G.SpookEvent = false
     _G.EnhancedGraphics = false -- New State
 
     local waterParts = {}
     local boulderParts = {} 
     local effectCache = {}
     local originalLightingSettings = {} -- To restore visuals
+
+    -- Bridge Backup for Resetting
+    local bridgeBackup = nil
+    if Workspace:FindFirstChild("Bridge") then
+        bridgeBackup = Workspace.Bridge:Clone()
+    end
 
     -- IMPROVED: Incremental Scan
     local function ScanWorld()
@@ -61,6 +68,45 @@ function World.Init(Tab, Lib)
 
     task.spawn(ScanWorld)
 
+    -- ===========================
+    -- BRIDGE LOGIC
+    -- ===========================
+    local function ToggleBridge(state)
+        if state then
+            local bridge = Workspace:FindFirstChild("Bridge")
+            if bridge then
+                -- 1. Move the Lift Base
+                local liftBase = bridge:FindFirstChild("VerticalLiftBridge") 
+                    and bridge.VerticalLiftBridge:FindFirstChild("Lift") 
+                    and bridge.VerticalLiftBridge.Lift:FindFirstChild("Base")
+
+                if liftBase then
+                    liftBase.CFrame = CFrame.new(liftBase.Position.X, 6.5, liftBase.Position.Z)
+                end
+
+                -- 2. Delete specified parts
+                local vlb = bridge:FindFirstChild("VerticalLiftBridge")
+                if vlb then
+                    local targets = {"Brope", "Structure", "weight", "Wrope"}
+                    for _, child in pairs(vlb:GetChildren()) do
+                        if table.find(targets, child.Name) then
+                            child:Destroy()
+                        end
+                    end
+                end
+            end
+        else
+            -- 3. Reset the Bridge
+            if bridgeBackup then
+                if Workspace:FindFirstChild("Bridge") then
+                    Workspace.Bridge:Destroy()
+                end
+                local restoredBridge = bridgeBackup:Clone()
+                restoredBridge.Parent = Workspace
+            end
+        end
+    end
+    
     -- ===========================
     -- ENHANCED VISUALS LOGIC
     -- ===========================
@@ -184,6 +230,14 @@ function World.Init(Tab, Lib)
     Tab:CreateToggle("Water Enabled", true, function(s)
         _G.WaterEnabled = s
         ToggleWater(s)
+    end)
+
+    Tab:CreateToggle("Lower Bridge", false, function(s)
+        _G.BridgeDown = s
+        ToggleBridge(s)
+        if Lib and Lib.Notify then 
+            Lib:Notify("Map", s and "Bridge lowered and cleaned!" or "Bridge reset to original.", 3) 
+        end
     end)
 
     Tab:CreateToggle("Toggle Tundra Boulders", false, function(s)
