@@ -11,7 +11,6 @@ local Settings = {
     FiresPerSection = 50,
     FireDelay       = 0.03,
     SweepDelay      = 0.1,
-    ChopTimeout     = 30,
 
     -- [ LOT Settings ]
     LogDropDistance = 6,
@@ -24,22 +23,22 @@ local Settings = {
 --             DAMAGE TABLE
 -- ==========================================
 local AxeDamage = {
-    ["Basic Hatchet"]       = function(_)      return 0.2        end,
-    ["Plain Axe"]           = function(_)      return 0.55       end,
-    ["Steel Axe"]           = function(_)      return 0.93       end,
-    ["Hardened Axe"]        = function(_)      return 1.45       end,
-    ["Silver Axe"]          = function(_)      return 1.6        end,
-    ["Rukiryaxe"]           = function(_)      return 1.68       end,
-    ["Beta Axe of Bosses"]  = function(_)      return 1.45       end,
-    ["Alpha Axe of Testing"]= function(_)      return 1.5        end,
-    ["Johiro"]              = function(_)      return 1.8        end,
-    ["Beesaxe"]             = function(_)      return 1.4        end,
-    ["CHICKEN AXE"]         = function(_)      return 0.9        end,
-    ["Amber Axe"]           = function(_)      return 3.39       end,
-    ["The Many Axe"]        = function(_)      return 10.2       end,
-    ["Candy Cane Axe"]      = function(_)      return 0          end,
-    ["Fire Axe"]            = function(tc)     return tc == "Volcano"     and 6.35 or 0.6    end,
-    ["End Times Axe"]       = function(tc)     return tc == "LoneCave"    and 1e7  or 1.58   end,
+    ["Basic Hatchet"]       = function(_)  return 0.2  end,
+    ["Plain Axe"]           = function(_)  return 0.55 end,
+    ["Steel Axe"]           = function(_)  return 0.93 end,
+    ["Hardened Axe"]        = function(_)  return 1.45 end,
+    ["Silver Axe"]          = function(_)  return 1.6  end,
+    ["Rukiryaxe"]           = function(_)  return 1.68 end,
+    ["Beta Axe of Bosses"]  = function(_)  return 1.45 end,
+    ["Alpha Axe of Testing"]= function(_)  return 1.5  end,
+    ["Johiro"]              = function(_)  return 1.8  end,
+    ["Beesaxe"]             = function(_)  return 1.4  end,
+    ["CHICKEN AXE"]         = function(_)  return 0.9  end,
+    ["Amber Axe"]           = function(_)  return 3.39 end,
+    ["The Many Axe"]        = function(_)  return 10.2 end,
+    ["Candy Cane Axe"]      = function(_)  return 0    end,
+    ["Fire Axe"]            = function(tc) return tc == "Volcano"      and 6.35 or 0.6   end,
+    ["End Times Axe"]       = function(tc) return tc == "LoneCave"     and 1e7  or 1.58  end,
     ["Gingerbread Axe"]     = function(tc)
         if tc == "Walnut" then return 8.5
         elseif tc == "Koa" then return 11
@@ -71,7 +70,6 @@ local camera = Workspace.CurrentCamera
 local isChopping          = false
 local preChopCFrame       = nil
 local preChopCameraCFrame = nil
-local lockConn            = nil
 local preChopLogModels    = {}
 
 -- ==========================================
@@ -224,11 +222,6 @@ local function CleanupState()
     if preChopCameraCFrame then
         camera.CFrame = preChopCameraCFrame
     end
-
-    if lockConn then
-        lockConn:Disconnect()
-        lockConn = nil
-    end
 end
 
 local function WaitForLogsToSettle(treeClass)
@@ -340,10 +333,7 @@ local function FindOwnedPlank(part)
 end
 
 local function ClearHoverOutline()
-    if _hoverOutline then
-        _hoverOutline:Destroy()
-        _hoverOutline = nil
-    end
+    if _hoverOutline then _hoverOutline:Destroy(); _hoverOutline = nil end
     _hoverPlank = nil
 end
 
@@ -369,10 +359,7 @@ local function StopSellPlanks()
 end
 
 local function StartSellPlanks(LOT)
-    if not LOT then
-        warn("[TreeModule] LOT not available for Sell Planks.")
-        return
-    end
+    if not LOT then warn("[TreeModule] LOT not available for Sell Planks.") return end
 
     _sellPlanksOn = true
     _isSelling    = false
@@ -386,8 +373,7 @@ local function StartSellPlanks(LOT)
     end)
 
     _clickConn = mouse.Button1Down:Connect(function()
-        if not _sellPlanksOn then return end
-        if _isSelling then return end
+        if not _sellPlanksOn or _isSelling then return end
         if not _hoverPlank or not _hoverPlank.Parent then return end
 
         local plank = _hoverPlank
@@ -395,9 +381,7 @@ local function StartSellPlanks(LOT)
         _isSelling = true
 
         task.spawn(function()
-            if LOT.IsBusy() then
-                repeat task.wait(0.05) until not LOT.IsBusy()
-            end
+            if LOT.IsBusy() then repeat task.wait(0.05) until not LOT.IsBusy() end
 
             local target = plank.PrimaryPart
             if not target then
@@ -424,6 +408,14 @@ end
 -- ==========================================
 local RemoteProxy = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
 
+-- Height fraction scales with section size:
+--   Size.Y >= 8  →  frac 0.1  (tall log, cut near the very bottom)
+--   Size.Y <= 2  →  frac 0.2  (short stump, cut a bit higher so it registers)
+--   In between   →  linear interpolation, clamped to [0.1, 0.2]
+local function CutHeightFrac(sizeY)
+    return math.clamp(0.1 + (8 - sizeY) / 60, 0.1, 0.2)
+end
+
 local function FireCutSection(section, tool, axeName, treeClass)
     if not section or not section.Parent then return end
 
@@ -431,7 +423,7 @@ local function FireCutSection(section, tool, axeName, treeClass)
     if not idObj then return end
 
     local damage = GetDamage(axeName, treeClass)
-    local height = section.Size.Y * 0.2
+    local height = section.Size.Y * CutHeightFrac(section.Size.Y)
 
     local args = {
         sectionId    = idObj.Value,
@@ -501,25 +493,16 @@ local function StartChopping(treeClass, LOT, onComplete)
         return
     end
 
+    -- Save state
     preChopCFrame       = hrp.CFrame
     preChopCameraCFrame = camera.CFrame
     isChopping          = true
 
-    -- Place the player next to the base of the tree
+    -- TP player next to the base section once, then leave them free
     local targetPart = sections[1]
     local standPos   = targetPart.Position + Vector3.new(4, 0, 0)
-    local standCF    = CFrame.lookAt(standPos, targetPart.Position)
-    hrp.CFrame       = standCF
+    hrp.CFrame       = CFrame.lookAt(standPos, targetPart.Position)
     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-
-    lockConn = RunService.RenderStepped:Connect(function()
-        if isChopping then
-            hrp.CFrame = standCF
-            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        else
-            if lockConn then lockConn:Disconnect(); lockConn = nil end
-        end
-    end)
 
     task.wait(Settings.SyncDelay)
 
@@ -533,9 +516,8 @@ local function StartChopping(treeClass, LOT, onComplete)
             return
         end
 
-        local deadline = tick() + Settings.ChopTimeout
-
-        while not TreeHasFallen(treeClass) and isChopping and tick() < deadline do
+        -- Keep firing until the tree falls — no timeout
+        while not TreeHasFallen(treeClass) and isChopping do
             if not baseSection or not baseSection.Parent then
                 local fresh = GetSectionsBottomFirst(treeModel)
                 if #fresh == 0 then break end
@@ -545,16 +527,16 @@ local function StartChopping(treeClass, LOT, onComplete)
             task.wait(Settings.SweepDelay)
         end
 
-        if tick() >= deadline then
-            warn("[TreeModule] ChopTimeout reached — tree never fell. Aborting.")
-        elseif not isChopping then
+        if not isChopping then
+            -- User cancelled
             CleanupState()
             if onComplete then onComplete() end
             return
-        else
-            print("[TreeModule] New logs detected — tree is down. Returning player.")
         end
 
+        print("[TreeModule] Tree is down. Returning player.")
+
+        -- Unequip axe so LOT can TP logs freely
         local equippedTool = player.Character and player.Character:FindFirstChildOfClass("Tool")
         if equippedTool then equippedTool.Parent = player.Backpack end
 
