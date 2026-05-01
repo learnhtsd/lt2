@@ -30,10 +30,10 @@ return {
     { Name = "Pressure Plate",                   Image = "Pressure_Plate.png",                   Price = 640,   BoxItemName = "PressurePlate",               Store = "WoodRUs" },
     -- Vehicles (Jenny's Cars — Jenny)
     { Name = "Utility Truck",                    Image = "Vehicle_Utility_Truck.png",            Price = 400,   BoxItemName = "UtilityTruck",                Store = "WoodRUs" },
-    { Name = "Utility Truck XL",                    Image = "Vehicle_Utility_Truck_XL.png",            Price = 5000,   BoxItemName = "UtilityTruck2",                Store = "WoodRUs" },
-    { Name = "Pickup Truck",                    Image = "Vehicle_Pickup_Truck.png",            Price = 19000,   BoxItemName = "Pickup1",                Store = "WoodRUs" },
-    { Name = "Small Trailer",                    Image = "Vehicle_Trailer_Small.png",            Price = 1800,   BoxItemName = "SmallTrailer",                Store = "WoodRUs" },
-    { Name = "Large Trailer",                    Image = "Vehicle_Trailer_Large.png",            Price = 13000,   BoxItemName = "Trailer2",                Store = "WoodRUs" },
+    { Name = "Utility Truck XL",                    Image = "Vehicle_Utility_Truck_XL.png",            Price = 5000,   BoxItemName = "UtilityTruck2",                Store = "CarStore" },
+    { Name = "Pickup Truck",                    Image = "Vehicle_Pickup_Truck.png",            Price = 19000,   BoxItemName = "Pickup1",                Store = "CarStore" },
+    { Name = "Small Trailer",                    Image = "Vehicle_Trailer_Small.png",            Price = 1800,   BoxItemName = "SmallTrailer",                Store = "CarStore" },
+    { Name = "Large Trailer",                    Image = "Vehicle_Trailer_Large.png",            Price = 13000,   BoxItemName = "Trailer2",                Store = "CarStore" },
     -- Other (Bob's Shack — Bob)
     { Name = "Sandbag",                          Image = "Sandbag.png",                          Price = 1600,  BoxItemName = "BagOfSand",                   Store = "WoodRUs" },
     { Name = "Worklight",                        Image = "Worklight.png",                        Price = 80,    BoxItemName = "WorkLight",                   Store = "WoodRUs" },
