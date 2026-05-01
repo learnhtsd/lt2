@@ -208,31 +208,43 @@ local function TeleportSingle(target, goalCF, root)
     local initialValue = lastInteracted and lastInteracted.Value
 
     -- 1. TP player next to the object so the server accepts the remote.
-    --    PreFireWait lets the server register the new position before we fire.
     root.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0))
     task.wait(Settings.PreFireWait)
 
-    -- 2. Fire ClientIsDragging every frame until LastInteracted changes.
+    -- 2. Fire ClientIsDragging in a background thread while the main
+    --    coroutine sleeps. The moment LastInteracted changes the signal
+    --    wakes us up immediately — no polling, no frame delay.
     if lastInteracted then
-        local synced = false
+        local co    = coroutine.running()
+        local fired = false
+
         local conn = lastInteracted:GetPropertyChangedSignal("Value"):Connect(function()
-            synced = true
+            if not fired then
+                fired = true
+                task.spawn(co)   -- wake the sleeping coroutine instantly
+            end
         end)
 
-        local deadline = tick() + Settings.OwnershipTimeout
-        while not synced and tick() < deadline do
-            ClientIsDragging:FireServer(model)
-            task.wait()   -- one frame between each fire
-        end
+        -- Fire loop runs in its own thread so it doesn't block the yield below
+        local fireLoop = task.spawn(function()
+            local deadline = tick() + Settings.OwnershipTimeout
+            while not fired and tick() < deadline do
+                ClientIsDragging:FireServer(model)
+                task.wait()
+            end
+            -- Timeout: wake the coroutine if the signal never fired
+            if not fired then
+                fired = true
+                task.spawn(co)
+                warn(("[LOT] LastInteracted on '%s' never changed within %.1fs — proceeding anyway.")
+                    :format(model.Name, Settings.OwnershipTimeout))
+            end
+        end)
 
+        coroutine.yield()   -- sleep here until signal or timeout wakes us
         conn:Disconnect()
-
-        if not synced then
-            warn(("[LOT] LastInteracted on '%s' never changed within %.1fs — proceeding anyway.")
-                :format(model.Name, Settings.OwnershipTimeout))
-        end
+        task.cancel(fireLoop)
     else
-        -- No LastInteracted found — fire a burst and use flat fallback wait
         warn(("[LOT] No Owner.LastInteracted found on '%s' — using fallback wait."):format(model.Name))
         local deadline = tick() + Settings.FallbackWait
         while tick() < deadline do
