@@ -153,13 +153,8 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │               SAFE INVOKE — HARD TIMEOUT PER CALL               │
--- │                                                                  │
--- │  Each InvokeServer gets its own hard timeout. The client thread  │
--- │  is resumed so the caller always makes progress, even if the    │
--- │  server never responds. The server still processes the invoke;  │
--- │  only the client stops waiting for the reply.                   │
 -- └─────────────────────────────────────────────────────────────────┘
-local INVOKE_TIMEOUT = 4  -- seconds; raised from 3 to give server more room
+local INVOKE_TIMEOUT = 4
 
 local function SafeInvoke(npcArg, action)
     local co   = coroutine.running()
@@ -222,7 +217,6 @@ local function PurchasePowerOfEase()
     end
 
     local returnCF = root.CFrame
-
     root.CFrame = POE_TP_CF
     task.wait(0.15)
 
@@ -243,7 +237,6 @@ local function PurchasePowerOfEase()
         SafeInvoke(npcArg, "Initiate")
         SafeInvoke(npcArg, "ConfirmPurchase")
         SafeInvoke(npcArg, "EndChat")
-
         fireCount += 1
 
         local newFunds = FetchFunds()
@@ -268,44 +261,18 @@ local function PurchasePowerOfEase()
     task.wait(0.1)
     local returnChar = Player.Character
     local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
-    if returnRoot then
-        returnRoot.CFrame = returnCF
-    end
+    if returnRoot then returnRoot.CFrame = returnCF end
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                       PURCHASE SEQUENCE                         │
--- │                                                                  │
--- │  WHY THE ORIGINAL BROKE                                         │
--- │  ─────────────────────                                          │
--- │  The old code ran the fire loop in a background thread and      │
--- │  checked for success on the main thread simultaneously.         │
--- │  SafeInvoke would time-out mid-cycle (e.g. after Initiate)      │
--- │  and immediately fire ConfirmPurchase before the server had      │
--- │  finished opening the dialog — corrupting its state machine.    │
--- │  The server then rejected ConfirmPurchase with a "not enough    │
--- │  money" error even when the player had sufficient funds.        │
--- │                                                                  │
--- │  THE FIX                                                        │
--- │  ────────                                                        │
--- │  Everything is now sequential in one thread:                    │
--- │    1. Initiate   (wait for server ack or timeout)               │
--- │    2. ConfirmPurchase (wait for server ack or timeout)          │
--- │    3. Check success                                             │
--- │    4. EndChat    — ALWAYS fires to reset server dialog state    │
--- │    5. Short gap before the next cycle                           │
--- │                                                                  │
--- │  If repeated cycles fail the module backs off for longer to     │
--- │  give the server time to fully close any stuck dialog.          │
 -- └─────────────────────────────────────────────────────────────────┘
-
--- Timing constants (tune if the game's server tick changes)
-local SPAM_TIMEOUT       = 30    -- total seconds before giving up
-local SPAM_NOTIFY_FREQ   = 50    -- notify every N fires
-local INVOKE_GAP         = 0.05  -- pause between Initiate and ConfirmPurchase
-local CYCLE_GAP          = 0.12  -- pause after EndChat before next Initiate
-local FAIL_BACKOFF_AFTER = 8     -- consecutive failures before long pause
-local FAIL_BACKOFF_WAIT  = 0.6   -- long pause duration (lets server clear stuck state)
+local SPAM_TIMEOUT       = 30
+local SPAM_NOTIFY_FREQ   = 50
+local INVOKE_GAP         = 0.05
+local CYCLE_GAP          = 0.12
+local FAIL_BACKOFF_AFTER = 8
+local FAIL_BACKOFF_WAIT  = 0.6
 
 local function IsSuccessParent(parent)
     if not parent then return false end
@@ -320,28 +287,19 @@ local function IsSuccessParent(parent)
     return false
 end
 
--- Checks mainPart's parent and handles the brief nil-transition window
--- that sometimes occurs right as the server hands the item to the player.
--- Returns: "success" | "gone" | "pending"
 local function CheckItemState(mainPart)
     if not mainPart then return "gone" end
     local parent = mainPart.Parent
-
     if IsSuccessParent(parent) then return "success" end
-
     if parent == nil then
-        -- nil can be a one-frame blip during handoff — give it a moment
         task.wait(0.12)
         local newParent = mainPart.Parent
         if IsSuccessParent(newParent) then return "success" end
         if newParent == nil             then return "gone"    end
     end
-
     return "pending"
 end
 
--- Fires EndChat up to `count` times with a small gap to flush any
--- stuck server-side dialog state before starting a fresh attempt.
 local function FlushDialog(npcArg, count)
     count = count or 2
     for _ = 1, count do
@@ -355,17 +313,13 @@ local function SpamPurchase(mainPart, npcArg, itemName)
     local failStreak = 0
     local deadline   = tick() + SPAM_TIMEOUT
 
-    -- Clear any leftover dialog state from a previous run
     FlushDialog(npcArg, 2)
     task.wait(CYCLE_GAP)
 
     while tick() < deadline do
-
-        -- ── Step 1: Open dialog ───────────────────────────────────
         SafeInvoke(npcArg, "Initiate")
-        task.wait(INVOKE_GAP)  -- let server finish opening dialog before confirm
+        task.wait(INVOKE_GAP)
 
-        -- Pre-confirm check: item might already be moving (very fast server)
         local preState = CheckItemState(mainPart)
         if preState == "success" then
             FlushDialog(npcArg, 1)
@@ -377,14 +331,10 @@ local function SpamPurchase(mainPart, npcArg, itemName)
             return false
         end
 
-        -- ── Step 2: Confirm purchase ──────────────────────────────
         SafeInvoke(npcArg, "ConfirmPurchase")
         fireCount += 1
 
-        -- ── Step 3: Check success (before EndChat — item may have moved) ──
         local postState = CheckItemState(mainPart)
-
-        -- ── Step 4: End chat — ALWAYS, to keep server state clean ─
         SafeInvoke(npcArg, "EndChat")
 
         if postState == "success" then
@@ -395,11 +345,8 @@ local function SpamPurchase(mainPart, npcArg, itemName)
             return false
         end
 
-        -- ── Step 5: Failure bookkeeping & inter-cycle gap ─────────
         failStreak += 1
-
         if failStreak >= FAIL_BACKOFF_AFTER then
-            -- Server dialog is likely stuck. Flush harder and pause longer.
             FlushDialog(npcArg, 3)
             task.wait(FAIL_BACKOFF_WAIT)
             failStreak = 0
@@ -412,7 +359,7 @@ local function SpamPurchase(mainPart, npcArg, itemName)
         end
     end
 
-    FlushDialog(npcArg, 2)  -- leave dialog state clean even on timeout
+    FlushDialog(npcArg, 2)
     Notify("❌ Timeout", ("Purchase of '%s' timed out after %d fires."):format(itemName, fireCount), 5)
     return false
 end
@@ -438,7 +385,6 @@ local function PurchasePart(mainPart, itemName, originalCF)
     end
 
     originalCF = originalCF or root.CFrame
-
     root.CFrame = PLAYER_BUY_CF
     task.wait(0.1)
 
@@ -455,7 +401,6 @@ local function PurchasePart(mainPart, itemName, originalCF)
         if mainPart and mainPart.Parent then
             _LOT.TeleportMany({ { target = mainPart, goalCF = originalCF } })
         end
-
         local returnChar = Player.Character
         local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
         if returnRoot then
@@ -507,8 +452,12 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                      WORLD PATH RESOLVER                        │
+-- │                                                                  │
+-- │  Returns however many boxes are on the shelf RIGHT NOW,         │
+-- │  capped at `limit`. Finding fewer than limit is normal —        │
+-- │  the buy loop handles restocking automatically.                 │
 -- └─────────────────────────────────────────────────────────────────┘
-local function ResolveItemParts(item, quantity)
+local function ResolveItemParts(item, limit)
     local stores = workspace:FindFirstChild("Stores")
     if not stores then
         warn("[ShopModule] workspace.Stores not found.")
@@ -518,11 +467,11 @@ local function ResolveItemParts(item, quantity)
     local results = {}
 
     for _, shopItems in ipairs(stores:GetChildren()) do
-        if #results >= quantity then break end
+        if #results >= limit then break end
         if shopItems.Name ~= "ShopItems" then continue end
 
         for _, box in ipairs(shopItems:GetChildren()) do
-            if #results >= quantity then break end
+            if #results >= limit then break end
             if not (box:IsA("Model") and box.Name == "Box") then continue end
 
             local nameVal = box:FindFirstChild("BoxItemName")
@@ -536,19 +485,133 @@ local function ResolveItemParts(item, quantity)
         end
     end
 
-    if #results == 0 then
-        warn(string.format(
-            "[ShopModule] No Box with BoxItemName='%s' found in any ShopItems folder.",
-            item.BoxItemName
-        ))
-    elseif #results < quantity then
-        warn(string.format(
-            "[ShopModule] Requested %d × '%s' but only %d found.",
-            quantity, item.Name, #results
-        ))
+    return results
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                    RESTOCK-AWARE BUY LOOP                       │
+-- │                                                                  │
+-- │  Buys in waves — however many boxes are on the shelf right now. │
+-- │  When the shelf empties mid-order, polls until new stock        │
+-- │  appears (or times out / user cancels), then keeps buying.      │
+-- └─────────────────────────────────────────────────────────────────┘
+local RESTOCK_POLL_RATE    = 0.5   -- how often to scan the shelf while waiting (seconds)
+local RESTOCK_NOTIFY_EVERY = 10    -- send a "still waiting" ping every N seconds
+local RESTOCK_TIMEOUT      = 120   -- give up if shelf stays empty this long (seconds)
+
+local _isBuying = false  -- cancellation flag; set false to abort from outside
+
+local function RunBuyLoop(item, totalQty, pressedCF, onDone)
+    _isBuying = true
+
+    FetchNPCIDs()
+
+    local bought       = 0
+    local failed       = 0
+    local itemName     = item.Name
+    local restockTimer = 0   -- seconds spent waiting for a restock
+
+    Notify("Shop", ("Starting order: %d × %s"):format(totalQty, itemName), 4)
+
+    while bought < totalQty and _isBuying do
+        local stillNeed = totalQty - bought
+
+        -- ── Scan the shelf for whatever is available right now ────
+        local parts = ResolveItemParts(item, stillNeed)
+
+        if #parts == 0 then
+            -- Shelf is empty — start / continue waiting for restock
+
+            if restockTimer == 0 then
+                -- First time the shelf runs dry this order
+                Notify(
+                    "⏳ Waiting for restock…",
+                    ("Bought %d / %d × %s — shelf is empty."):format(bought, totalQty, itemName),
+                    RESTOCK_NOTIFY_EVERY
+                )
+            end
+
+            task.wait(RESTOCK_POLL_RATE)
+            restockTimer += RESTOCK_POLL_RATE
+
+            -- Periodic "still waiting" reminder so the user knows we're alive
+            if restockTimer % RESTOCK_NOTIFY_EVERY < RESTOCK_POLL_RATE then
+                Notify(
+                    "⏳ Still waiting for restock…",
+                    ("Bought %d / %d × %s  •  %ds elapsed"):format(
+                        bought, totalQty, itemName, math.floor(restockTimer)
+                    ),
+                    RESTOCK_NOTIFY_EVERY
+                )
+            end
+
+            if restockTimer >= RESTOCK_TIMEOUT then
+                Notify(
+                    "❌ Restock Timeout",
+                    ("No new '%s' appeared after %ds.\nStopping at %d / %d."):format(
+                        itemName, RESTOCK_TIMEOUT, bought, totalQty
+                    ),
+                    6
+                )
+                break
+            end
+
+            continue  -- re-scan on next iteration
+        end
+
+        -- Stock found — reset the restock wait timer and announce the wave
+        if restockTimer > 0 then
+            Notify(
+                "🛒 Restock detected!",
+                ("%d × '%s' appeared — resuming purchase…"):format(#parts, itemName),
+                3
+            )
+            restockTimer = 0
+        end
+
+        -- ── Buy every item in this wave ───────────────────────────
+        for _, mainPart in ipairs(parts) do
+            if not _isBuying      then break end
+            if bought >= totalQty then break end
+
+            if not mainPart or not mainPart.Parent then
+                failed += 1
+                continue
+            end
+
+            if _LOT.IsBusy() then _LOT.WaitForBatch() end
+
+            local ok = PurchasePart(mainPart, itemName, pressedCF)
+            if ok then
+                bought += 1
+                if bought % 5 == 0 and bought < totalQty then
+                    Notify(
+                        "🛒 Progress",
+                        ("Bought %d / %d × %s"):format(bought, totalQty, itemName),
+                        2
+                    )
+                end
+            else
+                failed += 1
+            end
+        end
+        -- After the wave finishes, loop back immediately.
+        -- If more stock appeared during buying we grab it; otherwise we wait.
     end
 
-    return results
+    _isBuying = false
+
+    local reason = (bought >= totalQty) and "✅ Order Complete" or "🛑 Order Stopped"
+    Notify(
+        reason,
+        ("Bought %d / %d × %s.%s"):format(
+            bought, totalQty, itemName,
+            failed > 0 and ("\n%d failed."):format(failed) or ""
+        ),
+        6
+    )
+
+    if onDone then onDone() end
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -572,11 +635,18 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     local Quantity     = 1
 
     local PurchaseBtn
+
     local function UpdateDisplay()
-        if not SelectedItem then return end
-        local newText = string.format("$%d", SelectedItem.Price * Quantity)
-        if PurchaseBtn then
-            PurchaseBtn:SetText(newText)
+        if not SelectedItem or not PurchaseBtn then return end
+        PurchaseBtn:SetText(("$%d"):format(SelectedItem.Price * Quantity))
+    end
+
+    local function SetBuyingState(buying)
+        if not PurchaseBtn then return end
+        if buying then
+            PurchaseBtn:SetText("⛔ Stop")
+        else
+            UpdateDisplay()
         end
     end
 
@@ -608,6 +678,15 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     end)
 
     PurchaseBtn = Tab:CreateAction("Finalize Order", ("$%d"):format(ShopItems[1].Price), function()
+
+        -- ── Cancel a running order ────────────────────────────────
+        if _isBuying then
+            _isBuying = false
+            Notify("🛑 Cancelling…", "Stopping after the current item finishes.", 3)
+            return
+        end
+
+        -- ── Pre-flight checks ─────────────────────────────────────
         if not SelectedItem then return end
 
         if _LOT == nil then
@@ -620,74 +699,47 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
             return
         end
 
-        local totalCost = SelectedItem.Price * Quantity
-        local funds     = FetchFunds()
-
+        local funds = FetchFunds()
         if funds == nil then
             Notify("❌ Funds Error", "Could not retrieve your balance. Try again.", 4)
             return
         end
 
-        if funds < totalCost then
+        -- Can't afford even one
+        if funds < SelectedItem.Price then
             Notify(
                 "❌ Insufficient Funds",
-                ("Need $%d  •  You have $%d  •  Short $%d"):format(
-                    totalCost, funds, totalCost - funds
-                ),
+                ("Need at least $%d  •  You have $%d"):format(SelectedItem.Price, funds),
                 5
             )
             return
         end
 
-        local parts = ResolveItemParts(SelectedItem, Quantity)
-        if #parts == 0 then return end
+        -- Can afford some but not the full order — clamp and warn
+        local totalCost = SelectedItem.Price * Quantity
+        local targetQty = Quantity
+        if funds < totalCost then
+            targetQty = math.floor(funds / SelectedItem.Price)
+            Notify(
+                "⚠️ Partial Order",
+                ("Can only afford %d / %d × %s ($%d available, $%d needed).\nBuying %d."):format(
+                    targetQty, Quantity, SelectedItem.Name,
+                    funds, totalCost, targetQty
+                ),
+                6
+            )
+        end
 
         local char      = Player.Character
         local root      = char and char:FindFirstChild("HumanoidRootPart")
         local pressedCF = root and root.CFrame
 
+        SetBuyingState(true)
+
         task.spawn(function()
-            FetchNPCIDs()
-
-            local bought    = 0
-            local failed    = 0
-            local itemName  = SelectedItem.Name
-            local liveFunds = FetchFunds() or funds
-
-            Notify(
-                "Shop",
-                ("Purchasing %d × %s  ($%d)\nBalance: $%d"):format(
-                    #parts, itemName, totalCost, liveFunds
-                ),
-                4
-            )
-
-            for _, mainPart in ipairs(parts) do
-                if not mainPart or not mainPart.Parent then
-                    failed += 1
-                    continue
-                end
-
-                if _LOT.IsBusy() then
-                    _LOT.WaitForBatch()
-                end
-
-                local ok = PurchasePart(mainPart, itemName, pressedCF)
-                if ok then
-                    bought += 1
-                else
-                    failed += 1
-                end
-            end
-
-            Notify(
-                "Shop — Done",
-                ("Bought %d / %d × %s.%s"):format(
-                    bought, #parts, itemName,
-                    failed > 0 and ("\n%d failed."):format(failed) or ""
-                ),
-                5
-            )
+            RunBuyLoop(SelectedItem, targetQty, pressedCF, function()
+                SetBuyingState(false)
+            end)
         end)
     end, false)
 
