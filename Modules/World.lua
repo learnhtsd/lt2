@@ -153,11 +153,23 @@ function World.Init(Tab, Lib)
 
     Tab:CreateSection("Environment")
 
-    -- THE NEW ENHANCED TOGGLE
     Tab:CreateToggle("Enhanced Visuals", false, function(s)
         _G.EnhancedGraphics = s
         ToggleEnhanced(s)
         if Lib and Lib.Notify then Lib:Notify("Graphics", s and "Visuals Enhanced!" or "Visuals reset.", 3) end
+    end)
+
+    Tab:CreateToggle("Spook Event", false, function(s)
+        _G.SpookEvent = s
+        local spook = Lighting:FindFirstChild("Spook")
+        if spook then
+            -- Sets Lighting.Spook.Value based on toggle state
+            spook.Value = s
+        else
+            if Lib and Lib.Notify then 
+                Lib:Notify("Error", "Spook object not found in Lighting!", 3) 
+            end
+        end
     end)
 
     Tab:CreateToggle("Post-Processing", true, function(s)
