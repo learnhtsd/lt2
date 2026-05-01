@@ -67,7 +67,7 @@ local Settings = {
     StackX       = 2,
     StackY       = 1,
     StackZ       = 5,
-    StackPadding = 0.05,
+    StackPadding = 0.1,
 
     KeepSelected = false,
 }
@@ -797,9 +797,9 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     Tab:CreateSlider("X", 1, 100, Settings.StackX, function(val) Settings.StackX = val end)
     Tab:CreateSlider("Y", 1, 50,  Settings.StackY, function(val) Settings.StackY = val end)
     Tab:CreateSlider("Z", 1, 100, Settings.StackZ, function(val) Settings.StackZ = val end)
-    Tab:CreateSlider("Padding", 0, 10, Settings.StackPadding * 10, function(val)
-        Settings.StackPadding = val / 10
-    end)
+    Tab:CreateSlider("Padding", 0, 1, Settings.StackPadding, function(val)
+        Settings.StackPadding = val
+    end, 1)
 
     local StackRow = Tab:CreateRow()
     State.StackStartBtn = StackRow:CreateAction("Sort Selected Objects", "Start", StartStackMode)
