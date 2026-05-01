@@ -65,9 +65,10 @@ function TeleportModule.Init(Tab)
     -- ===========================
     -- PLAYER & PLOT SECTION
     -- ===========================
-    Tab:CreateSection("Player & Plot Teleports")
     local function GetPlayerList()
         local list = {}
+        -- Local player shown first, tagged so we can identify them
+        table.insert(list, LocalPlayer.DisplayName .. " (You)")
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer then
                 table.insert(list, p.DisplayName)
@@ -76,26 +77,7 @@ function TeleportModule.Init(Tab)
         return list
     end
 
-    local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
-        selectedTarget = val
-    end)
-
-    local function RefreshPlayerList()
-        local list = GetPlayerList()
-        playerDropdown:SetOptions(list)
-        if selectedTarget then
-            local stillPresent = false
-            for _, name in ipairs(list) do
-                if name == selectedTarget then stillPresent = true break end
-            end
-            if not stillPresent then selectedTarget = nil end
-        end
-    end
-
-    Players.PlayerAdded:Connect(RefreshPlayerList)
-    Players.PlayerRemoving:Connect(RefreshPlayerList)
-
-    Tab:CreateAction("Go to Player", "TP", function()
+    local tpBtn   = Tab:CreateAction("Go to Player", "TP", function()
         if selectedTarget then
             for _, p in pairs(Players:GetPlayers()) do
                 if p.DisplayName == selectedTarget and p.Character then
@@ -106,7 +88,7 @@ function TeleportModule.Init(Tab)
         end
     end)
 
-    Tab:CreateAction("Go to Player's Plot", "PLOT", function()
+    local plotBtn = Tab:CreateAction("Go to Player's Plot", "PLOT", function()
         if selectedTarget then
             local properties = workspace:FindFirstChild("Properties")
             if properties then
@@ -120,6 +102,40 @@ function TeleportModule.Init(Tab)
                 end
             end
         end
+    end)
+
+    -- Start disabled since nothing meaningful is selected yet
+    tpBtn:SetDisabled(true)
+    plotBtn:SetDisabled(true)
+
+    local localTag = LocalPlayer.DisplayName .. " (You)"
+
+    local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
+        local isSelf = (val == localTag)
+        selectedTarget = isSelf and nil or val
+        tpBtn:SetDisabled(isSelf)
+        plotBtn:SetDisabled(isSelf)
+    end)
+
+    local function RefreshPlayerList()
+        local list = GetPlayerList()
+        playerDropdown:SetOptions(list)
+        if selectedTarget then
+            local stillPresent = false
+            for _, name in ipairs(list) do
+                if name == selectedTarget then stillPresent = true break end
+            end
+            if not stillPresent then
+                selectedTarget = nil
+                tpBtn:SetDisabled(true)
+                plotBtn:SetDisabled(true)
+            end
+        end
+    end
+
+    Players.PlayerAdded:Connect(RefreshPlayerList)
+    Players.PlayerRemoving:Connect(function()
+        task.defer(RefreshPlayerList)
     end)
 end
 
