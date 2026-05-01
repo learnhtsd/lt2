@@ -77,7 +77,6 @@ function TeleportModule.Init(Tab)
     -- ===========================
     Tab:CreateSection("Player & Plot Teleports")
 
-    -- Declare buttons first so the dropdown callback can reference them
     local tpBtn = Tab:CreateAction("Go to Player", "TP", function()
         if selectedTarget then
             for _, p in pairs(Players:GetPlayers()) do
@@ -90,32 +89,32 @@ function TeleportModule.Init(Tab)
     end)
 
     local plotBtn = Tab:CreateAction("Go to Player's Plot", "PLOT", function()
-        if selectedTarget then
-            local properties = workspace:FindFirstChild("Properties")
-            if not properties then return end
-            for _, plot in pairs(properties:GetChildren()) do
-                local owner = plot:FindFirstChild("Owner")
-                if owner and typeof(owner.Value) == "Instance"
-                    and owner.Value:IsA("Player")
-                    and owner.Value.DisplayName == selectedTarget then
-                    local origin = plot:FindFirstChild("OriginSquare")
-                        or plot:FindFirstChild("Origin")
-                        or plot:FindFirstChildOfClass("BasePart")
-                    if origin then Teleport(origin.Position) end
-                    break
-                end
+        -- Use selectedTarget if set, otherwise fall back to the local player
+        local targetDisplay = selectedTarget or LocalPlayer.DisplayName
+        local properties = workspace:FindFirstChild("Properties")
+        if not properties then return end
+        for _, plot in pairs(properties:GetChildren()) do
+            local owner = plot:FindFirstChild("Owner")
+            if owner and typeof(owner.Value) == "Instance"
+                and owner.Value:IsA("Player")
+                and owner.Value.DisplayName == targetDisplay then
+                local origin = plot:FindFirstChild("OriginSquare")
+                    or plot:FindFirstChild("Origin")
+                    or plot:FindFirstChildOfClass("BasePart")
+                if origin then Teleport(origin.Position) end
+                break
             end
         end
     end)
 
+    -- TP to self is pointless; plot button stays enabled so you can go to your own plot
     tpBtn:SetDisabled(true)
-    plotBtn:SetDisabled(true)
 
     local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
         local isSelf = (val == localTag)
         selectedTarget = isSelf and nil or val
         tpBtn:SetDisabled(isSelf)
-        plotBtn:SetDisabled(isSelf)
+        -- plotBtn is never disabled — works for self and others alike
     end)
 
     -- ===========================
@@ -132,7 +131,6 @@ function TeleportModule.Init(Tab)
             if not stillPresent then
                 selectedTarget = nil
                 tpBtn:SetDisabled(true)
-                plotBtn:SetDisabled(true)
             end
         end
     end
