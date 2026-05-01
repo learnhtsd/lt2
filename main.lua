@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.295"
+local Version = "v0.0.296"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -726,14 +726,14 @@ function Library:CreateWindow()
             ImageFrame.Parent           = self.Container
             Instance.new("UICorner", ImageFrame).CornerRadius = UDim.new(0, 6)
         
-            -- ── INNER clip frame: same size, same corner radius, transparent.
-            --    ClipsDescendants = true crops the image to the rounded shape
-            --    without touching the outer stroke.
+            -- ── INNER clip frame: same size, same corner radius.
+            --    MUST have a non-transparent background so UICorner's clip
+            --    mask is applied — transparent frames fall back to rect clipping.
             local ClipFrame = Instance.new("Frame")
-            ClipFrame.Size                   = UDim2.new(1, 0, 1, 0)
-            ClipFrame.BackgroundTransparency = 1
-            ClipFrame.ClipsDescendants       = true
-            ClipFrame.Parent                 = ImageFrame
+            ClipFrame.Size             = UDim2.new(1, 0, 1, 0)
+            ClipFrame.BackgroundColor3 = T.Surface   -- ← was missing; matches outer bg
+            ClipFrame.ClipsDescendants = true
+            ClipFrame.Parent           = ImageFrame
             Instance.new("UICorner", ClipFrame).CornerRadius = UDim.new(0, 6)
         
             -- ── Image — stretches to fill the clip frame.
