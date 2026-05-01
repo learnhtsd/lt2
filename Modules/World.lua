@@ -87,7 +87,7 @@ function World.Init(Tab, Lib)
                 -- 2. Delete specified parts
                 local vlb = bridge:FindFirstChild("VerticalLiftBridge")
                 if vlb then
-                    local targets = {"Brope", "Structure", "weight", "Wrope"}
+                    local targets = {"BRope", "Structure", "wWight", "WRope"}
                     for _, child in pairs(vlb:GetChildren()) do
                         if table.find(targets, child.Name) then
                             child:Destroy()
