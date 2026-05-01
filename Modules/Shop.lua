@@ -154,12 +154,12 @@ end
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │               SAFE INVOKE — HARD TIMEOUT PER CALL               │
 -- │                                                                  │
--- │  RemoteFunction:InvokeServer() can yield forever if the server  │
--- │  errors or the dialog state machine gets stuck. SafeInvoke       │
--- │  gives each call a hard timeout and task.cancels the hung        │
--- │  thread so the fire loop always keeps moving.                    │
+-- │  Each InvokeServer gets its own hard timeout. The client thread  │
+-- │  is resumed so the caller always makes progress, even if the    │
+-- │  server never responds. The server still processes the invoke;  │
+-- │  only the client stops waiting for the reply.                   │
 -- └─────────────────────────────────────────────────────────────────┘
-local INVOKE_TIMEOUT = 3  -- seconds before we give up on a single InvokeServer
+local INVOKE_TIMEOUT = 4  -- seconds; raised from 3 to give server more room
 
 local function SafeInvoke(npcArg, action)
     local co   = coroutine.running()
@@ -175,7 +175,6 @@ local function SafeInvoke(npcArg, action)
         end
     end)
 
-    -- Hard timeout — kills the hung thread and resumes us anyway
     task.delay(INVOKE_TIMEOUT, function()
         if not done then
             done = true
@@ -277,12 +276,36 @@ end
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                       PURCHASE SEQUENCE                         │
 -- │                                                                  │
--- │  Fire loop runs in a BACKGROUND THREAD so a hanging             │
--- │  InvokeServer never blocks the success-detection loop.          │
--- │  Each InvokeServer gets its own INVOKE_TIMEOUT via SafeInvoke.  │
+-- │  WHY THE ORIGINAL BROKE                                         │
+-- │  ─────────────────────                                          │
+-- │  The old code ran the fire loop in a background thread and      │
+-- │  checked for success on the main thread simultaneously.         │
+-- │  SafeInvoke would time-out mid-cycle (e.g. after Initiate)      │
+-- │  and immediately fire ConfirmPurchase before the server had      │
+-- │  finished opening the dialog — corrupting its state machine.    │
+-- │  The server then rejected ConfirmPurchase with a "not enough    │
+-- │  money" error even when the player had sufficient funds.        │
+-- │                                                                  │
+-- │  THE FIX                                                        │
+-- │  ────────                                                        │
+-- │  Everything is now sequential in one thread:                    │
+-- │    1. Initiate   (wait for server ack or timeout)               │
+-- │    2. ConfirmPurchase (wait for server ack or timeout)          │
+-- │    3. Check success                                             │
+-- │    4. EndChat    — ALWAYS fires to reset server dialog state    │
+-- │    5. Short gap before the next cycle                           │
+-- │                                                                  │
+-- │  If repeated cycles fail the module backs off for longer to     │
+-- │  give the server time to fully close any stuck dialog.          │
 -- └─────────────────────────────────────────────────────────────────┘
-local SPAM_TIMEOUT     = 30
-local SPAM_NOTIFY_FREQ = 50
+
+-- Timing constants (tune if the game's server tick changes)
+local SPAM_TIMEOUT       = 30    -- total seconds before giving up
+local SPAM_NOTIFY_FREQ   = 50    -- notify every N fires
+local INVOKE_GAP         = 0.05  -- pause between Initiate and ConfirmPurchase
+local CYCLE_GAP          = 0.12  -- pause after EndChat before next Initiate
+local FAIL_BACKOFF_AFTER = 8     -- consecutive failures before long pause
+local FAIL_BACKOFF_WAIT  = 0.6   -- long pause duration (lets server clear stuck state)
 
 local function IsSuccessParent(parent)
     if not parent then return false end
@@ -297,62 +320,99 @@ local function IsSuccessParent(parent)
     return false
 end
 
-local function SpamPurchase(mainPart, npcArg, itemName)
-    local fireCount = 0
-    local deadline  = tick() + SPAM_TIMEOUT
-    local stopped   = false
+-- Checks mainPart's parent and handles the brief nil-transition window
+-- that sometimes occurs right as the server hands the item to the player.
+-- Returns: "success" | "gone" | "pending"
+local function CheckItemState(mainPart)
+    if not mainPart then return "gone" end
+    local parent = mainPart.Parent
 
-    -- ── Background fire thread ────────────────────────────────────
-    -- Runs independently of the success check below. A hung
-    -- InvokeServer (via SafeInvoke's timeout) can't stall detection.
-    task.spawn(function()
-        while not stopped and tick() < deadline do
-            SafeInvoke(npcArg, "Initiate")
-            if stopped then break end
-            SafeInvoke(npcArg, "ConfirmPurchase")
-            if stopped then break end
-            SafeInvoke(npcArg, "EndChat")
-            fireCount += 1
+    if IsSuccessParent(parent) then return "success" end
 
-            if fireCount % SPAM_NOTIFY_FREQ == 0 then
-                Notify("⏳ Buying…", ("Fired %d times for '%s'"):format(fireCount, itemName), 3)
-            end
-        end
-    end)
-
-    -- ── Success detection loop (main thread) ──────────────────────
-    -- Checks the item's parent every frame. Completely independent
-    -- from the fire thread — a hung remote can't block this.
-    while not stopped and tick() < deadline do
-        local parent = mainPart and mainPart.Parent
-
-        if IsSuccessParent(parent) then
-            stopped = true
-            Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
-            return true
-        end
-
-        -- Parent == nil can be a brief transition during purchase.
-        -- Wait one frame and re-check before giving up.
-        if parent == nil then
-            task.wait()
-            local newParent = mainPart and mainPart.Parent
-            if IsSuccessParent(newParent) then
-                stopped = true
-                Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
-                return true
-            end
-            if newParent == nil then
-                stopped = true
-                Notify("⚠️ Item Gone", ("'%s' removed before purchase completed."):format(itemName), 4)
-                return false
-            end
-        end
-
-        task.wait(0.05)  -- check 20× per second — faster than we fire
+    if parent == nil then
+        -- nil can be a one-frame blip during handoff — give it a moment
+        task.wait(0.12)
+        local newParent = mainPart.Parent
+        if IsSuccessParent(newParent) then return "success" end
+        if newParent == nil             then return "gone"    end
     end
 
-    stopped = true
+    return "pending"
+end
+
+-- Fires EndChat up to `count` times with a small gap to flush any
+-- stuck server-side dialog state before starting a fresh attempt.
+local function FlushDialog(npcArg, count)
+    count = count or 2
+    for _ = 1, count do
+        SafeInvoke(npcArg, "EndChat")
+        task.wait(0.05)
+    end
+end
+
+local function SpamPurchase(mainPart, npcArg, itemName)
+    local fireCount  = 0
+    local failStreak = 0
+    local deadline   = tick() + SPAM_TIMEOUT
+
+    -- Clear any leftover dialog state from a previous run
+    FlushDialog(npcArg, 2)
+    task.wait(CYCLE_GAP)
+
+    while tick() < deadline do
+
+        -- ── Step 1: Open dialog ───────────────────────────────────
+        SafeInvoke(npcArg, "Initiate")
+        task.wait(INVOKE_GAP)  -- let server finish opening dialog before confirm
+
+        -- Pre-confirm check: item might already be moving (very fast server)
+        local preState = CheckItemState(mainPart)
+        if preState == "success" then
+            FlushDialog(npcArg, 1)
+            Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
+            return true
+        elseif preState == "gone" then
+            FlushDialog(npcArg, 1)
+            Notify("⚠️ Item Gone", ("'%s' disappeared before confirmation."):format(itemName), 4)
+            return false
+        end
+
+        -- ── Step 2: Confirm purchase ──────────────────────────────
+        SafeInvoke(npcArg, "ConfirmPurchase")
+        fireCount += 1
+
+        -- ── Step 3: Check success (before EndChat — item may have moved) ──
+        local postState = CheckItemState(mainPart)
+
+        -- ── Step 4: End chat — ALWAYS, to keep server state clean ─
+        SafeInvoke(npcArg, "EndChat")
+
+        if postState == "success" then
+            Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
+            return true
+        elseif postState == "gone" then
+            Notify("⚠️ Item Gone", ("'%s' disappeared during purchase."):format(itemName), 4)
+            return false
+        end
+
+        -- ── Step 5: Failure bookkeeping & inter-cycle gap ─────────
+        failStreak += 1
+
+        if failStreak >= FAIL_BACKOFF_AFTER then
+            -- Server dialog is likely stuck. Flush harder and pause longer.
+            FlushDialog(npcArg, 3)
+            task.wait(FAIL_BACKOFF_WAIT)
+            failStreak = 0
+        else
+            task.wait(CYCLE_GAP)
+        end
+
+        if fireCount % SPAM_NOTIFY_FREQ == 0 then
+            Notify("⏳ Buying…", ("Fired %d times for '%s'"):format(fireCount, itemName), 3)
+        end
+    end
+
+    FlushDialog(npcArg, 2)  -- leave dialog state clean even on timeout
     Notify("❌ Timeout", ("Purchase of '%s' timed out after %d fires."):format(itemName, fireCount), 5)
     return false
 end
