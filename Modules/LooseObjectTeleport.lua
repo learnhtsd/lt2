@@ -48,14 +48,16 @@ end
 -- │                     CONFIGURATION & STATE                       │
 -- └─────────────────────────────────────────────────────────────────┘
 local Settings = {
-    -- How long to wait after firing ClientIsDragging before moving the object
-    OwnershipWait   = 0.5,
     -- How many times to fire ClientIsDragging per object
-    DragFires       = 10,
+    DragFires        = 10,
     -- Delay between each fire
-    DragFireDelay   = 0.03,
+    DragFireDelay    = 0.03,
+    -- Max seconds to wait for OwnerString to change before giving up and moving anyway
+    OwnershipTimeout = 3,
+    -- Fallback wait (s) used when no OwnerString is found on the model
+    FallbackWait     = 0.5,
     -- Delay between objects in a batch
-    PostObjectDelay = 0.1,
+    PostObjectDelay  = 0.1,
 
     SelectionColor  = Color3.fromRGB(74, 120, 255),
     OutlineThickness = 0.02,
@@ -168,25 +170,52 @@ end
 -- │  For each object:                                               │
 -- │    1. TP player HRP to the object                               │
 -- │    2. Fire ClientIsDragging on the object's model               │
--- │    3. Wait OwnershipWait seconds                                 │
+-- │    3. Wait for Owner.OwnerString to change (sync confirmed)     │
 -- │    4. Move the object to goalCF                                  │
 -- └─────────────────────────────────────────────────────────────────┘
+
+-- Returns a yaw-only CFrame at the given position matching the player's
+-- horizontal facing. This is used so items land facing the same direction
+-- the player is looking — rotating the player rotates the whole stack.
+local function PlayerAlignedCFrame(position, root)
+    local look    = root.CFrame.LookVector
+    local flatLook = Vector3.new(look.X, 0, look.Z)
+    if flatLook.Magnitude < 0.001 then
+        flatLook = Vector3.new(0, 0, -1)
+    end
+    return CFrame.lookAt(position, position + flatLook.Unit)
+end
+
 local function TeleportSingle(target, goalCF, root)
     if not target or not target.Parent then return end
 
-    -- 1. TP player to the object so the server considers us close enough
+    -- Locate Owner.OwnerString for sync detection
+    local model       = target:FindFirstAncestorOfClass("Model") or target.Parent
+    local ownerFolder = model:FindFirstChild("Owner")
+    local ownerString = ownerFolder and ownerFolder:FindFirstChild("OwnerString")
+    local initialValue = ownerString and ownerString.Value
+
+    -- 1. TP player next to the object so the server considers us close
     root.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0))
     task.wait(0.05)
 
-    -- 2. Find the model this part belongs to and fire ClientIsDragging
-    local model = target:FindFirstAncestorOfClass("Model") or target.Parent
+    -- 2. Fire ClientIsDragging to claim ownership
     for i = 1, Settings.DragFires do
         ClientIsDragging:FireServer(model)
         task.wait(Settings.DragFireDelay)
     end
 
-    -- 3. Wait for server to register ownership
-    task.wait(Settings.OwnershipWait)
+    -- 3. Wait for OwnerString to change — that's the server confirming sync.
+    --    Falls back to FallbackWait if no OwnerString exists on this model.
+    if ownerString and initialValue ~= nil then
+        local deadline = tick() + Settings.OwnershipTimeout
+        while tick() < deadline do
+            if ownerString.Value ~= initialValue then break end
+            task.wait()   -- RunService.Heartbeat cadence
+        end
+    else
+        task.wait(Settings.FallbackWait)
+    end
 
     -- 4. Move the object
     if target and target.Parent then
@@ -570,7 +599,7 @@ local function PerformExecute()
         if obj and obj.Parent then
             table.insert(jobs, {
                 target = obj,
-                goalCF = CFrame.new(finalPos) * obj.CFrame.Rotation
+                goalCF = PlayerAlignedCFrame(finalPos, root)
             })
         end
     end
@@ -670,9 +699,9 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     end)
     Tab:CreateToggle("Keep Selection After TP", false, function(val) Settings.KeepSelected = val end)
 
-    Tab:CreateSlider("Ownership Wait (ms)", 100, 2000, Settings.OwnershipWait * 1000, function(val)
-        Settings.OwnershipWait = val / 1000
-    end):AddTooltip("How long to wait after firing ClientIsDragging before moving the object.")
+    Tab:CreateSlider("Ownership Timeout (s)", 1, 10, Settings.OwnershipTimeout, function(val)
+        Settings.OwnershipTimeout = val
+    end):AddTooltip("Max seconds to wait for OwnerString sync before moving the object anyway.")
 
     Tab:CreateSlider("Drag Fires", 1, 30, Settings.DragFires, function(val)
         Settings.DragFires = val
