@@ -65,19 +65,16 @@ function TeleportModule.Init(Tab)
     -- ===========================
     -- PLAYER & PLOT SECTION
     -- ===========================
-    local function GetPlayerList()
-        local list = {}
-        -- Local player shown first, tagged so we can identify them
-        table.insert(list, LocalPlayer.DisplayName .. " (You)")
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer then
-                table.insert(list, p.DisplayName)
-            end
-        end
-        return list
-    end
+    Tab:CreateSection("Player & Plot Teleports")
 
-    local tpBtn   = Tab:CreateAction("Go to Player", "TP", function()
+    local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
+        local isSelf = (val == localTag)
+        selectedTarget = isSelf and nil or val
+        tpBtn:SetDisabled(isSelf)
+        plotBtn:SetDisabled(isSelf)
+    end)
+
+    local tpBtn = Tab:CreateAction("Go to Player", "TP", function()
         if selectedTarget then
             for _, p in pairs(Players:GetPlayers()) do
                 if p.DisplayName == selectedTarget and p.Character then
@@ -91,20 +88,23 @@ function TeleportModule.Init(Tab)
     local plotBtn = Tab:CreateAction("Go to Player's Plot", "PLOT", function()
         if selectedTarget then
             local properties = workspace:FindFirstChild("Properties")
-            if properties then
-                for _, plot in pairs(properties:GetChildren()) do
-                    local owner = plot:FindFirstChild("Owner")
-                    if owner and tostring(owner.Value) == selectedTarget then
-                        local origin = plot:FindFirstChild("Origin") or plot:FindFirstChildOfClass("Part")
-                        if origin then Teleport(origin.Position) end
-                        break
-                    end
+            if not properties then return end
+            for _, plot in pairs(properties:GetChildren()) do
+                local owner = plot:FindFirstChild("Owner")
+                -- owner.Value is a Player instance — compare DisplayName directly
+                if owner and typeof(owner.Value) == "Instance"
+                    and owner.Value:IsA("Player")
+                    and owner.Value.DisplayName == selectedTarget then
+                    local origin = plot:FindFirstChild("OriginSquare")
+                        or plot:FindFirstChild("Origin")
+                        or plot:FindFirstChildOfClass("BasePart")
+                    if origin then Teleport(origin.Position) end
+                    break
                 end
             end
         end
     end)
 
-    -- Start disabled since nothing meaningful is selected yet
     tpBtn:SetDisabled(true)
     plotBtn:SetDisabled(true)
 
