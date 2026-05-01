@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.320"
+local Version = "v0.0.321"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -266,7 +266,7 @@ function Library:CreateWindow()
             if ok and body then
                 local remoteVersion = body:match('local%s+Version%s*=%s*"([^"]+)"')
                 if remoteVersion and remoteVersion ~= Version then
-                    UpdateLabel.Text    = "🔔  Update " .. remoteVersion .. " available — reload!"
+                    UpdateLabel.Text    = "Update " .. remoteVersion .. " available — reload!"
                     if not UpdateLabel.Visible then
                         UpdateLabel.Visible = true
                         StartUpdatePulse()
