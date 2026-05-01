@@ -152,6 +152,42 @@ local function GetNearestNPCArg(mainPart)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
+-- │               SAFE INVOKE — HARD TIMEOUT PER CALL               │
+-- │                                                                  │
+-- │  RemoteFunction:InvokeServer() can yield forever if the server  │
+-- │  errors or the dialog state machine gets stuck. SafeInvoke       │
+-- │  gives each call a hard timeout and task.cancels the hung        │
+-- │  thread so the fire loop always keeps moving.                    │
+-- └─────────────────────────────────────────────────────────────────┘
+local INVOKE_TIMEOUT = 3  -- seconds before we give up on a single InvokeServer
+
+local function SafeInvoke(npcArg, action)
+    local co   = coroutine.running()
+    local done = false
+
+    local fireThread = task.spawn(function()
+        pcall(function()
+            Remote:InvokeServer(npcArg, action)
+        end)
+        if not done then
+            done = true
+            task.spawn(co)
+        end
+    end)
+
+    -- Hard timeout — kills the hung thread and resumes us anyway
+    task.delay(INVOKE_TIMEOUT, function()
+        if not done then
+            done = true
+            pcall(task.cancel, fireThread)
+            task.spawn(co)
+        end
+    end)
+
+    coroutine.yield()
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
 -- │                     POWER OF EASE PURCHASE                      │
 -- └─────────────────────────────────────────────────────────────────┘
 local POE_PRICE    = 10009000
@@ -205,11 +241,9 @@ local function PurchasePowerOfEase()
     local purchased = false
 
     while tick() < deadline do
-        pcall(function()
-            Remote:InvokeServer(npcArg, "Initiate")
-            Remote:InvokeServer(npcArg, "ConfirmPurchase")
-            Remote:InvokeServer(npcArg, "EndChat")
-        end)
+        SafeInvoke(npcArg, "Initiate")
+        SafeInvoke(npcArg, "ConfirmPurchase")
+        SafeInvoke(npcArg, "EndChat")
 
         fireCount += 1
 
@@ -242,8 +276,11 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                       PURCHASE SEQUENCE                         │
+-- │                                                                  │
+-- │  Fire loop runs in a BACKGROUND THREAD so a hanging             │
+-- │  InvokeServer never blocks the success-detection loop.          │
+-- │  Each InvokeServer gets its own INVOKE_TIMEOUT via SafeInvoke.  │
 -- └─────────────────────────────────────────────────────────────────┘
-local SPAM_INTERVAL    = 0.1
 local SPAM_TIMEOUT     = 30
 local SPAM_NOTIFY_FREQ = 50
 
@@ -263,45 +300,59 @@ end
 local function SpamPurchase(mainPart, npcArg, itemName)
     local fireCount = 0
     local deadline  = tick() + SPAM_TIMEOUT
+    local stopped   = false
 
-    Notify("Shop", ("Buying '%s' from %s…"):format(itemName, npcArg.Name), 4)
+    -- ── Background fire thread ────────────────────────────────────
+    -- Runs independently of the success check below. A hung
+    -- InvokeServer (via SafeInvoke's timeout) can't stall detection.
+    task.spawn(function()
+        while not stopped and tick() < deadline do
+            SafeInvoke(npcArg, "Initiate")
+            if stopped then break end
+            SafeInvoke(npcArg, "ConfirmPurchase")
+            if stopped then break end
+            SafeInvoke(npcArg, "EndChat")
+            fireCount += 1
 
-    while tick() < deadline do
+            if fireCount % SPAM_NOTIFY_FREQ == 0 then
+                Notify("⏳ Buying…", ("Fired %d times for '%s'"):format(fireCount, itemName), 3)
+            end
+        end
+    end)
+
+    -- ── Success detection loop (main thread) ──────────────────────
+    -- Checks the item's parent every frame. Completely independent
+    -- from the fire thread — a hung remote can't block this.
+    while not stopped and tick() < deadline do
         local parent = mainPart and mainPart.Parent
 
         if IsSuccessParent(parent) then
+            stopped = true
             Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
             return true
         end
 
+        -- Parent == nil can be a brief transition during purchase.
+        -- Wait one frame and re-check before giving up.
         if parent == nil then
             task.wait()
             local newParent = mainPart and mainPart.Parent
             if IsSuccessParent(newParent) then
+                stopped = true
                 Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
                 return true
             end
             if newParent == nil then
-                Notify("⚠️ Item Gone", ("'%s' was removed before purchase completed."):format(itemName), 4)
+                stopped = true
+                Notify("⚠️ Item Gone", ("'%s' removed before purchase completed."):format(itemName), 4)
                 return false
             end
         end
 
-        pcall(function()
-            Remote:InvokeServer(npcArg, "Initiate")
-            Remote:InvokeServer(npcArg, "ConfirmPurchase")
-            Remote:InvokeServer(npcArg, "EndChat")
-        end)
-
-        fireCount += 1
-
-        if fireCount % SPAM_NOTIFY_FREQ == 0 then
-            Notify("⏳ Buying…", ("Fired %d times for '%s'"):format(fireCount, itemName), 3)
-        end
-
-        task.wait(SPAM_INTERVAL)
+        task.wait(0.05)  -- check 20× per second — faster than we fire
     end
 
+    stopped = true
     Notify("❌ Timeout", ("Purchase of '%s' timed out after %d fires."):format(itemName, fireCount), 5)
     return false
 end
@@ -460,8 +511,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     local SelectedItem = ShopItems[1]
     local Quantity     = 1
 
-    -- Forward-declared so all callbacks share the same upvalue
-    -- regardless of when the UI library fires them
     local PurchaseBtn
     local function UpdateDisplay()
         if not SelectedItem then return end
@@ -582,7 +631,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         end)
     end, false)
 
-    -- Seed correct price on load and expose externally if needed
     UpdateDisplay()
     ShopModule.UpdateDisplay = UpdateDisplay
 
