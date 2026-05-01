@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.319"
+local Version = "v0.0.320"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -252,25 +252,31 @@ function Library:CreateWindow()
         end)
     end
 
-    -- Fetch the remote version and compare to the local one
-    task.spawn(function()
-        -- Small delay so the rest of the UI finishes loading first
-        task.wait(3)
-        local url = string.format(
-            "https://raw.githubusercontent.com/%s/%s/%s/main.lua?t=%s",
-            User, Repo, Branch, tick()
-        )
-        local ok, body = pcall(function() return game:HttpGet(url) end)
-        if not ok or not body then return end
+        -- Fetch the remote version and compare to the local one
+        task.spawn(function()
+        task.wait(3) -- initial delay for UI to finish loading
 
-        -- Pull the version string out of the first few lines
-        local remoteVersion = body:match('local%s+Version%s*=%s*"([^"]+)"')
-        if not remoteVersion then return end
+        while true do
+            local url = string.format(
+                "https://raw.githubusercontent.com/%s/%s/%s/main.lua?t=%s",
+                User, Repo, Branch, tick()
+            )
+            local ok, body = pcall(function() return game:HttpGet(url) end)
 
-        if remoteVersion ~= Version then
-            UpdateLabel.Text    = "Update " .. remoteVersion .. " available — reload!"
-            UpdateLabel.Visible = true
-            StartUpdatePulse()
+            if ok and body then
+                local remoteVersion = body:match('local%s+Version%s*=%s*"([^"]+)"')
+                if remoteVersion and remoteVersion ~= Version then
+                    UpdateLabel.Text    = "🔔  Update " .. remoteVersion .. " available — reload!"
+                    if not UpdateLabel.Visible then
+                        UpdateLabel.Visible = true
+                        StartUpdatePulse()
+                    end
+                end
+            end
+
+            -- Check every 60 seconds — frequent enough to catch updates
+            -- quickly without spamming GitHub's servers
+            task.wait(60)
         end
     end)
     
