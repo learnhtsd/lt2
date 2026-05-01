@@ -77,6 +77,16 @@ function TeleportModule.Init(Tab)
     -- ===========================
     Tab:CreateSection("Player & Plot Teleports")
 
+    -- TP to self is pointless; plot button stays enabled so you can go to your own plot
+    tpBtn:SetDisabled(true)
+
+    local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
+        local isSelf = (val == localTag)
+        selectedTarget = isSelf and nil or val
+        tpBtn:SetDisabled(isSelf)
+        -- plotBtn is never disabled — works for self and others alike
+    end)
+    
     local tpBtn = Tab:CreateAction("Go to Player", "TP", function()
         if selectedTarget then
             for _, p in pairs(Players:GetPlayers()) do
@@ -105,16 +115,6 @@ function TeleportModule.Init(Tab)
                 break
             end
         end
-    end)
-
-    -- TP to self is pointless; plot button stays enabled so you can go to your own plot
-    tpBtn:SetDisabled(true)
-
-    local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
-        local isSelf = (val == localTag)
-        selectedTarget = isSelf and nil or val
-        tpBtn:SetDisabled(isSelf)
-        -- plotBtn is never disabled — works for self and others alike
     end)
 
     -- ===========================
