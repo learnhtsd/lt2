@@ -4,38 +4,24 @@ local TreeModule = {}
 --             SYSTEM SETTINGS
 -- ==========================================
 local Settings = {
-    -- [ Movement & View ]
-    DistanceToTree  = 3.5,
-    VerticalOffset  = 0.4,
-    HideGround      = true,
-
     SyncDelay       = 0.25,
     ReadyDelay      = 0.1,
 
     -- [ Cut Settings ]
-    -- How many FireServer calls per WoodSection per pass.
-    -- High damage axes only need 1-2 passes; lower damage axes may need more.
-    -- The loop will keep firing until the section is actually gone.
     FiresPerSection = 50,
-    -- Delay between individual fires within a single pass (lets server register each cut)
     FireDelay       = 0.03,
-    -- Delay between full section sweeps (lets the server process cuts)
     SweepDelay      = 0.1,
-    -- How long (seconds) to keep hammering the base before giving up
-    ChopTimeout     = 30,
+    ChopTimeout     = 5,
 
     -- [ LOT Settings ]
     LogDropDistance = 6,
-    ResizeTarget    = Vector3.new(3, 3, 3),
 
     -- [ Sell Location ]
-    SellPosition    = Vector3.new(315.0, 1, 88.3),
+    SellPosition    = Vector3.new(315, 0.5, 95)
 }
 
 -- ==========================================
 --             DAMAGE TABLE
---   Mirrors the Xeno script damage values.
---   Used to set hitPoints in CutArguments.
 -- ==========================================
 local AxeDamage = {
     ["Basic Hatchet"]       = function(_)      return 0.2        end,
@@ -60,7 +46,7 @@ local AxeDamage = {
         else return 1.2 end
     end,
     ["Bird Axe"]            = function(tc)
-        if tc == "Volcano"     then return 2.5
+        if tc == "Volcano"       then return 2.5
         elseif tc == "CaveCrawler" then return 3.9
         else return 1.65 end
     end,
@@ -68,15 +54,15 @@ local AxeDamage = {
 
 local function GetDamage(axeName, treeClass)
     local fn = AxeDamage[axeName]
-    return fn and fn(treeClass) or 1.0   -- default fallback
+    return fn and fn(treeClass) or 1.0
 end
 
 -- ==========================================
 --             CORE SERVICES & VARS
 -- ==========================================
-local Players  = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
+local Players           = game:GetService("Players")
+local Workspace         = game:GetService("Workspace")
+local RunService        = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
@@ -88,18 +74,9 @@ local preChopCameraCFrame = nil
 local lockConn            = nil
 local preChopLogModels    = {}
 
-local groundObject         = Workspace:FindFirstChild("Baseplate")
-local originalTransparency = groundObject and groundObject.Transparency or 0
-
 -- ==========================================
 --             UTILITY
 -- ==========================================
-local function SetGroundVisible(visible)
-    if not groundObject or not Settings.HideGround then return end
-    groundObject.Transparency = visible and originalTransparency or 1
-end
-
--- Returns the equipped Tool and its display name (via ToolTip child or property)
 local function GetEquippedAxe()
     local char = player.Character
     if not char then return nil, nil end
@@ -128,11 +105,9 @@ local function ScanForTreeTypes()
     return #found > 0 and found or {"None Found"}
 end
 
--- Finds the tree of treeClass with the most WoodSections (biggest tree)
 local function FindPriorityTree(treeClass)
     local bestModel   = nil
     local maxSections = -1
-
     for _, folder in ipairs(Workspace:GetChildren()) do
         if folder.Name:lower():match("treeregion") then
             for _, model in ipairs(folder:GetChildren()) do
@@ -155,7 +130,6 @@ local function FindPriorityTree(treeClass)
     return bestModel
 end
 
--- Returns all WoodSection parts in a tree model, bottom-first
 local function GetSectionsBottomFirst(treeModel)
     local sections = {}
     for _, part in ipairs(treeModel:GetChildren()) do
@@ -236,7 +210,6 @@ end
 
 local function CleanupState()
     isChopping = false
-    SetGroundVisible(true)
 
     local char = player.Character
     local hrp  = char and char:FindFirstChild("HumanoidRootPart")
@@ -296,8 +269,11 @@ local function WaitForLogsToSettle(treeClass)
             end
         end
         if allStill then
-            if not stableFrom then stableFrom = tick()
-            elseif tick() - stableFrom >= STABLE_DURATION then return end
+            if not stableFrom then
+                stableFrom = tick()
+            elseif tick() - stableFrom >= STABLE_DURATION then
+                return
+            end
         else
             stableFrom = nil
         end
@@ -322,13 +298,10 @@ local function RunLOTBatch(LOT, stumps, goalCFBuilder, onComplete)
             if LOT.IsBusy() then
                 repeat task.wait(0.1) until not LOT.IsBusy()
             end
-            local goalCF      = goalCFBuilder(i, stump)
-            local originalSize = stump.Size
-            stump.Size        = Settings.ResizeTarget
+            local goalCF = goalCFBuilder(i, stump)
             LOT.TeleportObjectTo(stump, goalCF)
             task.spawn(function()
                 repeat task.wait(0.1) until not LOT.IsBusy()
-                if stump and stump.Parent then stump.Size = originalSize end
             end)
         end
         if onComplete then onComplete() end
@@ -344,27 +317,21 @@ local _hoverOutline = nil
 local _hoverPlank   = nil
 local _plankConn    = nil
 local _clickConn    = nil
-local _isSelling    = false   -- guard: true while a TP is in flight
+local _isSelling    = false
 
--- Walks up from any part to find the parent Plank model owned by local player
 local function FindOwnedPlank(part)
     if not part then return nil end
-
-    -- Walk up the hierarchy to find the model named "Plank"
     local current = part
     while current and current ~= Workspace do
         if current.Name == "Plank" and current:IsA("Model") then
             local playerModels = Workspace:FindFirstChild("PlayerModels")
             if not playerModels then return nil end
             if current.Parent ~= playerModels then return nil end
-
-            -- Check ownership
             local owner = current:FindFirstChild("Owner")
             if not owner then return nil end
             local ownerStr = owner:FindFirstChild("OwnerString")
             if not ownerStr or not ownerStr:IsA("StringValue") then return nil end
             if ownerStr.Value ~= player.Name then return nil end
-
             return current
         end
         current = current.Parent
@@ -383,14 +350,14 @@ end
 local function ApplyHoverOutline(model)
     if _hoverPlank == model then return end
     ClearHoverOutline()
-    _hoverPlank              = model
-    _hoverOutline            = Instance.new("SelectionBox")
-    _hoverOutline.Adornee    = model
-    _hoverOutline.Color3     = Color3.fromRGB(74, 120, 255)
-    _hoverOutline.LineThickness      = 0.08
-    _hoverOutline.SurfaceColor3      = Color3.fromRGB(74, 120, 255)
+    _hoverPlank                       = model
+    _hoverOutline                     = Instance.new("SelectionBox")
+    _hoverOutline.Adornee             = model
+    _hoverOutline.Color3              = Color3.fromRGB(74, 120, 255)
+    _hoverOutline.LineThickness       = 0.08
+    _hoverOutline.SurfaceColor3       = Color3.fromRGB(74, 120, 255)
     _hoverOutline.SurfaceTransparency = 0.65
-    _hoverOutline.Parent     = Workspace
+    _hoverOutline.Parent              = Workspace
 end
 
 local function StopSellPlanks()
@@ -409,63 +376,45 @@ local function StartSellPlanks(LOT)
 
     _sellPlanksOn = true
     _isSelling    = false
-    local mouse = player:GetMouse()
+    local mouse   = player:GetMouse()
 
-    -- Hover: runs every frame, checks what the mouse is over.
-    -- Suppressed while a TP is in flight so the outline doesn't flicker
-    -- onto the plank as it arrives at the sell point.
     _plankConn = RunService.RenderStepped:Connect(function()
         if not _sellPlanksOn then return end
-        if _isSelling then
-            -- Hide outline during TP to avoid confusing visual feedback
-            ClearHoverOutline()
-            return
-        end
+        if _isSelling then ClearHoverOutline() return end
         local plank = FindOwnedPlank(mouse.Target)
-        if plank then
-            ApplyHoverOutline(plank)
-        else
-            ClearHoverOutline()
-        end
+        if plank then ApplyHoverOutline(plank) else ClearHoverOutline() end
     end)
 
-    -- Click: sell the currently highlighted plank.
-    -- Bails immediately if a sale is already in progress.
     _clickConn = mouse.Button1Down:Connect(function()
         if not _sellPlanksOn then return end
-        if _isSelling then return end                -- prevent re-entry during TP
+        if _isSelling then return end
         if not _hoverPlank or not _hoverPlank.Parent then return end
 
         local plank = _hoverPlank
         ClearHoverOutline()
-
-        _isSelling = true    -- disable clicks & hover until TP completes
+        _isSelling = true
 
         task.spawn(function()
             if LOT.IsBusy() then
                 repeat task.wait(0.05) until not LOT.IsBusy()
             end
 
-            -- Get the PrimaryPart or first BasePart to teleport
             local target = plank.PrimaryPart
             if not target then
                 for _, v in ipairs(plank:GetDescendants()) do
-                    if v:IsA("BasePart") then target = v break end
+                    if v:IsA("BasePart") then target = v; break end
                 end
             end
 
             if not target then
                 warn("[TreeModule] Plank has no BasePart to teleport.")
-                _isSelling = false   -- release lock on failure
+                _isSelling = false
                 return
             end
 
             LOT.TeleportObjectTo(target, PLANK_SELL_CF)
-
-            -- Wait for LOT to finish before re-enabling clicks
             repeat task.wait(0.05) until not LOT.IsBusy()
-
-            _isSelling = false   -- re-enable hover & click
+            _isSelling = false
         end)
     end)
 end
@@ -475,10 +424,6 @@ end
 -- ==========================================
 local RemoteProxy = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
 
--- FIX 1: Height is now near the BOTTOM of the section (10% up from base)
---         instead of the center. This makes the cut register lower on the log.
--- FIX 2: Small FireDelay between individual fires so the server can process
---         each cut before the next one arrives (prevents silent drops).
 local function FireCutSection(section, tool, axeName, treeClass)
     if not section or not section.Parent then return end
 
@@ -486,10 +431,7 @@ local function FireCutSection(section, tool, axeName, treeClass)
     if not idObj then return end
 
     local damage = GetDamage(axeName, treeClass)
-
-    -- Cut near the bottom of the section instead of the center.
-    -- section.Size.Y * 0.1 = 10% up from the base of the log.
-    local height = section.Size.Y * 0.1
+    local height = section.Size.Y * 0.2
 
     local args = {
         sectionId    = idObj.Value,
@@ -502,28 +444,23 @@ local function FireCutSection(section, tool, axeName, treeClass)
     }
 
     for _ = 1, Settings.FiresPerSection do
-        if not section.Parent then break end  -- section was cut, stop early
+        if not section.Parent then break end
         RemoteProxy:FireServer(section.Parent.CutEvent, args)
-        task.wait(Settings.FireDelay)         -- let the server register each fire
+        task.wait(Settings.FireDelay)
     end
 end
 
 -- ==========================================
 --   FALL DETECTION
---   In LT2, WoodSections are NOT removed when the tree falls —
---   they just drop with it. The real signal is new LogModels
---   appearing in Workspace.LogModels for our treeClass.
 -- ==========================================
 local function TreeHasFallen(treeClass)
     local logModels = Workspace:FindFirstChild("LogModels")
     if not logModels then return false end
     for _, model in ipairs(logModels:GetChildren()) do
-        if preChopLogModels[model] then continue end   -- existed before chop
+        if preChopLogModels[model] then continue end
         if not model:IsA("Model") then continue end
         local tc = model:FindFirstChild("TreeClass")
-        if tc and tc.Value == treeClass then
-            return true   -- new log appeared — tree is down
-        end
+        if tc and tc.Value == treeClass then return true end
     end
     return false
 end
@@ -534,10 +471,8 @@ end
 local function StartChopping(treeClass, LOT, onComplete)
     if isChopping then return end
 
-    -- 1. Snapshot existing logs so we can detect new ones later
     SnapshotLogModels()
 
-    -- 2. Find the best tree
     local treeModel = FindPriorityTree(treeClass)
     if not treeModel then
         warn("[TreeModule] No tree found for class:", treeClass)
@@ -545,7 +480,6 @@ local function StartChopping(treeClass, LOT, onComplete)
         return
     end
 
-    -- 3. Find the lowest WoodSection as our stand-near target
     local sections = GetSectionsBottomFirst(treeModel)
     if #sections == 0 then
         warn("[TreeModule] Tree has no WoodSections.")
@@ -553,7 +487,6 @@ local function StartChopping(treeClass, LOT, onComplete)
         return
     end
 
-    -- 4. Get equipped axe — player must have one in hand
     local tool, axeName = GetEquippedAxe()
     if not tool then
         warn("[TreeModule] No axe equipped. Please equip an axe before chopping.")
@@ -568,38 +501,28 @@ local function StartChopping(treeClass, LOT, onComplete)
         return
     end
 
-    -- 5. Save state, TP player next to the lowest section
     preChopCFrame       = hrp.CFrame
     preChopCameraCFrame = camera.CFrame
     isChopping          = true
 
-    SetGroundVisible(false)
-
+    -- Place the player next to the base of the tree
     local targetPart = sections[1]
-    local aimPoint   = targetPart.Position
-    local lookDir    = targetPart.CFrame.LookVector
-    local standPos   = aimPoint
-                     + (lookDir * Settings.DistanceToTree)
-                     + Vector3.new(0, Settings.VerticalOffset, 0)
-
-    local standCF = CFrame.lookAt(standPos, aimPoint)
-    hrp.CFrame    = standCF
+    local standPos   = targetPart.Position + Vector3.new(4, 0, 0)
+    local standCF    = CFrame.lookAt(standPos, targetPart.Position)
+    hrp.CFrame       = standCF
     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 
-    -- Lock player in place while chopping
     lockConn = RunService.RenderStepped:Connect(function()
         if isChopping then
             hrp.CFrame = standCF
             hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         else
-            if lockConn then lockConn:Disconnect() lockConn = nil end
+            if lockConn then lockConn:Disconnect(); lockConn = nil end
         end
     end)
 
     task.wait(Settings.SyncDelay)
 
-    -- 6. Keep firing at the BASE section until it's fully gone,
-    --    then wait for the whole tree to fall before TPing back.
     task.spawn(function()
         local baseSection = GetSectionsBottomFirst(treeModel)[1]
 
@@ -610,15 +533,10 @@ local function StartChopping(treeClass, LOT, onComplete)
             return
         end
 
-        -- Keep hammering the base section until new LogModels appear
-        -- (meaning the tree has actually fallen) or we hit the timeout.
-        -- NOTE: WoodSections are NOT removed when a tree falls in LT2 —
-        -- they fall with the tree. We detect the fell by watching LogModels.
         local deadline = tick() + Settings.ChopTimeout
 
         while not TreeHasFallen(treeClass) and isChopping and tick() < deadline do
             if not baseSection or not baseSection.Parent then
-                -- Section ref is gone somehow; re-grab the current lowest one
                 local fresh = GetSectionsBottomFirst(treeModel)
                 if #fresh == 0 then break end
                 baseSection = fresh[1]
@@ -630,7 +548,6 @@ local function StartChopping(treeClass, LOT, onComplete)
         if tick() >= deadline then
             warn("[TreeModule] ChopTimeout reached — tree never fell. Aborting.")
         elseif not isChopping then
-            -- User cancelled
             CleanupState()
             if onComplete then onComplete() end
             return
@@ -638,14 +555,8 @@ local function StartChopping(treeClass, LOT, onComplete)
             print("[TreeModule] New logs detected — tree is down. Returning player.")
         end
 
-        -- 7. Unequip the axe so LOT can TP logs freely,
-        --    then return player, wait for physics to settle, then deliver.
-        do
-            local equippedTool = player.Character and player.Character:FindFirstChildOfClass("Tool")
-            if equippedTool then
-                equippedTool.Parent = player.Backpack
-            end
-        end
+        local equippedTool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+        if equippedTool then equippedTool.Parent = player.Backpack end
 
         CleanupState()
         WaitForLogsToSettle(treeClass)
@@ -699,7 +610,6 @@ function TreeModule.Init(Tab, LOT)
         end
     end)
 
-    -- ── LOG MANAGEMENT ────────────────────────────────────────────
     Tab:CreateSection("Log Management")
 
     local tpAllButton = Tab:CreateAction("Teleport All Logs To Me", "TP", function()
@@ -745,12 +655,9 @@ function TreeModule.Init(Tab, LOT)
             end
         end)
     end)
+
     Tab:CreateToggle("Click To Sell (Planks)", false, function(state)
-        if state then
-            StartSellPlanks(LOT)
-        else
-            StopSellPlanks()
-        end
+        if state then StartSellPlanks(LOT) else StopSellPlanks() end
     end)
 end
 
