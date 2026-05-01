@@ -75,19 +75,24 @@ function World.Init(Tab, Lib)
         if state then
             local bridge = Workspace:FindFirstChild("Bridge")
             if bridge then
-                -- 1. Move the Lift Base
-                local liftBase = bridge:FindFirstChild("VerticalLiftBridge") 
-                    and bridge.VerticalLiftBridge:FindFirstChild("Lift") 
-                    and bridge.VerticalLiftBridge.Lift:FindFirstChild("Base")
+                -- 1. Find the Lift Model
+                local vlb = bridge:FindFirstChild("VerticalLiftBridge")
+                local lift = vlb and vlb:FindFirstChild("Lift")
 
-                if liftBase then
-                    liftBase.CFrame = CFrame.new(liftBase.Position.X, 6.5, liftBase.Position.Z)
+                if lift then
+                    -- Loop through ALL children to find every "Base" part
+                    for _, child in pairs(lift:GetChildren()) do
+                        if child:IsA("BasePart") and child.Name == "Base" then
+                            -- We use * child.CFrame.Rotation to keep the 180-degree flip seen in your screenshot
+                            child.CFrame = CFrame.new(child.Position.X, 6.5, child.Position.Z) * child.CFrame.Rotation
+                        end
+                    end
                 end
 
                 -- 2. Delete specified parts
                 local vlb = bridge:FindFirstChild("VerticalLiftBridge")
                 if vlb then
-                    local targets = {"BRope", "Structure", "wWight", "WRope"}
+                    local targets = {"BRope", "Structure", "weight", "WRope"}
                     for _, child in pairs(vlb:GetChildren()) do
                         if table.find(targets, child.Name) then
                             child:Destroy()
