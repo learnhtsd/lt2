@@ -86,6 +86,7 @@ local State = {
     LassoStartPos   = nil,
     LassoGui        = nil,
     LassoFrame      = nil,
+    TpBtn = nil,
 
     StackMode         = false,
     StackPreviewParts = {},
@@ -444,6 +445,13 @@ local function ClearStackPreview()
     State.StackPreviewParts = {}
 end
 
+local function SetTpBtnLabel(label)
+    if State.TpBtn then
+        if State.TpBtn.SetLabel then State.TpBtn:SetLabel(label)
+        elseif State.TpBtn.SetText then State.TpBtn:SetText(label) end
+    end
+end
+
 local function SetStackBtnLabel(label)
     if State.StackStartBtn then
         if State.StackStartBtn.SetLabel then State.StackStartBtn:SetLabel(label)
@@ -633,6 +641,13 @@ local function PerformClear()
 end
 
 local function PerformExecute()
+    -- If already running, cancel instead
+    if State.IsBusy then
+        State.BatchCancelled = true
+        Notify("Batch", "Cancelling…", 2)
+        return
+    end
+
     if #State.SelectedObjects == 0 or not Player.Character then
         Notify("Wait", "Queue empty or missing character.", 2)
         return
@@ -654,7 +669,9 @@ local function PerformExecute()
     end
 
     task.spawn(function()
+        SetTpBtnLabel("Stop")
         local success = RunBatch(jobs)
+        SetTpBtnLabel("Start")
         if not Settings.KeepSelected then State.SelectedObjects = {} end
         UpdateVisuals()
         Notify("Finished", success and "Batch complete." or "Batch cancelled.", 3)
@@ -754,7 +771,7 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
 
     local MainRow = Tab:CreateRow()
     MainRow:CreateAction("Clear Selection", "Clear", PerformClear)
-    MainRow:CreateAction("Teleport Selection", "TP", function()
+    State.TpBtn = MainRow:CreateAction("Teleport Selection", "Start", function()
         task.spawn(PerformExecute)
     end)
 
