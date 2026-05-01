@@ -11,7 +11,7 @@ local Settings = {
     FiresPerSection = 50,
     FireDelay       = 0.03,
     SweepDelay      = 0.1,
-    ChopTimeout     = 5,
+    ChopTimeout     = 30,
 
     -- [ LOT Settings ]
     LogDropDistance = 6,
