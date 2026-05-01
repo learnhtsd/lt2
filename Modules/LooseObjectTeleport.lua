@@ -771,12 +771,40 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
         }
     )
     
-    Tab:CreateSection("Teleportation Tools")
-    Tab:CreateToggle("Click Selection", false, function(val) State.ClickSelectMode = val end)
-    Tab:CreateToggle("Group Selection", false, function(val) State.GroupSelectMode = val end)
-    Tab:CreateToggle("Lasso Tool", false, function(val)
+    local ClickToggle, GroupToggle, LassoToggle
+    
+    local function DisableOtherSelectionModes(except)
+        if except ~= "click" and State.ClickSelectMode then
+            State.ClickSelectMode = false
+            if ClickToggle then ClickToggle:SetValue(false) end
+        end
+        if except ~= "group" and State.GroupSelectMode then
+            State.GroupSelectMode = false
+            if GroupToggle then GroupToggle:SetValue(false) end
+        end
+        if except ~= "lasso" and State.LassoMode then
+            State.LassoMode     = false
+            State.LassoDragging = false
+            if State.LassoFrame then State.LassoFrame.Visible = false end
+            if LassoToggle then LassoToggle:SetValue(false) end
+        end
+    end
+    
+    ClickToggle = Tab:CreateToggle("Click Selection", false, function(val)
+        State.ClickSelectMode = val
+        if val then DisableOtherSelectionModes("click") end
+    end)
+    
+    GroupToggle = Tab:CreateToggle("Group Selection", false, function(val)
+        State.GroupSelectMode = val
+        if val then DisableOtherSelectionModes("group") end
+    end)
+    
+    LassoToggle = Tab:CreateToggle("Lasso Tool", false, function(val)
         State.LassoMode = val
-        if not val then
+        if val then
+            DisableOtherSelectionModes("lasso")
+        else
             State.LassoDragging = false
             if State.LassoFrame then State.LassoFrame.Visible = false end
         end
