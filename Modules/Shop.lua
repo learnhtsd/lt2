@@ -53,28 +53,28 @@ local StoreConfigs = {
     },
     FurnitureStore = {
         NPCName     = "Corey",
-        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(477.2, 5.6, -1721.8),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(481.4, 3.2, -1712.5),   -- TODO: set real coordinates
     },
     CarStore = {
         NPCName     = "Jenny",
-        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(528, 5.7, -1460),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(524.9, 3.2, -1466.6),   -- TODO: set real coordinates
     },
     ShackShop = {
         NPCName     = "Bob",
-        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(260.4, 10.4, -2551.3),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(256.7, 8.4, -2546.7),   -- TODO: set real coordinates
     },
     FineArt = {
         NPCName     = "Timothy",
-        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(5238.2, -164.0, 740.3),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(5232.4, -166.0, 737.3),   -- TODO: set real coordinates
     },
     LogicStore = {
         NPCName     = "Lincoln",
-        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(4595.5, 9.4, -785.1),   -- TODO: set real coordinates
+        PlayerBuyCF = CFrame.new(4598.4, 7.0, -778.4),   -- TODO: set real coordinates
     },
 }
 
