@@ -18,38 +18,85 @@ local Player            = Players.LocalPlayer
 -- │  ItemDropCF  — where the item is teleported before buying.      │
 -- │  PlayerBuyCF — where the player stands to fire the NPC remote.  │
 -- └─────────────────────────────────────────────────────────────────┘
-local STORES = {
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                        STORE REGISTRY                           │
+-- │                                                                 │
+-- │  NPC references are resolved lazily in BuildStores() so they   │
+-- │  are never evaluated at module-load time (workspace may not     │
+-- │  be fully replicated yet when loadstring runs).                 │
+-- │                                                                 │
+-- │  ItemDropCF  — where the item is TP'd before purchase.         │
+-- │  PlayerBuyCF — where the player stands to fire the NPC remote. │
+-- └─────────────────────────────────────────────────────────────────┘
+local STORES_CONFIG = {
     WoodRUs = {
-        NPC         = workspace.Stores.WoodRUs.Thom,
+        Path        = { "Stores", "WoodRUs", "Thom" },
         ItemDropCF  = CFrame.new(268.5, 5.2,  67.4),
         PlayerBuyCF = CFrame.new(262.1, 3.2,  64.8),
     },
     FurnitureStore = {
-        NPC         = workspace.Stores.FurnitureStore.Corey,
-        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO: set correct drop position
-        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO: set correct buy position
+        Path        = { "Stores", "FurnitureStore", "Corey" },
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO
     },
     CarStore = {
-        NPC         = workspace.Stores.CarStore.Jenny,
-        ItemDropCF  = CFrame.new(0, 0, 0),
-        PlayerBuyCF = CFrame.new(0, 0, 0),
+        Path        = { "Stores", "CarStore", "Jenny" },
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO
     },
     ShackShop = {
-        NPC         = workspace.Stores.ShackShop.Bob,
-        ItemDropCF  = CFrame.new(0, 0, 0),
-        PlayerBuyCF = CFrame.new(0, 0, 0),
+        Path        = { "Stores", "ShackShop", "Bob" },
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO
     },
     FineArt = {
-        NPC         = workspace.Stores.FineArt.Timothy,
-        ItemDropCF  = CFrame.new(0, 0, 0),
-        PlayerBuyCF = CFrame.new(0, 0, 0),
+        Path        = { "Stores", "FineArt", "Timothy" },
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO
     },
     LogicStore = {
-        NPC         = workspace.Stores.LogicStore.Lincoln,
-        ItemDropCF  = CFrame.new(0, 0, 0),
-        PlayerBuyCF = CFrame.new(0, 0, 0),
+        Path        = { "Stores", "LogicStore", "Lincoln" },
+        ItemDropCF  = CFrame.new(0, 0, 0),   -- TODO
+        PlayerBuyCF = CFrame.new(0, 0, 0),   -- TODO
     },
 }
+
+-- Built once in Init — populated by BuildStores().
+-- All runtime code reads from this table.
+local STORES = {}
+
+local function BuildStores()
+    for storeKey, config in pairs(STORES_CONFIG) do
+        -- Walk the path from workspace using FindFirstChild at each step
+        local current = workspace
+        local ok = true
+        for _, part in ipairs(config.Path) do
+            local next = current:FindFirstChild(part)
+            if not next then
+                warn(("[ShopModule] BuildStores: could not find '%s' in '%s' for store '%s'")
+                    :format(part, current:GetFullName(), storeKey))
+                ok = false
+                break
+            end
+            current = next
+        end
+
+        if ok then
+            STORES[storeKey] = {
+                NPC             = current,
+                ItemDropCF      = config.ItemDropCF,
+                PlayerBuyCF     = config.PlayerBuyCF,
+                ShopItemsFolder = nil,   -- filled by ResolveShopFolders
+            }
+        end
+    end
+
+    local built = 0
+    for _ in pairs(STORES) do built += 1 end
+    print(("[ShopModule] BuildStores: %d / %d stores resolved."):format(built, (function()
+        local n = 0; for _ in pairs(STORES_CONFIG) do n += 1 end; return n
+    end)()))
+end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                     LOT REFERENCE                               │
@@ -566,8 +613,10 @@ end
 function ShopModule.Init(Tab, lot, GetImageFunc)
     if lot ~= nil then _LOT = lot end
 
-    -- Resolve which ShopItems folder belongs to each store before anything else.
-    -- This only needs to happen once — results are cached in store.ShopItemsFolder.
+    -- Resolve NPC references now that workspace is guaranteed to be loaded.
+    BuildStores()
+
+    -- Assign each store's ShopItems folder by proximity.
     ResolveShopFolders()
 
     local GetImage = GetImageFunc or getgenv().GetImage or function() return nil end
