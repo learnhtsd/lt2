@@ -776,17 +776,17 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     local function DisableOtherSelectionModes(except)
         if except ~= "click" and State.ClickSelectMode then
             State.ClickSelectMode = false
-            if ClickToggle then ClickToggle:SetValue(false) end
+            if ClickToggle then ClickToggle:SetState(false) end
         end
         if except ~= "group" and State.GroupSelectMode then
             State.GroupSelectMode = false
-            if GroupToggle then GroupToggle:SetValue(false) end
+            if GroupToggle then GroupToggle:SetState(false) end
         end
         if except ~= "lasso" and State.LassoMode then
             State.LassoMode     = false
             State.LassoDragging = false
             if State.LassoFrame then State.LassoFrame.Visible = false end
-            if LassoToggle then LassoToggle:SetValue(false) end
+            if LassoToggle then LassoToggle:SetState(false) end
         end
     end
     
