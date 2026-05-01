@@ -794,9 +794,9 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     end)
 
     Tab:CreateSection("Sorting")
-    Tab:CreateSlider("X", 1, 100, Settings.StackX, function(val) Settings.StackX = val end)
-    Tab:CreateSlider("Y", 1, 50,  Settings.StackY, function(val) Settings.StackY = val end)
-    Tab:CreateSlider("Z", 1, 100, Settings.StackZ, function(val) Settings.StackZ = val end)
+    Tab:CreateSlider("X", 1, 40, Settings.StackX, function(val) Settings.StackX = val end)
+    Tab:CreateSlider("Y", 1, 20,  Settings.StackY, function(val) Settings.StackY = val end)
+    Tab:CreateSlider("Z", 1, 40, Settings.StackZ, function(val) Settings.StackZ = val end)
     Tab:CreateSlider("Padding", 0, 1, Settings.StackPadding, function(val)
         Settings.StackPadding = val
     end, 1)
