@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.296"
+local Version = "v0.0.297"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -716,38 +716,19 @@ function Library:CreateWindow()
             local Element = {}
             local CardH   = ES(Height or 80)
         
-            -- ── OUTER frame: Surface background + UICorner + UIStroke.
-            --    ClipsDescendants is OFF so the stroke is never covered by
-            --    children. The background shows through before the image loads.
-            local ImageFrame = Instance.new("Frame")
+            -- ── Use ImageLabel as the card itself so UICorner rounds the image
+            --    content properly — ClipsDescendants only clips to a rectangle,
+            --    so the old Frame+ClipFrame approach never worked.
+            local ImageFrame = Instance.new("ImageLabel")
             ImageFrame.Size             = UDim2.new(1, 0, 0, CardH)
             ImageFrame.BackgroundColor3 = T.Surface
-            ImageFrame.ClipsDescendants = false
+            ImageFrame.Image            = ""
+            ImageFrame.ScaleType        = Enum.ScaleType.Stretch
+            ImageFrame.ImageColor3      = Color3.new(1, 1, 1)
             ImageFrame.Parent           = self.Container
             Instance.new("UICorner", ImageFrame).CornerRadius = UDim.new(0, 6)
         
-            -- ── INNER clip frame: same size, same corner radius.
-            --    MUST have a non-transparent background so UICorner's clip
-            --    mask is applied — transparent frames fall back to rect clipping.
-            local ClipFrame = Instance.new("Frame")
-            ClipFrame.Size             = UDim2.new(1, 0, 1, 0)
-            ClipFrame.BackgroundColor3 = T.Surface   -- ← was missing; matches outer bg
-            ClipFrame.ClipsDescendants = true
-            ClipFrame.Parent           = ImageFrame
-            Instance.new("UICorner", ClipFrame).CornerRadius = UDim.new(0, 6)
-        
-            -- ── Image — stretches to fill the clip frame.
-            local Img = Instance.new("ImageLabel")
-            Img.Size                   = UDim2.new(1, 0, 1, 0)
-            Img.BackgroundTransparency = 1
-            Img.Image                  = ""
-            Img.ScaleType              = Enum.ScaleType.Stretch
-            Img.ImageColor3            = Color3.new(1, 1, 1)
-            Img.Parent                 = ClipFrame
-        
-            -- ── STROKE overlay: transparent frame parented to the OUTER frame
-            --    with a high ZIndex so it always renders on top of the image.
-            --    This is what draws the visible matching border.
+            -- ── STROKE overlay: transparent frame on top with high ZIndex.
             local StrokeFrame = Instance.new("Frame")
             StrokeFrame.Size                   = UDim2.new(1, 0, 1, 0)
             StrokeFrame.BackgroundTransparency = 1
@@ -759,7 +740,7 @@ function Library:CreateWindow()
             Stroke.Thickness       = 1
             Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         
-            -- ── Loader — fetches Images/<fileName> directly (no subfolder).
+            -- ── Loader
             local function LoadImage(fileName)
                 if not fileName or fileName == "" then return end
                 task.spawn(function()
@@ -788,11 +769,21 @@ function Library:CreateWindow()
                         end
                     end
         
-                    if asset then Img.Image = asset end
+                    if asset then ImageFrame.Image = asset end
                 end)
             end
         
             LoadImage(FileName)
+        
+            -- ── Public API
+            function Element:SetImage(fileName)   LoadImage(fileName)                          end
+            function Element:SetHeight(pts)       ImageFrame.Size = UDim2.new(1, 0, 0, ES(pts)) end
+            function Element:SetImageColor(color) ImageFrame.ImageColor3 = color               end
+            function Element:SetTransparency(v)   ImageFrame.ImageTransparency = math.clamp(v, 0, 1) end
+            function Element:SetVisible(state)    ImageFrame.Visible = state                   end
+        
+            return Element
+        end
         
             -- ── Public API ────────────────────────────────────────────────
         
