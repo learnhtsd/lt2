@@ -186,59 +186,41 @@ local function PlayerAlignedCFrame(position, root)
     return CFrame.lookAt(position, position + flatLook.Unit)
 end
 
-local function FindOwnerString(model)
-    -- Try every known path LT2 uses for the ownership counter.
-    -- The one that actually increments on ClientIsDragging is what we want.
-
-    -- Path 1: model.Owner.OwnerString  (folder structure)
+local function FindLastInteracted(model)
     local ownerFolder = model:FindFirstChild("Owner")
     if ownerFolder then
-        local s = ownerFolder:FindFirstChild("OwnerString")
-        if s and s:IsA("StringValue") then return s end
-        local n = ownerFolder:FindFirstChild("OwnerString")
-        if n and n:IsA("NumberValue") then return n end
+        local li = ownerFolder:FindFirstChild("LastInteracted")
+        if li then return li end
     end
-
-    -- Path 2: model.OwnerString  (flat, direct child)
-    local direct = model:FindFirstChild("OwnerString")
-    if direct and (direct:IsA("StringValue") or direct:IsA("NumberValue")) then
-        return direct
-    end
-
-    -- Path 3: model.Owner itself is the value (StringValue / NumberValue)
-    if ownerFolder and (ownerFolder:IsA("StringValue") or ownerFolder:IsA("NumberValue")) then
-        return ownerFolder
-    end
-
-    return nil
+    -- Flat fallback in case it sits directly on the model
+    return model:FindFirstChild("LastInteracted")
 end
 
 local function TeleportSingle(target, goalCF, root)
     if not target or not target.Parent then return end
 
-    local model      = target:FindFirstAncestorOfClass("Model") or target.Parent
-    local ownerString = FindOwnerString(model)
+    local model         = target:FindFirstAncestorOfClass("Model") or target.Parent
+    local lastInteracted = FindLastInteracted(model)
 
     -- Capture the value RIGHT NOW, before anything fires.
-    -- We do this first so there's zero chance the remote beats us to it.
-    local initialValue = ownerString and ownerString.Value
+    local initialValue = lastInteracted and lastInteracted.Value
 
     -- 1. TP player next to the object so the server accepts the remote
     root.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0))
     task.wait(0.05)
 
     -- 2. Fire ClientIsDragging to claim ownership
-    if ownerString then
+    if lastInteracted then
         -- Hook the signal BEFORE firing so we can't miss an instant change
         local synced = false
-        local conn = ownerString:GetPropertyChangedSignal("Value"):Connect(function()
+        local conn = lastInteracted:GetPropertyChangedSignal("Value"):Connect(function()
             synced = true
         end)
 
         for i = 1, Settings.DragFires do
             ClientIsDragging:FireServer(model)
             task.wait(Settings.DragFireDelay)
-            if synced then break end   -- value already changed — no need to keep firing
+            if synced then break end   -- already changed — stop firing
         end
 
         -- 3. If not already synced, yield until it changes or we time out
@@ -248,15 +230,15 @@ local function TeleportSingle(target, goalCF, root)
                 task.wait()
             end
             if not synced then
-                warn(("[LOT] OwnerString on '%s' never changed within %.1fs — proceeding anyway.")
+                warn(("[LOT] LastInteracted on '%s' never changed within %.1fs — proceeding anyway.")
                     :format(model.Name, Settings.OwnershipTimeout))
             end
         end
 
         conn:Disconnect()
     else
-        -- No OwnerString found — fire the remotes and use the flat fallback wait
-        warn(("[LOT] No OwnerString found on '%s' — using fallback wait."):format(model.Name))
+        -- No LastInteracted found — fire remotes and use flat fallback wait
+        warn(("[LOT] No Owner.LastInteracted found on '%s' — using fallback wait."):format(model.Name))
         for i = 1, Settings.DragFires do
             ClientIsDragging:FireServer(model)
             task.wait(Settings.DragFireDelay)
