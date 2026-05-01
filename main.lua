@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.321"
+local Version = "v0.0.322"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -216,69 +216,83 @@ function Library:CreateWindow()
     ActiveTabLabel.TextXAlignment  = Enum.TextXAlignment.Right
     ActiveTabLabel.Parent          = MainFrame
 
-    -- ── UPDATE NOTICE ─────────────────────────────────────────────
-    local UpdateLabel = Instance.new("TextLabel")
-    UpdateLabel.Size               = UDim2.new(0, 200, 0, 20)
-    UpdateLabel.AnchorPoint        = Vector2.new(0.5, 0)
-    UpdateLabel.Position           = UDim2.new(0.5, 0, 0, 12)
-    UpdateLabel.BackgroundColor3   = Color3.fromRGB(190, 120, 15)
-    UpdateLabel.BackgroundTransparency = 0.25
-    UpdateLabel.Text               = "Update available — reload!"
-    UpdateLabel.TextColor3         = Color3.fromRGB(255, 235, 180)
-    UpdateLabel.Font               = Enum.Font.GothamBold
-    UpdateLabel.TextSize           = FS(10)
-    UpdateLabel.TextXAlignment     = Enum.TextXAlignment.Center
-    UpdateLabel.Visible            = false
-    UpdateLabel.ZIndex             = 5
-    UpdateLabel.Parent             = MainFrame
-    Instance.new("UICorner", UpdateLabel).CornerRadius = UDim.new(0, 4)
-    local UpdateStroke = Instance.new("UIStroke", UpdateLabel)
-    UpdateStroke.Color     = Color3.fromRGB(220, 150, 30)
-    UpdateStroke.Thickness = 1
+-- ══════════════════════════════════════════════════════════════
+-- UPDATE NOTICE  —  drop-in replacement for main.lua
+-- Find the old "── UPDATE NOTICE" block and replace it entirely
+-- with everything below (down to and including StartUpdatePulse).
+-- Also fix the one reference to UpdateLabel.Visible → UpdateBar.Visible
+-- inside the version-check task.spawn (noted at the bottom).
+-- ══════════════════════════════════════════════════════════════
 
-    -- Pulse animation that plays once the label is shown
+    -- ── UPDATE NOTICE ─────────────────────────────────────────────
+    -- Slim bar anchored to the bottom edge of the window, theme-matched.
+    local UpdateBar = Instance.new("Frame")
+    UpdateBar.Name                   = "UpdateBar"
+    UpdateBar.Size                   = UDim2.new(1, -W.SidebarWidth, 0, ES(18))
+    UpdateBar.AnchorPoint            = Vector2.new(0, 1)
+    UpdateBar.Position               = UDim2.new(0, W.SidebarWidth, 1, 0)
+    UpdateBar.BackgroundColor3       = T.SurfaceDeep
+    UpdateBar.BackgroundTransparency = 0
+    UpdateBar.BorderSizePixel        = 0
+    UpdateBar.ClipsDescendants       = false
+    UpdateBar.Visible                = false
+    UpdateBar.ZIndex                 = 6
+    UpdateBar.Parent                 = MainFrame
+    Instance.new("UICorner", UpdateBar).CornerRadius = UDim.new(0, 6)
+
+    -- Square off the bottom half so it sits flush with the window edge
+    local UpdateBarSquare = Instance.new("Frame")
+    UpdateBarSquare.Size                   = UDim2.new(1, 0, 0.5, 0)
+    UpdateBarSquare.Position               = UDim2.new(0, 0, 0.5, 0)
+    UpdateBarSquare.BackgroundColor3       = T.SurfaceDeep
+    UpdateBarSquare.BackgroundTransparency = 0
+    UpdateBarSquare.BorderSizePixel        = 0
+    UpdateBarSquare.ZIndex                 = 5
+    UpdateBarSquare.Parent                 = UpdateBar
+
+    local UpdateStroke = Instance.new("UIStroke", UpdateBar)
+    UpdateStroke.Color           = T.Accent
+    UpdateStroke.Thickness       = 1
+    UpdateStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+    -- Small pulsing dot to the left of the text
+    local UpdateDot = Instance.new("Frame")
+    UpdateDot.Size             = UDim2.new(0, ES(5), 0, ES(5))
+    UpdateDot.AnchorPoint      = Vector2.new(0, 0.5)
+    UpdateDot.Position         = UDim2.new(0, ES(10), 0.5, 0)
+    UpdateDot.BackgroundColor3 = T.Accent
+    UpdateDot.BorderSizePixel  = 0
+    UpdateDot.ZIndex           = 8
+    UpdateDot.Parent           = UpdateBar
+    Instance.new("UICorner", UpdateDot).CornerRadius = UDim.new(1, 0)
+
+    local UpdateLabel = Instance.new("TextLabel")
+    UpdateLabel.Size                   = UDim2.new(1, -ES(26), 1, 0)
+    UpdateLabel.Position               = UDim2.new(0, ES(22), 0, 0)
+    UpdateLabel.BackgroundTransparency = 1
+    UpdateLabel.Text                   = "Update available — reload to apply"
+    UpdateLabel.TextColor3             = T.Accent
+    UpdateLabel.Font                   = Enum.Font.GothamMedium
+    UpdateLabel.TextSize               = FS(10)
+    UpdateLabel.TextXAlignment         = Enum.TextXAlignment.Left
+    UpdateLabel.TextYAlignment         = Enum.TextYAlignment.Center
+    UpdateLabel.ZIndex                 = 8
+    UpdateLabel.Parent                 = UpdateBar
+
+    -- RGB accent cycle — runs at ~60 fps while the bar is visible
     local function StartUpdatePulse()
         task.spawn(function()
-            while UpdateLabel and UpdateLabel.Parent do
-                TweenService:Create(UpdateLabel, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                    BackgroundTransparency = 0.55
-                }):Play()
-                task.wait(0.8)
-                TweenService:Create(UpdateLabel, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                    BackgroundTransparency = 0.25
-                }):Play()
-                task.wait(0.8)
+            local hue = 0
+            while UpdateBar and UpdateBar.Parent and UpdateBar.Visible do
+                hue = (hue + 0.4) % 360
+                local rgb = Color3.fromHSV(hue / 360, 0.72, 1)
+                UpdateLabel.TextColor3     = rgb
+                UpdateDot.BackgroundColor3 = rgb
+                UpdateStroke.Color         = rgb
+                task.wait(0.016)  -- ~60 fps
             end
         end)
     end
-
-        -- Fetch the remote version and compare to the local one
-        task.spawn(function()
-        task.wait(3) -- initial delay for UI to finish loading
-
-        while true do
-            local url = string.format(
-                "https://raw.githubusercontent.com/%s/%s/%s/main.lua?t=%s",
-                User, Repo, Branch, tick()
-            )
-            local ok, body = pcall(function() return game:HttpGet(url) end)
-
-            if ok and body then
-                local remoteVersion = body:match('local%s+Version%s*=%s*"([^"]+)"')
-                if remoteVersion and remoteVersion ~= Version then
-                    UpdateLabel.Text    = "Update " .. remoteVersion .. " available — reload!"
-                    if not UpdateLabel.Visible then
-                        UpdateLabel.Visible = true
-                        StartUpdatePulse()
-                    end
-                end
-            end
-
-            -- Check every 60 seconds — frequent enough to catch updates
-            -- quickly without spamming GitHub's servers
-            task.wait(60)
-        end
-    end)
     
     -- TAB CONTAINER (inside sidebar)
     local TabContainer = Instance.new("ScrollingFrame")
