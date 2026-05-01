@@ -48,16 +48,18 @@ end
 -- │                     CONFIGURATION & STATE                       │
 -- └─────────────────────────────────────────────────────────────────┘
 local Settings = {
-    -- How many times to fire ClientIsDragging per object
-    DragFires        = 10,
-    -- Delay between each fire
-    DragFireDelay    = 0.03,
-    -- Max seconds to wait for OwnerString to change before giving up and moving anyway
+    -- Max seconds to wait for LastInteracted to change before giving up
     OwnershipTimeout = 3,
-    -- Fallback wait (s) used when no OwnerString is found on the model
+    -- Fallback wait (s) used when no LastInteracted is found on the model
     FallbackWait     = 0.5,
-    -- Delay between objects in a batch
-    PostObjectDelay  = 0.1,
+    -- Small pause after TPing the player before firing the remote.
+    -- Needed so the server registers the player's new position first.
+    -- Lowering this too far causes the server to reject the drag (too far away).
+    PreFireWait      = 0.05,
+    -- Pause between each object in a batch. Can usually be 0 but a small
+    -- buffer helps on laggier servers to avoid the next object's remote
+    -- colliding with the previous one still being processed.
+    PostObjectDelay  = 0.05,
 
     SelectionColor  = Color3.fromRGB(74, 120, 255),
     OutlineThickness = 0.02,
@@ -205,45 +207,38 @@ local function TeleportSingle(target, goalCF, root)
     -- Capture the value RIGHT NOW, before anything fires.
     local initialValue = lastInteracted and lastInteracted.Value
 
-    -- 1. TP player next to the object so the server accepts the remote
+    -- 1. TP player next to the object so the server accepts the remote.
+    --    PreFireWait lets the server register the new position before we fire.
     root.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0))
-    task.wait(0.05)
+    task.wait(Settings.PreFireWait)
 
-    -- 2. Fire ClientIsDragging to claim ownership
+    -- 2. Fire ClientIsDragging every frame until LastInteracted changes.
     if lastInteracted then
-        -- Hook the signal BEFORE firing so we can't miss an instant change
         local synced = false
         local conn = lastInteracted:GetPropertyChangedSignal("Value"):Connect(function()
             synced = true
         end)
 
-        for i = 1, Settings.DragFires do
+        local deadline = tick() + Settings.OwnershipTimeout
+        while not synced and tick() < deadline do
             ClientIsDragging:FireServer(model)
-            task.wait(Settings.DragFireDelay)
-            if synced then break end   -- already changed — stop firing
-        end
-
-        -- 3. If not already synced, yield until it changes or we time out
-        if not synced then
-            local deadline = tick() + Settings.OwnershipTimeout
-            while not synced and tick() < deadline do
-                task.wait()
-            end
-            if not synced then
-                warn(("[LOT] LastInteracted on '%s' never changed within %.1fs — proceeding anyway.")
-                    :format(model.Name, Settings.OwnershipTimeout))
-            end
+            task.wait()   -- one frame between each fire
         end
 
         conn:Disconnect()
-    else
-        -- No LastInteracted found — fire remotes and use flat fallback wait
-        warn(("[LOT] No Owner.LastInteracted found on '%s' — using fallback wait."):format(model.Name))
-        for i = 1, Settings.DragFires do
-            ClientIsDragging:FireServer(model)
-            task.wait(Settings.DragFireDelay)
+
+        if not synced then
+            warn(("[LOT] LastInteracted on '%s' never changed within %.1fs — proceeding anyway.")
+                :format(model.Name, Settings.OwnershipTimeout))
         end
-        task.wait(Settings.FallbackWait)
+    else
+        -- No LastInteracted found — fire a burst and use flat fallback wait
+        warn(("[LOT] No Owner.LastInteracted found on '%s' — using fallback wait."):format(model.Name))
+        local deadline = tick() + Settings.FallbackWait
+        while tick() < deadline do
+            ClientIsDragging:FireServer(model)
+            task.wait()
+        end
     end
 
     -- 4. Move the object
@@ -730,11 +725,7 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
 
     Tab:CreateSlider("Ownership Timeout (s)", 1, 10, Settings.OwnershipTimeout, function(val)
         Settings.OwnershipTimeout = val
-    end):AddTooltip("Max seconds to wait for OwnerString sync before moving the object anyway.")
-
-    Tab:CreateSlider("Drag Fires", 1, 30, Settings.DragFires, function(val)
-        Settings.DragFires = val
-    end):AddTooltip("How many times ClientIsDragging is fired per object to claim ownership.")
+    end):AddTooltip("Max seconds to fire the remote before giving up and moving the object anyway.")
 
     local MainRow = Tab:CreateRow()
     MainRow:CreateAction("Clear Selection", "Clear", PerformClear)
