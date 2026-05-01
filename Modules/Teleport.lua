@@ -66,22 +66,35 @@ function TeleportModule.Init(Tab)
     -- PLAYER & PLOT SECTION
     -- ===========================
     Tab:CreateSection("Player & Plot Teleports")
-
     local function GetPlayerList()
         local list = {}
         for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer then 
-                table.insert(list, p.DisplayName) 
+            if p ~= LocalPlayer then
+                table.insert(list, p.DisplayName)
             end
         end
         return list
     end
 
-    Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
+    local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
         selectedTarget = val
     end)
 
-    -- Button 1: Teleport to the actual Player
+    local function RefreshPlayerList()
+        local list = GetPlayerList()
+        playerDropdown:SetOptions(list)
+        if selectedTarget then
+            local stillPresent = false
+            for _, name in ipairs(list) do
+                if name == selectedTarget then stillPresent = true break end
+            end
+            if not stillPresent then selectedTarget = nil end
+        end
+    end
+
+    Players.PlayerAdded:Connect(RefreshPlayerList)
+    Players.PlayerRemoving:Connect(RefreshPlayerList)
+
     Tab:CreateAction("Go to Player", "TP", function()
         if selectedTarget then
             for _, p in pairs(Players:GetPlayers()) do
@@ -93,14 +106,12 @@ function TeleportModule.Init(Tab)
         end
     end)
 
-    -- Button 2: Teleport to that Player's Plot
     Tab:CreateAction("Go to Player's Plot", "PLOT", function()
         if selectedTarget then
             local properties = workspace:FindFirstChild("Properties")
             if properties then
                 for _, plot in pairs(properties:GetChildren()) do
                     local owner = plot:FindFirstChild("Owner")
-                    -- Matching the Owner value to the selected player's name
                     if owner and tostring(owner.Value) == selectedTarget then
                         local origin = plot:FindFirstChild("Origin") or plot:FindFirstChildOfClass("Part")
                         if origin then Teleport(origin.Position) end
@@ -110,7 +121,6 @@ function TeleportModule.Init(Tab)
             end
         end
     end)
-
 end
 
 return TeleportModule
