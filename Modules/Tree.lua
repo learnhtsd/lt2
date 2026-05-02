@@ -223,6 +223,31 @@ local function CollectAllOwnedStumps()
     return results
 end
 
+local function CollectOwnedStandingTrees()
+    local trees = {}
+    for _, folder in ipairs(Workspace:GetChildren()) do
+        if folder.Name:lower():match("treeregion") then
+            for _, model in ipairs(folder:GetChildren()) do
+                if model:IsA("Model") and IsOwnedByLocalPlayer(model) then
+                    table.insert(trees, model)
+                end
+            end
+        end
+    end
+    return trees
+end
+
+local function UnanchorAndCollectSections(treeModel)
+    local parts = {}
+    for _, part in ipairs(treeModel:GetChildren()) do
+        if part.Name == "WoodSection" and part:IsA("BasePart") then
+            part.Anchored = false
+            table.insert(parts, part)
+        end
+    end
+    return parts
+end
+
 local function CleanupState()
     isChopping = false
 
@@ -626,18 +651,43 @@ function TreeModule.Init(Tab, LOT)
     local sellButton = Tab:CreateAction("Sell All Logs/Trees", "Sell", function()
         if not LOT then warn("[TreeModule] LOT not available.") return end
         if LOT.IsBusy() then warn("[TreeModule] LOT busy.") return end
-
-        local stumps = CollectAllOwnedStumps()
-        if #stumps == 0 then return end
-
+    
         if type(sellButton) == "table" and sellButton.SetText then
             sellButton:SetText("Selling...")
         end
-
-        local sellPos = Settings.SellPosition
-        RunLOTBatch(LOT, stumps, function(i, _)
-            return CFrame.new(sellPos.X + ((i - 1) * 5), sellPos.Y, sellPos.Z)
-        end, function()
+    
+        task.spawn(function()
+            local sellPos = Settings.SellPosition
+            local sellIdx = 0
+    
+            local function SellParts(parts)
+                for _, part in ipairs(parts) do
+                    if not part or not part.Parent then continue end
+                    if LOT.IsBusy() then repeat task.wait(0.05) until not LOT.IsBusy() end
+                    sellIdx += 1
+                    LOT.TeleportObjectTo(part, CFrame.new(
+                        sellPos.X + ((sellIdx - 1) * 5),
+                        sellPos.Y,
+                        sellPos.Z
+                    ))
+                    repeat task.wait(0.05) until not LOT.IsBusy()
+                end
+            end
+    
+            -- Standing trees first: unanchor sections per tree, then sell each one
+            local standingTrees = CollectOwnedStandingTrees()
+            for _, treeModel in ipairs(standingTrees) do
+                local sections = UnanchorAndCollectSections(treeModel)
+                if #sections > 0 then
+                    task.wait(0.1) -- let physics register the unanchor
+                    SellParts(sections)
+                end
+            end
+    
+            -- Then fallen logs already in LogModels
+            local stumps = CollectAllOwnedStumps()
+            SellParts(stumps)
+    
             if type(sellButton) == "table" and sellButton.SetText then
                 sellButton:SetText("Sell")
             end
