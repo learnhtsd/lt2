@@ -45,7 +45,6 @@ function CombinedModule.Init(Tab, Library)
             return
         end
 
-        -- PRE-CHECK: Can we load right now?
         local success, result = pcall(function()
             return ClientMayLoad:InvokeServer(slot)
         end)
@@ -57,7 +56,6 @@ function CombinedModule.Init(Tab, Library)
             return
         end
 
-        -- Character Validation
         local char     = LocalPlayer.Character
         local humanoid = char and char:FindFirstChildOfClass("Humanoid")
         local hrp      = char and char:FindFirstChild("HumanoidRootPart")
@@ -69,11 +67,9 @@ function CombinedModule.Init(Tab, Library)
 
         Notify("RELOADING", "Permissions valid. Reloading slot " .. slot .. "…", 4)
 
-        -- Drop below baseplate and wait for death
         hrp.CFrame = CFrame.new(hrp.Position.X, -100, hrp.Position.Z)
         humanoid.Died:Wait()
 
-        -- Fire RequestLoad
         local ok, err = pcall(function()
             RequestLoadRemote:InvokeServer(slot)
         end)
@@ -82,14 +78,22 @@ function CombinedModule.Init(Tab, Library)
             return
         end
 
-        -- Wait for fresh character then confirm
+        -- Wait for fresh character
         local newChar = LocalPlayer.CharacterAdded:Wait()
         newChar:WaitForChild("HumanoidRootPart", 10)
+
+        -- Reassign camera — this is the key fix
+        local Camera = workspace.CurrentCamera
+        if Camera then
+            Camera.CameraSubject = newChar:FindFirstChildOfClass("Humanoid")
+            Camera.CameraType    = Enum.CameraType.Follow
+        end
+
         Notify("SUCCESS", "Slot " .. slot .. " reloaded!", 5)
     end
 
-    Tab:CreateSection("Respawn & Reload")
-    Tab:CreateAction("Reload Current Slot", "Reload", function()
+    Tab:CreateSection("Axe Duplication")
+    Tab:CreateAction("Duplicate Axes In Inventory", "Start", function()
         task.spawn(ReloadCurrentSlot)
     end)
 
