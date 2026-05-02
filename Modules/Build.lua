@@ -325,6 +325,39 @@ function BuildModule.Init(Tab, LOT)
     Tab:CreateToggle("Long Wire", false, function(state)
         SetWireLength(state and 60 or 20)
     end)
+
+    Tab:CreateToggle("BTools", false, function(state)
+        local player   = Players.LocalPlayer
+        local backpack = player:FindFirstChildOfClass("Backpack")
+        if not backpack then return end
+    
+        if state then
+            local delete     = Instance.new("HopperBin")
+            delete.Name      = "BTool_Delete"
+            delete.BinType   = Enum.BinType.Hammer
+            delete.Parent    = backpack
+    
+            local undo       = Instance.new("HopperBin")
+            undo.Name        = "BTool_Undo"
+            undo.BinType     = Enum.BinType.Undo
+            undo.Parent      = backpack
+        else
+            for _, item in ipairs(backpack:GetChildren()) do
+                if item.Name == "BTool_Delete" or item.Name == "BTool_Undo" then
+                    item:Destroy()
+                end
+            end
+            -- also clear from character hand if currently equipped
+            local char = player.Character
+            if char then
+                for _, item in ipairs(char:GetChildren()) do
+                    if item.Name == "BTool_Delete" or item.Name == "BTool_Undo" then
+                        item:Destroy()
+                    end
+                end
+            end
+        end
+    end)
     
     RefreshBPStatus()
 end
