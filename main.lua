@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.341"
+local Version = "v0.0.343"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -61,22 +61,29 @@ for _, v in pairs(CoreGui:GetChildren()) do
 end
 
 -- ── Image helper (unchanged) ─────────────────────────────────
+-- Reliable cross-executor existence check. isfile() returns false in Xeno
+-- even for real files; pcall(readfile) succeeds iff the file truly exists.
+local function FileExists(path)
+    local ok, data = pcall(readfile, path)
+    return ok and type(data) == "string" and #data > 0
+end
+
 getgenv().GetImage = function(folder, fileName)
-    local localPath       = "Dynxe/Images/" .. folder .. "/" .. fileName
-    local folderPath      = "Dynxe/Images/" .. folder
+    local localPath        = "Dynxe/Images/" .. folder .. "/" .. fileName
+    local folderPath       = "Dynxe/Images/" .. folder
     local placeholderLocal = "Dynxe/Images/Placeholder.png"
-    local placeholderUrl  = string.format(
+    local placeholderUrl   = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/Placeholder.png",
         User, Repo, Branch
     )
     if isfolder and not isfolder("Dynxe")        then makefolder("Dynxe") end
     if isfolder and not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
     if folder ~= "" and isfolder and not isfolder(folderPath) then makefolder(folderPath) end
-    if not isfile(placeholderLocal) then
+    if not FileExists(placeholderLocal) then
         local pOk, pData = pcall(function() return game:HttpGet(placeholderUrl) end)
         if pOk and #pData > 100 then writefile(placeholderLocal, pData) end
     end
-    if isfile(localPath) then return getcustomasset(localPath) end
+    if FileExists(localPath) then return getcustomasset(localPath) end
     local url = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/%s/%s",
         User, Repo, Branch, folder, fileName
@@ -86,8 +93,8 @@ getgenv().GetImage = function(folder, fileName)
         writefile(localPath, content)
         return getcustomasset(localPath)
     else
-        warn("Asset Missing: " .. fileName .. " (Using Placeholder from " .. User .. "/" .. Repo .. ")")
-        return isfile(placeholderLocal) and getcustomasset(placeholderLocal) or "rbxassetid://6023426923"
+        warn("Asset Missing: " .. fileName)
+        return FileExists(placeholderLocal) and getcustomasset(placeholderLocal) or "rbxassetid://6023426923"
     end
 end
 
@@ -357,12 +364,12 @@ function Library:CreateWindow()
         local finalAssetUrl = ""
         if isfolder and makefolder and writefile and isfile and getcustomasset then
             if not isfolder(folderName) then makefolder(folderName) end
-            if not isfile(filePath) then
+            if not FileExists(filePath) then
                 local iconUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/Icons/%s.png?t=%s", User, Repo, Branch, TabName, tick())
                 local ok, imgData = pcall(function() return game:HttpGet(iconUrl) end)
                 if ok and imgData and not imgData:match("404: Not Found") then writefile(filePath, imgData) end
             end
-            if isfile(filePath) then finalAssetUrl = getcustomasset(filePath) end
+            if FileExists(filePath) then finalAssetUrl = getcustomasset(filePath) end
         end
 
         local TabIcon = Instance.new("ImageLabel")
