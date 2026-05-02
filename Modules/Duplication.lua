@@ -37,6 +37,17 @@ function Duplication.Init(Tab)
     -- ===========================
     -- UI SECTIONS
     -- ===========================
+
+    local Notice = Tab:CreateInfoBox()
+    Notice:AddText("⚠ Tab Is Under Development", { Bold = true, Size = 14 })
+    Notice:AddDivider()
+    Notice:AddText("The Features Below Will Not Work", {
+        Size    = 12,
+        Opacity = 0.80,
+        Italic  = true,
+        Wrap    = true,
+    })
+    
     Tab:CreateSection("BASE DUPLICATION")
 
     -- Dropdowns: (Title, Options, Default, Callback)
