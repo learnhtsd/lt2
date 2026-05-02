@@ -312,9 +312,12 @@ function BuildModule.Init(Tab, LOT)
     Tab:CreateSection("Other")
     
     local function SetWireLength(length)
-        for _, v in next, game.ReplicatedStorage.Purchasables.WireObjects:GetChildren() do
-            if v:FindFirstChild("Type") and v.Type.Value == "Wire" then
-                v.Type.Parent.OtherInfo.MaxLength.Value = length
+        for _, item in next, game:GetService("ReplicatedStorage").ClientItemInfo:GetChildren() do
+            if item.Name:lower():find("wire") then
+                local maxLength = item:FindFirstChild("OtherInfo") and item.OtherInfo:FindFirstChild("MaxLength")
+                if maxLength then
+                    maxLength.Value = length
+                end
             end
         end
     end
