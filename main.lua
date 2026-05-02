@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.357"
+local Version = "v0.0.358"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1969,9 +1969,9 @@ local TeleportModule = LoadModule("Teleport")
 if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) end
 Library:Notify("Loaded", "Teleport", 2)
 
-local GhostModule = LoadModule("GhostSuite")
-if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
-Library:Notify("Loaded", "Ghost Suite", 2)
+--local GhostModule = LoadModule("GhostSuite")
+--if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
+--Library:Notify("Loaded", "Ghost Suite", 2)
 
 local WorldModule = LoadModule("World")
 if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end
