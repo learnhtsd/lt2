@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.364"
+local Version = "v0.0.365"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -214,7 +214,7 @@ function Library:CreateWindow()
 
     local ActiveTabLabel = Instance.new("TextLabel")
     ActiveTabLabel.Size            = UDim2.new(0, 150, 0, 30)
-    ActiveTabLabel.Position        = UDim2.new(1, -160, 0, 10)
+    ActiveTabLabel.Position        = UDim2.new(1, -165, 0, 10)
     ActiveTabLabel.BackgroundTransparency = 1
     ActiveTabLabel.Text            = ""
     ActiveTabLabel.TextColor3      = T.Accent
