@@ -14,25 +14,16 @@ function World.Init(Tab, Lib)
     _G.ShadowsEnabled = true
     _G.FogEnabled = true
     _G.WaterEnabled = true
-    _G.BouldersRemoved = false
+    _G.BouldersRemoved = false 
     _G.VolcanoBouldersRemoved = false
     _G.PostProcessing = true
     _G.SpookEvent = false
-    _G.EnhancedGraphics = false
+    _G.EnhancedGraphics = false -- New State
 
     local waterParts = {}
-    local boulderParts = {}
-    local volcanoBoulderParts = {}
+    local boulderParts = {} 
     local effectCache = {}
-    local originalLightingSettings = {}
-
-    -- Dirty flag only for Shadows (game doesn't fight over GlobalShadows each frame)
-    local lastShadows = true
-
-    -- Fog originals — captured at scan time so we can restore properly
-    local originalFogEnd = Lighting.FogEnd
-    local originalFogStart = Lighting.FogStart
-    local originalAtmDensity = nil
+    local originalLightingSettings = {} -- To restore visuals
 
     -- Bridge Backup for Resetting
     local bridgeBackup = nil
@@ -40,50 +31,36 @@ function World.Init(Tab, Lib)
         bridgeBackup = Workspace.Bridge:Clone()
     end
 
-    -- ===========================
-    -- WORLD SCAN (run once at startup)
-    -- ===========================
+    -- IMPROVED: Incremental Scan
     local function ScanWorld()
         waterParts = {}
         boulderParts = {}
-        volcanoBoulderParts = {}
-
+        
         local descendants = Workspace:GetDescendants()
         local count = 0
-
+        
         for _, obj in pairs(descendants) do
             count = count + 1
             if count % 500 == 0 then task.wait() end
 
             if obj:IsA("BasePart") then
                 if obj.Name == "Water" then
-                    table.insert(waterParts, { Instance = obj, OriginalTransparency = obj.Transparency })
-
-                elseif obj.Name == "Boulder" or obj.Name == "SmallBoulder" then
-                    local isVolcano = obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")
-                    if isVolcano then
-                        table.insert(volcanoBoulderParts, { Instance = obj, OriginalTransparency = obj.Transparency, OriginalCFrame = obj.CFrame, OriginalCanCollide = obj.CanCollide })
-                    else
-                        table.insert(boulderParts, { Instance = obj, OriginalTransparency = obj.Transparency })
+                    table.insert(waterParts, {Instance = obj, OriginalTransparency = obj.Transparency})
+                end
+                if obj.Name == "Boulder" or obj.Name == "SmallBoulder" then
+                    if not (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
+                        table.insert(boulderParts, {Instance = obj, OriginalTransparency = obj.Transparency})
                     end
                 end
             end
         end
 
         for _, effect in pairs(Lighting:GetChildren()) do
-            if effect:IsA("PostProcessEffect") or effect:IsA("BlurEffect")
-                or effect:IsA("BloomEffect") or effect:IsA("ColorCorrectionEffect")
-                or effect:IsA("SunRaysEffect") then
+            if effect:IsA("PostProcessEffect") or effect:IsA("BlurEffect") or effect:IsA("BloomEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("SunRaysEffect") then
                 effectCache[effect] = effect.Enabled
             end
         end
-
-        -- Capture fog originals after the scene has loaded
-        originalFogEnd = Lighting.FogEnd
-        originalFogStart = Lighting.FogStart
-        local atm = Lighting:FindFirstChildOfClass("Atmosphere")
-        if atm then originalAtmDensity = atm.Density end
-
+        
         if Lib and Lib.Notify then
             Lib:Notify("System", "World Scan Complete!", 2)
         end
@@ -98,45 +75,58 @@ function World.Init(Tab, Lib)
         if state then
             local bridge = Workspace:FindFirstChild("Bridge")
             if bridge then
+                -- 1. Find the Lift Model
                 local vlb = bridge:FindFirstChild("VerticalLiftBridge")
                 local lift = vlb and vlb:FindFirstChild("Lift")
 
                 if lift then
+                    -- Loop through ALL children to find every "Base" part
                     for _, child in pairs(lift:GetChildren()) do
                         if child:IsA("BasePart") and child.Name == "Base" then
+                            -- We use * child.CFrame.Rotation to keep the 180-degree flip seen in your screenshot
                             child.CFrame = CFrame.new(child.Position.X, 6.5, child.Position.Z) * child.CFrame.Rotation
                         end
                     end
                 end
 
+                -- 2. Delete specified parts
+                local vlb = bridge:FindFirstChild("VerticalLiftBridge")
                 if vlb then
-                    local targets = { "BRope", "Structure", "Weight", "WRope" }
+                    local targets = {"BRope", "Structure", "Weight", "WRope"}
                     for _, child in pairs(vlb:GetChildren()) do
-                        if table.find(targets, child.Name) then child:Destroy() end
+                        if table.find(targets, child.Name) then
+                            child:Destroy()
+                        end
                     end
                 end
             end
         else
+            -- 3. Reset the Bridge
             if bridgeBackup then
-                if Workspace:FindFirstChild("Bridge") then Workspace.Bridge:Destroy() end
+                if Workspace:FindFirstChild("Bridge") then
+                    Workspace.Bridge:Destroy()
+                end
                 local restoredBridge = bridgeBackup:Clone()
                 restoredBridge.Parent = Workspace
             end
         end
     end
-
+    
     -- ===========================
     -- ENHANCED VISUALS LOGIC
     -- ===========================
     local function ToggleEnhanced(state)
         if state then
+            -- Save original settings before changing
             originalLightingSettings.Brightness = Lighting.Brightness
             originalLightingSettings.OutdoorAmbient = Lighting.OutdoorAmbient
             originalLightingSettings.ExposureCompensation = Lighting.ExposureCompensation
-
+            
+            -- Apply "High End" Visuals
             Lighting.Brightness = 3
             Lighting.ExposureCompensation = 0.5
-
+            
+            -- Create/Adjust Effects
             local bloom = Lighting:FindFirstChild("EnhancedBloom") or Instance.new("BloomEffect", Lighting)
             bloom.Name = "EnhancedBloom"
             bloom.Intensity = 1
@@ -157,25 +147,23 @@ function World.Init(Tab, Lib)
             sunrays.Spread = 1
             sunrays.Enabled = true
         else
+            -- Restore original settings
             Lighting.Brightness = originalLightingSettings.Brightness or 2
             Lighting.ExposureCompensation = originalLightingSettings.ExposureCompensation or 0
-
+            
             if Lighting:FindFirstChild("EnhancedBloom") then Lighting.EnhancedBloom.Enabled = false end
             if Lighting:FindFirstChild("EnhancedCC") then Lighting.EnhancedCC.Enabled = false end
             if Lighting:FindFirstChild("EnhancedRays") then Lighting.EnhancedRays.Enabled = false end
         end
     end
 
-    -- ===========================
-    -- TOGGLE FUNCTIONS
-    -- ===========================
     local function ToggleWater(state)
         for _, data in pairs(waterParts) do
             local part = data.Instance
             if part and part.Parent then
                 part.Transparency = state and data.OriginalTransparency or 1
                 part.CanCollide = false
-                part.CanTouch = state
+                part.CanTouch = state 
             end
         end
     end
@@ -186,23 +174,6 @@ function World.Init(Tab, Lib)
             if part and part.Parent then
                 part.Transparency = state and 1 or data.OriginalTransparency
                 part.CanCollide = not state
-            end
-        end
-    end
-
-    local function ToggleVolcanoBoulders(state)
-        for _, data in pairs(volcanoBoulderParts) do
-            local part = data.Instance
-            if part and part.Parent then
-                if state then
-                    part.CanCollide = false
-                    part.Transparency = 1
-                    part.CFrame = data.OriginalCFrame * CFrame.new(0, -1000, 0)
-                else
-                    part.CanCollide = data.OriginalCanCollide
-                    part.Transparency = data.OriginalTransparency
-                    part.CFrame = data.OriginalCFrame
-                end
             end
         end
     end
@@ -218,11 +189,10 @@ function World.Init(Tab, Lib)
     end)
 
     Tab:CreateToggle("Time Lock", false, function(s) _G.TimeLock = s end)
-
-    Tab:CreateToggle("Full Bright", false, function(s)
-        _G.FullBright = s
+    
+    Tab:CreateToggle("Full Bright", false, function(s) 
+        _G.FullBright = s 
         if not s then
-            -- Restore normal ambient immediately on toggle off
             Lighting.Brightness = 2
             Lighting.Ambient = Color3.fromRGB(127, 127, 127)
             Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
@@ -230,17 +200,7 @@ function World.Init(Tab, Lib)
     end)
 
     Tab:CreateToggle("Shadows", true, function(s) _G.ShadowsEnabled = s end)
-
-    Tab:CreateToggle("Fog", true, function(s)
-        _G.FogEnabled = s
-        if s then
-            -- Restore fog immediately on toggle on
-            Lighting.FogEnd = originalFogEnd
-            Lighting.FogStart = originalFogStart
-            local atm = Lighting:FindFirstChildOfClass("Atmosphere")
-            if atm and originalAtmDensity then atm.Density = originalAtmDensity end
-        end
-    end)
+    Tab:CreateToggle("Fog", true, function(s) _G.FogEnabled = s end)
 
     Tab:CreateSection("Environment")
 
@@ -254,16 +214,21 @@ function World.Init(Tab, Lib)
         _G.SpookEvent = s
         local spook = Lighting:FindFirstChild("Spook")
         if spook then
+            -- Sets Lighting.Spook.Value based on toggle state
             spook.Value = s
         else
-            if Lib and Lib.Notify then Lib:Notify("Error", "Spook object not found in Lighting!", 3) end
+            if Lib and Lib.Notify then 
+                Lib:Notify("Error", "Spook object not found in Lighting!", 3) 
+            end
         end
     end)
 
     Tab:CreateToggle("Post-Processing", true, function(s)
         _G.PostProcessing = s
         for effect, originalState in pairs(effectCache) do
-            if effect then effect.Enabled = s and originalState or false end
+            if effect then
+                effect.Enabled = s and originalState or false
+            end
         end
     end)
 
@@ -275,8 +240,8 @@ function World.Init(Tab, Lib)
     Tab:CreateToggle("Lower Bridge", false, function(s)
         _G.BridgeDown = s
         ToggleBridge(s)
-        if Lib and Lib.Notify then
-            Lib:Notify("Map", s and "Bridge lowered and cleaned!" or "Bridge reset to original.", 3)
+        if Lib and Lib.Notify then 
+            Lib:Notify("Map", s and "Bridge lowered and cleaned!" or "Bridge reset to original.", 3) 
         end
     end)
 
@@ -287,36 +252,41 @@ function World.Init(Tab, Lib)
 
     Tab:CreateToggle("Toggle Volcano Boulders", false, function(s)
         _G.VolcanoBouldersRemoved = s
-        ToggleVolcanoBoulders(s)
     end)
 
     -- ===========================
     -- MASTER LOOP
     -- ===========================
     RunService.RenderStepped:Connect(function()
-        -- Time lock
-        if _G.TimeLock then
-            Lighting.ClockTime = _G.TimeOfDay
-        end
-
-        -- FullBright: must assert every frame — the game overwrites Ambient each frame
+        if _G.TimeLock then Lighting.ClockTime = _G.TimeOfDay end
+        
         if _G.FullBright then
             Lighting.Ambient = Color3.fromRGB(255, 255, 255)
             Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
             Lighting.Brightness = 2
         end
 
-        -- Fog: must assert every frame — Atmosphere/FogEnd get reset by the game each frame
+        if Lighting.GlobalShadows ~= _G.ShadowsEnabled then
+            Lighting.GlobalShadows = _G.ShadowsEnabled
+        end
+
         if not _G.FogEnabled then
             Lighting.FogEnd = 1e6
             local atm = Lighting:FindFirstChildOfClass("Atmosphere")
             if atm then atm.Density = 0 end
         end
 
-        -- Shadows: dirty flag is fine, GlobalShadows isn't overwritten by the game
-        if _G.ShadowsEnabled ~= lastShadows then
-            lastShadows = _G.ShadowsEnabled
-            Lighting.GlobalShadows = _G.ShadowsEnabled
+        -- DYNAMIC Boulders logic
+        if _G.VolcanoBouldersRemoved then
+            for _, obj in pairs(Workspace:GetChildren()) do
+                if obj.Name == "Boulder" and (obj:FindFirstChild("LavaLight") or obj:FindFirstChild("Fire")) then
+                    if obj:IsA("BasePart") and obj.CanCollide == true then
+                        obj.CanCollide = false
+                        obj.Transparency = 1
+                        obj.CFrame = obj.CFrame * CFrame.new(0, -1000, 0) 
+                    end
+                end
+            end
         end
     end)
 end
