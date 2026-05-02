@@ -9,7 +9,7 @@
 - Added transparency to the notifications background to match UI theme.
 - Completed build tab with more features to come soon!
 - Temparaly disabled GhostSuite module for redizining purposes
-
+- Removed the padding for the y axis for the item sorter
 game.Workspace.Ferry.TimeToDeparture.Changed:connect(function()
 Depart.Text = "Ferry Departs: ".. game.Workspace.Ferry.TimeToDeparture.Value
 if Depart.Text == "Ferry Departs: 0" then 
