@@ -220,19 +220,19 @@ function BuildModule.Init(Tab, LOT)
         end)
     end
 
-    selectBtn = Tab:CreateAction("Select Planks By Click", "Start", StartPickingMode)
-
-    -- ══════════════════════════════════════════════════════════
-    -- MAX Y SLIDER
-    -- ══════════════════════════════════════════════════════════
-    Tab:CreateSection("Size Filter")
-    
     MaxSlider = Tab:CreateSlider("Max Y Size", 0, 10, 1, function(val)
         filterMax = val
         if #allPlanks == 0 then return end
         ApplyYFilter()
         RefreshStatus()
     end, 1)
+    
+    selectBtn = Tab:CreateAction("Select Plank Type", "Start", StartPickingMode)
+
+    -- ══════════════════════════════════════════════════════════
+    -- MAX Y SLIDER
+    -- ══════════════════════════════════════════════════════════
+    Tab:CreateSection("Size Filter")
 
     -- ══════════════════════════════════════════════════════════
     -- BLUEPRINT FILL
@@ -283,7 +283,7 @@ function BuildModule.Init(Tab, LOT)
         end)
     end
 
-    bpClickToggle = Tab:CreateToggle("Blueprint Click Mode", false, function(state)
+    bpClickToggle = Tab:CreateToggle("Click to Fill", false, function(state)
         if state then
             if #filteredPlanks == 0 then
                 warn("[Build] Select and filter planks first.")
@@ -296,28 +296,37 @@ function BuildModule.Init(Tab, LOT)
             StopBPClickMode()
         end
     end)
-
-    autoFillBtn = Tab:CreateAction("Auto Fill All Blueprints", "Fill All", function()
+    
+    local fillCancelled = false
+    autoFillBtn = Tab:CreateAction("Fill All Blueprints", "Start", function()
+        -- If already running, cancel it
+        if autoFillBtn and autoFillBtn._running then
+            fillCancelled = true
+            return
+        end
+    
         if not LOT then warn("[Build] LOT not available.") return end
         if LOT.IsBusy() then warn("[Build] LOT busy.") return end
         if #filteredPlanks == 0 then warn("[Build] No filtered planks selected.") return end
-
+    
         local blueprints = GetOwnedBlueprints()
         if #blueprints == 0 then warn("[Build] No owned blueprints found.") return end
-
-        RefreshBPStatus()
-        autoFillBtn:SetText("Filling...")
-
+    
+        fillCancelled = false
+        autoFillBtn._running = true
+        autoFillBtn:SetText("Stop")
+    
         task.spawn(function()
             for i, blueprint in ipairs(blueprints) do
+                if fillCancelled then break end
                 local entry = filteredPlanks[((i - 1) % #filteredPlanks) + 1]
                 if not entry or not entry.part or not entry.part.Parent then continue end
                 LOT.TeleportObjectTo(entry.part, CFrame.new(GetBlueprintCenter(blueprint)))
                 LOT.WaitForBatch()
                 task.wait(0.05)
             end
-            autoFillBtn:SetText("Fill All")
-            RefreshBPStatus()
+            autoFillBtn._running = false
+            autoFillBtn:SetText("Start")
         end)
     end)
 
