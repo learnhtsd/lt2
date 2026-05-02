@@ -10,6 +10,8 @@
 - Completed build tab with more features to come soon!
 - Temparaly disabled GhostSuite module for redizining purposes
 - Removed the padding for the y axis for the item sorter
+- Player can now use item sorter with more than the selected items 
+
 game.Workspace.Ferry.TimeToDeparture.Changed:connect(function()
 Depart.Text = "Ferry Departs: ".. game.Workspace.Ferry.TimeToDeparture.Value
 if Depart.Text == "Ferry Departs: 0" then 
