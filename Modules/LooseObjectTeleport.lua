@@ -369,21 +369,34 @@ end
 
 local function GetStackPositions(origin, itemSize, countX, countY, countZ, totalItems, stackRotation)
     stackRotation = stackRotation or CFrame.new()
-    local positions = {}
     local stepX = itemSize.X + Settings.StackPadding
     local stepY = itemSize.Y + Settings.StackPadding
     local stepZ = itemSize.Z + Settings.StackPadding
-    local offX  = (countX - 1) * stepX * 0.5
-    local offZ  = (countZ - 1) * stepZ * 0.5
-    for z = 0, countZ - 1 do
-        for y = 0, countY - 1 do
+
+    -- Generate raw uncentered positions, filling X then Z then Y (layers upward last)
+    local raw = {}
+    for y = 0, countY - 1 do
+        for z = 0, countZ - 1 do
             for x = 0, countX - 1 do
-                local localOffset   = Vector3.new(x * stepX - offX, y * stepY, z * stepZ - offZ)
-                local rotatedOffset = stackRotation:VectorToWorldSpace(localOffset)
-                table.insert(positions, origin + rotatedOffset)
-                if #positions >= totalItems then return positions end
+                table.insert(raw, Vector3.new(x * stepX, y * stepY, z * stepZ))
+                if #raw >= totalItems then break end
             end
+            if #raw >= totalItems then break end
         end
+        if #raw >= totalItems then break end
+    end
+
+    -- Center X and Z around the actual placed items (not the full grid)
+    -- Y stays grounded — no vertical centering
+    local sumX, sumZ = 0, 0
+    for _, p in ipairs(raw) do sumX += p.X; sumZ += p.Z end
+    local cx = sumX / #raw
+    local cz = sumZ / #raw
+
+    local positions = {}
+    for _, p in ipairs(raw) do
+        local centered = Vector3.new(p.X - cx, p.Y, p.Z - cz)
+        table.insert(positions, origin + stackRotation:VectorToWorldSpace(centered))
     end
     return positions
 end
