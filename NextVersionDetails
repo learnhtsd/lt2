@@ -2,3 +2,4 @@
 - Fixed issue with duplicate tab icons being saved. Delete the file if needed. Typically under C:\Users\(User)\AppData\Local\Xeno\workspace\DynxeLT2
 - Added 20+ more items to the shop tab! Only items left are blueprints. I plan on adding those and a button to purchase all blueprents and auto-open each box
 - Disabled reload/unload script buttons due to them causing overlapping issues.
+- Your no longer required to hold the axe to use to get a tree. Now auto grabs the axe from the backpaack. If the user want, they can equip an axe to use it.
