@@ -128,7 +128,7 @@ function Plot.Init(Tab, Library)
         local count = 0
     
         for _, entry in ipairs(toDestroy) do
-            -- Skip if already gone (another player or previous fire removed it)
+            -- Skip if already gone
             if not entry.model.Parent or not entry.main.Parent then continue end
     
             -- TP next to the object so the server's distance check passes
@@ -140,10 +140,20 @@ function Plot.Init(Tab, Library)
                 warn(("[Wipe] FireServer failed on '%s': %s"):format(entry.model.Name, tostring(err)))
             else
                 count = count + 1
+
+                -- Wait for the server to actually remove the model before moving on.
+                -- Polls every 0.05s with a 5-second safety timeout.
+                local timeout = 5
+                local elapsed = 0
+                while entry.model.Parent ~= nil and elapsed < timeout do
+                    task.wait(0.05)
+                    elapsed = elapsed + 0.05
+                end
+
+                if elapsed >= timeout then
+                    warn(("[Wipe] Timed out waiting for '%s' to be removed."):format(entry.model.Name))
+                end
             end
-    
-            -- Small yield so the server can process each destroy before the next
-            task.wait(0.05)
         end
     
         -- Return player to original position
