@@ -2039,4 +2039,8 @@ local Duplicationodule = LoadModule("Duplication")
 if Duplicationodule and Duplicationodule.Init then Duplicationodule.Init(DuplicationTab) end
 Library:Notify("Loaded", "Duplication", 2)
 
+local BuildModule = LoadModule("Build")
+if BuildModule and BuildModule.Init then BuildModule.Init(BuildTab, LooseObjectTeleportModule) end
+Library:Notify("Loaded", "Build", 2)
+
 Library:Notify("Dynxe LT2", "All modules loaded!", 5)
