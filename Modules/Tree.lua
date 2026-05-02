@@ -75,14 +75,22 @@ local preChopLogModels    = {}
 -- ==========================================
 --             UTILITY
 -- ==========================================
-local function GetEquippedAxe()
-    local char = player.Character
-    if not char then return nil, nil end
-    local tool = char:FindFirstChildOfClass("Tool")
-    if not tool then return nil, nil end
+
+-- Reads the axe name from a Tool's ToolTip child or property.
+local function ReadAxeName(tool)
+    if not tool then return nil end
     local tipChild = tool:FindFirstChild("ToolTip")
-    local name = (tipChild and tipChild:IsA("StringValue")) and tipChild.Value or tool.ToolTip
-    return tool, name
+    return (tipChild and tipChild:IsA("StringValue")) and tipChild.Value or tool.ToolTip
+end
+
+-- Returns the first Tool found in the player's Backpack (no equip needed).
+local function GetBackpackAxe()
+    for _, tool in ipairs(player.Backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            return tool, ReadAxeName(tool)
+        end
+    end
+    return nil, nil
 end
 
 local function ScanForTreeTypes()
@@ -408,10 +416,6 @@ end
 -- ==========================================
 local RemoteProxy = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
 
--- Height fraction scales with section size:
---   Size.Y >= 8  →  frac 0.1  (tall log, cut near the very bottom)
---   Size.Y <= 2  →  frac 0.2  (short stump, cut a bit higher so it registers)
---   In between   →  linear interpolation, clamped to [0.1, 0.2]
 local function CutHeightFrac(sizeY)
     return math.clamp(0.1 + (8 - sizeY) / 60, 0.1, 0.2)
 end
@@ -479,12 +483,14 @@ local function StartChopping(treeClass, LOT, onComplete)
         return
     end
 
-    local tool, axeName = GetEquippedAxe()
+    -- Grab the first tool sitting in the backpack — no equip required.
+    local tool, axeName = GetBackpackAxe()
     if not tool then
-        warn("[TreeModule] No axe equipped. Please equip an axe before chopping.")
+        warn("[TreeModule] No tool found in Backpack. Cannot chop.")
         if onComplete then onComplete() end
         return
     end
+    print(("[TreeModule] Using '%s' from Backpack for tree class '%s'."):format(axeName, treeClass))
 
     local char = player.Character
     local hrp  = char and char:FindFirstChild("HumanoidRootPart")
@@ -536,10 +542,6 @@ local function StartChopping(treeClass, LOT, onComplete)
 
         print("[TreeModule] Tree is down. Returning player.")
 
-        -- Unequip axe so LOT can TP logs freely
-        local equippedTool = player.Character and player.Character:FindFirstChildOfClass("Tool")
-        if equippedTool then equippedTool.Parent = player.Backpack end
-
         CleanupState()
         WaitForLogsToSettle(treeClass)
 
@@ -576,11 +578,6 @@ function TreeModule.Init(Tab, LOT)
             end
         else
             if selectedTree == "None Found" then return end
-            local _, axeName = GetEquippedAxe()
-            if not axeName then
-                warn("[TreeModule] Equip an axe before starting.")
-                return
-            end
             if type(chopButton) == "table" and chopButton.SetText then
                 chopButton:SetText("Stop")
             end
