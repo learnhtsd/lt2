@@ -12,7 +12,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Player    = Players.LocalPlayer
 local Camera    = workspace.CurrentCamera
-local StarterGui = game:GetService("StarterGui")
 local Mouse     = Player:GetMouse()
 
 local ClientIsDragging = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("ClientIsDragging")
@@ -48,20 +47,12 @@ end
 -- │                     CONFIGURATION & STATE                       │
 -- └─────────────────────────────────────────────────────────────────┘
 local Settings = {
-    -- Max seconds to wait for LastInteraction to change before giving up
     OwnershipTimeout = 3,
-    -- Fallback wait (s) used when no LastInteraction is found on the model
     FallbackWait     = 0.5,
-    -- Small pause after TPing the player before firing the remote.
-    -- Needed so the server registers the player's new position first.
-    -- Lowering this too far causes the server to reject the drag (too far away).
     PreFireWait      = 0.05,
-    -- Pause between each object in a batch. Can usually be 0 but a small
-    -- buffer helps on laggier servers to avoid the next object's remote
-    -- colliding with the previous one still being processed.
     PostObjectDelay  = 0.05,
 
-    SelectionColor  = Color3.fromRGB(74, 120, 255),
+    SelectionColor   = Color3.fromRGB(74, 120, 255),
     OutlineThickness = 0.02,
 
     StackX       = 2,
@@ -102,18 +93,6 @@ local State = {
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                        HELPER FUNCTIONS                         │
 -- └─────────────────────────────────────────────────────────────────┘
-local function Notify(title, text, duration)
-    if State.Library and State.Library.Notify then
-        State.Library:Notify(title, text, duration or 2)
-    else
-        StarterGui:SetCore("SendNotification", {
-            Title    = title;
-            Text     = text;
-            Duration = duration or 2;
-        })
-    end
-end
-
 local function GetOwnerIdentity(model)
     if not model then return nil end
     local ownerValue = model:FindFirstChild("Owner")
@@ -169,19 +148,9 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                      CORE TELEPORT LOGIC                        │
--- │                                                                 │
--- │  For each object:                                               │
--- │    1. TP player HRP to the object                               │
--- │    2. Fire ClientIsDragging on the object's model               │
--- │    3. Wait for Owner.OwnerString to change (sync confirmed)     │
--- │    4. Move the object to goalCF                                  │
 -- └─────────────────────────────────────────────────────────────────┘
-
--- Returns a yaw-only CFrame at the given position matching the player's
--- horizontal facing. This is used so items land facing the same direction
--- the player is looking — rotating the player rotates the whole stack.
 local function PlayerAlignedCFrame(position, root)
-    local look    = root.CFrame.LookVector
+    local look     = root.CFrame.LookVector
     local flatLook = Vector3.new(look.X, 0, look.Z)
     if flatLook.Magnitude < 0.001 then
         flatLook = Vector3.new(0, 0, -1)
@@ -195,7 +164,6 @@ local function FindLastInteraction(model)
         local li = ownerFolder:FindFirstChild("LastInteraction")
         if li then return li end
     end
-    -- Flat fallback in case it sits directly on the model
     return model:FindFirstChild("LastInteraction")
 end
 
@@ -222,9 +190,6 @@ local function TeleportSingle(target, goalCF, root)
         local fireLoop = task.spawn(function()
             local deadline = tick() + Settings.OwnershipTimeout
 
-            -- pcall wraps the entire loop so any remote error (throttle,
-            -- model destroyed mid-fire, etc.) exits cleanly instead of
-            -- crashing the thread and leaving `co` suspended forever.
             local ok, err = pcall(function()
                 while not fired and tick() < deadline do
                     ClientIsDragging:FireServer(model)
@@ -232,7 +197,6 @@ local function TeleportSingle(target, goalCF, root)
                 end
             end)
 
-            -- Always wake the coroutine — whether we timed out, errored, or succeeded.
             if not fired then
                 fired = true
                 task.spawn(co)
@@ -253,7 +217,6 @@ local function TeleportSingle(target, goalCF, root)
         warn(("[LOT] No Owner.LastInteraction found on '%s' — using fallback wait."):format(model.Name))
         local deadline = tick() + Settings.FallbackWait
         while tick() < deadline do
-            -- pcall here too so a remote error doesn't abort the fallback path
             local ok, err = pcall(ClientIsDragging.FireServer, ClientIsDragging, model)
             if not ok then
                 warn(("[LOT] Fallback FireServer errored on '%s': %s"):format(model.Name, tostring(err)))
@@ -279,7 +242,6 @@ local function RunBatch(jobs)
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not char or not root then
-        Notify("Error", "Character missing.", 2)
         State.BatchCompleted:_Fire(false, 0)
         return false
     end
@@ -287,16 +249,11 @@ local function RunBatch(jobs)
     State.IsBusy         = true
     State.BatchCancelled = false
 
-    -- Save player position to restore after batch
     local savedCFrame = root.CFrame
-
-    Notify("Batch", "Teleporting " .. #jobs .. " object(s)…", #jobs * 0.8)
 
     for _, job in ipairs(jobs) do
         if State.BatchCancelled then break end
         if job.target and job.target.Parent then
-            -- A single object failing (destroyed, bad CFrame, etc.)
-            -- must never abort the rest of the batch.
             local ok, err = pcall(TeleportSingle, job.target, job.goalCF, root)
             if not ok then
                 warn(("[LOT] TeleportSingle failed, skipping object: %s"):format(tostring(err)))
@@ -304,7 +261,6 @@ local function RunBatch(jobs)
         end
     end
 
-    -- Return player to where they were before the batch
     if root and root.Parent then
         root.CFrame = savedCFrame
     end
@@ -365,11 +321,9 @@ local function SelectObjectsInLassoRect(startPos, endPos)
     if (maxX - minX) < 6 or (maxY - minY) < 6 then return end
 
     local playerModels = workspace:FindFirstChild("PlayerModels")
-    if not playerModels then Notify("Lasso", "PlayerModels not found.") return end
+    if not playerModels then return end
 
-    local addedCount   = 0
-    local removedCount = 0
-    local inset        = GuiService:GetGuiInset()
+    local inset = GuiService:GetGuiInset()
 
     for _, obj in ipairs(playerModels:GetDescendants()) do
         if obj:IsA("Model") then
@@ -382,10 +336,8 @@ local function SelectObjectsInLassoRect(startPos, endPos)
                     local idx = table.find(State.SelectedObjects, part)
                     if idx then
                         table.remove(State.SelectedObjects, idx)
-                        removedCount = removedCount + 1
                     else
                         table.insert(State.SelectedObjects, part)
-                        addedCount = addedCount + 1
                     end
                 end
             end
@@ -393,7 +345,6 @@ local function SelectObjectsInLassoRect(startPos, endPos)
     end
 
     UpdateVisuals()
-    Notify("Lasso", "+" .. addedCount .. " / -" .. removedCount .. " — Queue: " .. #State.SelectedObjects)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -464,21 +415,16 @@ local function StopStackMode(silent)
     State.StackRotation = CFrame.new()
     ClearStackPreview()
     SetStackBtnLabel("Start")
-    if not silent then Notify("Stack TP", "Placement cancelled.") end
 end
 
 local function StartStackMode()
     if State.StackMode then StopStackMode() return end
 
     local ok, reason = AllSelectedSameType()
-    if not ok then Notify("Stack TP — Blocked", reason, 4) return end
+    if not ok then return end
 
     local capacity = Settings.StackX * Settings.StackY * Settings.StackZ
-    if capacity < #State.SelectedObjects then
-        Notify("Stack TP — Too Small",
-            "Grid holds " .. capacity .. " but queue has " .. #State.SelectedObjects .. ".\nIncrease sliders.", 5)
-        return
-    end
+    if capacity < #State.SelectedObjects then return end
 
     local refSize = Vector3.new(4, 4, 4)
     for _, obj in ipairs(State.SelectedObjects) do
@@ -510,7 +456,6 @@ local function StartStackMode()
 
     State.StackMode = true
     SetStackBtnLabel("Stop")
-    Notify("Stack TP", "Move cursor — click to place " .. #State.SelectedObjects .. " items.", 4)
 
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -544,15 +489,15 @@ end
 local function PerformStackExecute(hitPos)
     if not State.StackMode then return end
     local ok, reason = AllSelectedSameType()
-    if not ok then StopStackMode() Notify("Stack TP — Blocked", reason, 4) return end
+    if not ok then StopStackMode() return end
 
     local refSize = Vector3.new(4, 4, 4)
     for _, obj in ipairs(State.SelectedObjects) do
         if obj and obj.Parent then refSize = obj.Size break end
     end
 
-    local groundOrigin    = hitPos + Vector3.new(0, refSize.Y * 0.5, 0)
-    local goalPositions   = GetStackPositions(
+    local groundOrigin  = hitPos + Vector3.new(0, refSize.Y * 0.5, 0)
+    local goalPositions = GetStackPositions(
         groundOrigin, refSize,
         Settings.StackX, Settings.StackY, Settings.StackZ,
         #State.SelectedObjects, State.StackRotation
@@ -571,10 +516,9 @@ local function PerformStackExecute(hitPos)
     end
 
     task.spawn(function()
-        local success = RunBatch(jobs)
+        RunBatch(jobs)
         if not Settings.KeepSelected then State.SelectedObjects = {} end
         UpdateVisuals()
-        Notify("Stack TP", success and "Stack complete!" or "Batch cancelled.", 3)
     end)
 end
 
@@ -587,10 +531,8 @@ local function PerformSingleSelect()
         local idx = table.find(State.SelectedObjects, main)
         if not idx then
             table.insert(State.SelectedObjects, main)
-            Notify("Added", "Queue: " .. #State.SelectedObjects)
         else
             table.remove(State.SelectedObjects, idx)
-            Notify("Removed", "Object removed. Queue: " .. #State.SelectedObjects)
         end
         UpdateVisuals()
     end
@@ -603,7 +545,6 @@ local function PerformGroupSelect()
 
     local targetSig       = GetModelSignature(targetModel)
     local targetTreeClass = GetTreeClass(targetModel)
-    local addedCount, removedCount = 0, 0
 
     local playerModels = workspace:FindFirstChild("PlayerModels")
     if not playerModels then return end
@@ -620,16 +561,13 @@ local function PerformGroupSelect()
                 local idx = table.find(State.SelectedObjects, part)
                 if idx then
                     table.remove(State.SelectedObjects, idx)
-                    removedCount = removedCount + 1
                 else
                     table.insert(State.SelectedObjects, part)
-                    addedCount = addedCount + 1
                 end
             end
         end
     end
     UpdateVisuals()
-    Notify("Group", "+" .. addedCount .. " / -" .. removedCount .. " — Queue: " .. #State.SelectedObjects)
 end
 
 local function PerformClear()
@@ -637,21 +575,15 @@ local function PerformClear()
     State.SelectedObjects = {}
     State.BatchCancelled  = true
     UpdateVisuals()
-    Notify("Cleared", "Queue emptied.")
 end
 
 local function PerformExecute()
-    -- If already running, cancel instead
     if State.IsBusy then
         State.BatchCancelled = true
-        Notify("Batch", "Cancelling…", 2)
         return
     end
 
-    if #State.SelectedObjects == 0 or not Player.Character then
-        Notify("Wait", "Queue empty or missing character.", 2)
-        return
-    end
+    if #State.SelectedObjects == 0 or not Player.Character then return end
     local char = Player.Character
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
@@ -674,7 +606,6 @@ local function PerformExecute()
         SetTpBtnLabel("Start")
         if not Settings.KeepSelected then State.SelectedObjects = {} end
         UpdateVisuals()
-        Notify("Finished", success and "Batch complete." or "Batch cancelled.", 3)
     end)
 end
 
@@ -701,7 +632,7 @@ end
 
 function LooseObjectTeleport.TeleportTo(goalCF)
     assert(typeof(goalCF) == "CFrame", "LOT.TeleportTo: expected CFrame")
-    if #State.SelectedObjects == 0 then Notify("LOT API", "Queue is empty.", 2) return false end
+    if #State.SelectedObjects == 0 then return false end
     if State.IsBusy then warn("LOT.TeleportTo: ignored — batch running.") return false end
     local jobs = {}
     for _, obj in ipairs(State.SelectedObjects) do
@@ -770,9 +701,9 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
             Wrap    = true,
         }
     )
-    
+
     local ClickToggle, GroupToggle, LassoToggle
-    
+
     local function DisableOtherSelectionModes(except)
         if except ~= "click" and State.ClickSelectMode then
             State.ClickSelectMode = false
@@ -789,17 +720,17 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
             if LassoToggle then LassoToggle:SetState(false) end
         end
     end
-    
+
     ClickToggle = Tab:CreateToggle("Click Selection", false, function(val)
         State.ClickSelectMode = val
         if val then DisableOtherSelectionModes("click") end
     end)
-    
+
     GroupToggle = Tab:CreateToggle("Group Selection", false, function(val)
         State.GroupSelectMode = val
         if val then DisableOtherSelectionModes("group") end
     end)
-    
+
     LassoToggle = Tab:CreateToggle("Lasso Tool", false, function(val)
         State.LassoMode = val
         if val then
@@ -823,7 +754,7 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
 
     Tab:CreateSection("Sorting")
     Tab:CreateSlider("X", 1, 40, Settings.StackX, function(val) Settings.StackX = val end)
-    Tab:CreateSlider("Y", 1, 20,  Settings.StackY, function(val) Settings.StackY = val end)
+    Tab:CreateSlider("Y", 1, 20, Settings.StackY, function(val) Settings.StackY = val end)
     Tab:CreateSlider("Z", 1, 40, Settings.StackZ, function(val) Settings.StackZ = val end)
     Tab:CreateSlider("Padding", 0, 1, Settings.StackPadding, function(val)
         Settings.StackPadding = val
@@ -832,18 +763,15 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
     local StackRow = Tab:CreateRow()
     State.StackStartBtn = StackRow:CreateAction("Sort Selected Objects", "Start", StartStackMode)
 
-    -- Input routing
     table.insert(State.Connections, UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
 
         if State.StackMode and input.UserInputType == Enum.UserInputType.Keyboard then
             if input.KeyCode == Enum.KeyCode.R then
                 State.StackRotation = State.StackRotation * CFrame.Angles(math.rad(90), 0, 0)
-                Notify("Stack TP", "X rotation +90°")
                 return
             elseif input.KeyCode == Enum.KeyCode.T then
                 State.StackRotation = State.StackRotation * CFrame.Angles(0, math.rad(90), 0)
-                Notify("Stack TP", "Y rotation +90°")
                 return
             end
         end
@@ -866,7 +794,7 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
         elseif State.LassoMode then
             State.LassoDragging = true
             State.LassoStartPos = UIS:GetMouseLocation()
-            if State.LassoFrame then State.LassoFrame.Size = UDim2.fromOffset(0,0) State.LassoFrame.Visible = false end
+            if State.LassoFrame then State.LassoFrame.Size = UDim2.fromOffset(0, 0) State.LassoFrame.Visible = false end
 
         elseif State.GroupSelectMode then
             PerformGroupSelect()
@@ -899,7 +827,6 @@ function LooseObjectTeleport.Unload()
     for _, conn in ipairs(State.Connections) do conn:Disconnect() end
     for _, v in pairs(State.SelectionBoxes) do v:Destroy() end
     if State.LassoGui then State.LassoGui:Destroy() end
-    Notify("Unloaded", "Loose Object Teleport unloaded.")
 end
 
 return LooseObjectTeleport
