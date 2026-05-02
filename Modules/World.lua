@@ -22,14 +22,17 @@ function World.Init(Tab, Lib)
 
     local waterParts = {}
     local boulderParts = {}
-    local volcanoBoulderParts = {}  -- Cached separately so RenderStepped never scans
+    local volcanoBoulderParts = {}
     local effectCache = {}
     local originalLightingSettings = {}
 
-    -- Dirty flags — prevent redundant property writes every frame
-    local lastFullBright = false
+    -- Dirty flag only for Shadows (game doesn't fight over GlobalShadows each frame)
     local lastShadows = true
-    local lastFogEnabled = true
+
+    -- Fog originals — captured at scan time so we can restore properly
+    local originalFogEnd = Lighting.FogEnd
+    local originalFogStart = Lighting.FogStart
+    local originalAtmDensity = nil
 
     -- Bridge Backup for Resetting
     local bridgeBackup = nil
@@ -74,6 +77,12 @@ function World.Init(Tab, Lib)
                 effectCache[effect] = effect.Enabled
             end
         end
+
+        -- Capture fog originals after the scene has loaded
+        originalFogEnd = Lighting.FogEnd
+        originalFogStart = Lighting.FogStart
+        local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+        if atm then originalAtmDensity = atm.Density end
 
         if Lib and Lib.Notify then
             Lib:Notify("System", "World Scan Complete!", 2)
@@ -181,7 +190,6 @@ function World.Init(Tab, Lib)
         end
     end
 
-    -- Uses the cached list — no per-frame scanning needed
     local function ToggleVolcanoBoulders(state)
         for _, data in pairs(volcanoBoulderParts) do
             local part = data.Instance
@@ -214,6 +222,7 @@ function World.Init(Tab, Lib)
     Tab:CreateToggle("Full Bright", false, function(s)
         _G.FullBright = s
         if not s then
+            -- Restore normal ambient immediately on toggle off
             Lighting.Brightness = 2
             Lighting.Ambient = Color3.fromRGB(127, 127, 127)
             Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
@@ -221,7 +230,17 @@ function World.Init(Tab, Lib)
     end)
 
     Tab:CreateToggle("Shadows", true, function(s) _G.ShadowsEnabled = s end)
-    Tab:CreateToggle("Fog", true, function(s) _G.FogEnabled = s end)
+
+    Tab:CreateToggle("Fog", true, function(s)
+        _G.FogEnabled = s
+        if s then
+            -- Restore fog immediately on toggle on
+            Lighting.FogEnd = originalFogEnd
+            Lighting.FogStart = originalFogStart
+            local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+            if atm and originalAtmDensity then atm.Density = originalAtmDensity end
+        end
+    end)
 
     Tab:CreateSection("Environment")
 
@@ -272,7 +291,7 @@ function World.Init(Tab, Lib)
     end)
 
     -- ===========================
-    -- MASTER LOOP (kept lean — no scanning, no redundant writes)
+    -- MASTER LOOP
     -- ===========================
     RunService.RenderStepped:Connect(function()
         -- Time lock
@@ -280,34 +299,24 @@ function World.Init(Tab, Lib)
             Lighting.ClockTime = _G.TimeOfDay
         end
 
-        -- Full bright — only write when state actually changed
-        if _G.FullBright ~= lastFullBright then
-            lastFullBright = _G.FullBright
-            if _G.FullBright then
-                Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-                Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-                Lighting.Brightness = 2
-            end
-            -- The toggle's off-branch already resets ambient, nothing extra needed here
+        -- FullBright: must assert every frame — the game overwrites Ambient each frame
+        if _G.FullBright then
+            Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+            Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            Lighting.Brightness = 2
         end
 
-        -- Shadows — only write on change
+        -- Fog: must assert every frame — Atmosphere/FogEnd get reset by the game each frame
+        if not _G.FogEnabled then
+            Lighting.FogEnd = 1e6
+            local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+            if atm then atm.Density = 0 end
+        end
+
+        -- Shadows: dirty flag is fine, GlobalShadows isn't overwritten by the game
         if _G.ShadowsEnabled ~= lastShadows then
             lastShadows = _G.ShadowsEnabled
             Lighting.GlobalShadows = _G.ShadowsEnabled
-        end
-
-        -- Fog — only write on change
-        if _G.FogEnabled ~= lastFogEnabled then
-            lastFogEnabled = _G.FogEnabled
-            if not _G.FogEnabled then
-                Lighting.FogEnd = 1e6
-                local atm = Lighting:FindFirstChildOfClass("Atmosphere")
-                if atm then atm.Density = 0 end
-            else
-                -- Let the game restore fog naturally; could store originals here if needed
-                Lighting.FogEnd = 100000
-            end
         end
     end)
 end
