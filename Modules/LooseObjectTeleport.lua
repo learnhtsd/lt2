@@ -85,7 +85,6 @@ local State = {
     StackPreviewConn  = nil,
     StackStartBtn     = nil,
     StackRotation     = CFrame.new(),
-    GridParts = {},
 
     Library        = nil,
     BatchCompleted = NewSignal(),
@@ -408,10 +407,6 @@ local function ClearStackPreview()
     State.StackPreviewBoxes = {}
     for _, p in ipairs(State.StackPreviewParts) do if p and p.Parent then p:Destroy() end end
     State.StackPreviewParts = {}
-    for _, entry in ipairs(State.GridParts) do
-        if entry.part and entry.part.Parent then entry.part:Destroy() end
-    end
-    State.GridParts = {}
 end
 
 local function SetTpBtnLabel(label)
@@ -435,64 +430,14 @@ local function StopStackMode(silent)
     SetStackBtnLabel("Start")
 end
 
-local function BuildGridParts(refSize)
-    local extraCells = 2
-    local stepX      = refSize.X + Settings.StackPadding
-    local stepZ      = refSize.Z + Settings.StackPadding
-
-    local innerHalfW = Settings.StackX * 0.5 * stepX
-    local innerHalfD = Settings.StackZ * 0.5 * stepZ
-    local halfGridW  = innerHalfW + extraCells * stepX
-    local halfGridD  = innerHalfD + extraCells * stepZ
-
-    local lineT      = 0.04
-    local numZLines  = Settings.StackZ + 1 + extraCells * 2
-    local numXLines  = Settings.StackX + 1 + extraCells * 2
-
-    local function fade(absOff, innerHalf, outerHalf)
-        if absOff <= innerHalf then
-            return 0.05 + (absOff / (innerHalf + 0.001)) * 0.15  -- 0.05→0.20 inside
-        else
-            return 0.20 + ((absOff - innerHalf) / (outerHalf - innerHalf + 0.001)) * 0.75  -- 0.20→0.95 outside
-        end
-    end
-
-    local function makeLine(localOffset, sizeX, sizeZ, transparency)
-        local p = Instance.new("Part")
-        p.Size         = Vector3.new(sizeX, lineT, sizeZ)
-        p.Anchored     = true
-        p.CanCollide   = false
-        p.CanTouch     = false
-        p.CastShadow   = false
-        p.Material     = Enum.Material.Neon
-        p.Color        = Color3.fromRGB(80, 130, 255)
-        p.Transparency = math.clamp(transparency, 0.05, 0.97)
-        p.Parent       = workspace
-        table.insert(State.GridParts, { part = p, localOffset = localOffset })
-    end
-
-    -- Lines that run along X, spaced across Z
-    for i = 0, numZLines - 1 do
-        local zOff = -halfGridD + i * stepZ
-        makeLine(Vector3.new(0, 0, zOff), halfGridW * 2, lineT, fade(math.abs(zOff), innerHalfD, halfGridD))
-    end
-
-    -- Lines that run along Z, spaced across X
-    for i = 0, numXLines - 1 do
-        local xOff = -halfGridW + i * stepX
-        makeLine(Vector3.new(xOff, 0, 0), lineT, halfGridD * 2, fade(math.abs(xOff), innerHalfW, halfGridW))
-    end
-end
-
 local function StartStackMode()
     if State.StackMode then StopStackMode() return end
 
     local ok, reason = AllSelectedSameType()
     if not ok then return end
 
-    -- No early-return for capacity — extras are simply skipped during execute
-    local capacity     = Settings.StackX * Settings.StackY * Settings.StackZ
-    local previewCount = math.min(#State.SelectedObjects, capacity)
+    local capacity = Settings.StackX * Settings.StackY * Settings.StackZ
+    local stackCount = math.min(capacity, #State.SelectedObjects)
 
     local refSize = Vector3.new(4, 4, 4)
     for _, obj in ipairs(State.SelectedObjects) do
@@ -500,7 +445,7 @@ local function StartStackMode()
     end
 
     ClearStackPreview()
-    for i = 1, previewCount do  -- only preview up to capacity
+    for i = 1, stackCount do
         local p        = Instance.new("Part")
         p.Name         = "StackPreview_" .. i
         p.Size         = refSize
@@ -522,8 +467,6 @@ local function StartStackMode()
         table.insert(State.StackPreviewBoxes, box)
     end
 
-    BuildGridParts(refSize)  -- build grid after preview parts exist
-
     State.StackMode = true
     SetStackBtnLabel("Stop")
 
@@ -535,7 +478,6 @@ local function StartStackMode()
         local excludeList = {}
         if Player.Character then table.insert(excludeList, Player.Character) end
         for _, p in ipairs(State.StackPreviewParts) do table.insert(excludeList, p) end
-        for _, e in ipairs(State.GridParts) do table.insert(excludeList, e.part) end  -- exclude grid from raycast
         rayParams.FilterDescendantsInstances = excludeList
 
         local unitRay = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
@@ -552,19 +494,6 @@ local function StartStackMode()
         for i, ghostPart in ipairs(State.StackPreviewParts) do
             if positions[i] then
                 ghostPart.CFrame = CFrame.new(positions[i]) * State.StackRotation
-            end
-        end
-
-        -- Update grid to sit flush on the ground under the preview
-        local floorY = groundOrigin.Y - refSize.Y * 0.5 + 0.06
-        for _, entry in ipairs(State.GridParts) do
-            if entry.part and entry.part.Parent then
-                local rotOff = State.StackRotation:VectorToWorldSpace(entry.localOffset)
-                entry.part.CFrame = CFrame.new(
-                    groundOrigin.X + rotOff.X,
-                    floorY,
-                    groundOrigin.Z + rotOff.Z
-                ) * State.StackRotation
             end
         end
     end)
@@ -589,15 +518,13 @@ local function PerformStackExecute(hitPos)
     local capturedRotation = State.StackRotation
     StopStackMode(true)
 
+    local capacity = Settings.StackX * Settings.StackY * Settings.StackZ
+    local stackCount = math.min(capacity, #State.SelectedObjects)
     local jobs = {}
-    for i, obj in ipairs(State.SelectedObjects) do
-        local goalPos = goalPositions[i]
-        if not goalPos then break end
+    for i = 1, stackCount do
+        local obj = State.SelectedObjects[i]
         if obj and obj.Parent then
-            table.insert(jobs, {
-                target = obj,
-                goalCF = CFrame.new(goalPos) * capturedRotation
-            })
+            table.insert(jobs, { ... })
         end
     end
 
@@ -866,7 +793,6 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
             local excludeList = {}
             if Player.Character then table.insert(excludeList, Player.Character) end
             for _, p in ipairs(State.StackPreviewParts) do table.insert(excludeList, p) end
-            for _, e in ipairs(State.GridParts) do table.insert(excludeList, e.part) end
             local rayParams = RaycastParams.new()
             rayParams.FilterType                 = Enum.RaycastFilterType.Exclude
             rayParams.FilterDescendantsInstances = excludeList
