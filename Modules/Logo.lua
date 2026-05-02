@@ -60,7 +60,7 @@ function BrandModule.Init(version, position, rotation, width, height)
         sg.Face           = Enum.NormalId.Front
         sg.SizingMode     = Enum.SurfaceGuiSizingMode.PixelsPerStud
         sg.PixelsPerStud  = 50
-        sg.AlwaysOnTop    = true
+        sg.AlwaysOnTop    = false
         sg.LightInfluence = 0
 
         local lbl = Instance.new("TextLabel", sg)
