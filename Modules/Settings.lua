@@ -70,7 +70,7 @@ function SettingsModule.Init(Tab, MainUI, RepoConfig, Config)
         if ScreenGui and ScreenGui.Parent then ScreenGui:Destroy() end
     end
 
-    Tab:CreateAction("Reload Script", "Reload", function()
+    local ReloadAction = Tab:CreateAction("Reload Script", "Reload", function()
         Unload()
         task.wait(0.1)
         local URL = string.format(
@@ -85,8 +85,10 @@ function SettingsModule.Init(Tab, MainUI, RepoConfig, Config)
             warn("[Settings] Reload: HttpGet failed — " .. tostring(result))
         end
     end)
+    ReloadAction:SetDisabled(true)
 
-    Tab:CreateAction("Unload Script", "Unload", Unload, true)
+    local UnloadAction = Tab:CreateAction("Unload Script", "Unload", Unload, true)
+    UnloadAction:SetDisabled(true)
 end
 
 return SettingsModule
