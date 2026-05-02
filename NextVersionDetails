@@ -1,0 +1,2 @@
+
+- Fixed issue with duplicate tab icons being saved. Delete the file if needed. Typically under C:\Users\(User)\AppData\Local\Xeno\workspace\DynxeLT2
