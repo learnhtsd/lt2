@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.365"
+local Version = "v0.0.366"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -2041,6 +2041,10 @@ Library:Notify("Loaded", "Duplication", 2)
 
 local BuildModule = LoadModule("Build")
 if BuildModule and BuildModule.Init then BuildModule.Init(BuildTab, LooseObjectTeleportModule) end
+Library:Notify("Loaded", "Build", 2)
+
+local BToolsModule = LoadModule("BTools")
+if BToolsModule and BToolsModule.Init then BToolsModule.Init(BuildTab) end
 Library:Notify("Loaded", "Build", 2)
 
 Library:Notify("Dynxe LT2", "All modules loaded!", 5)
