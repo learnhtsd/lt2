@@ -2043,8 +2043,4 @@ local BuildModule = LoadModule("Build")
 if BuildModule and BuildModule.Init then BuildModule.Init(BuildTab, LooseObjectTeleportModule) end
 Library:Notify("Loaded", "Build", 2)
 
-local BToolsModule = LoadModule("BTools")
-if BToolsModule and BToolsModule.Init then BToolsModule.Init(BuildTab) end
-Library:Notify("Loaded", "Build", 2)
-
 Library:Notify("Dynxe LT2", "All modules loaded!", 5)
