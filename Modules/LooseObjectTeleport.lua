@@ -370,7 +370,7 @@ end
 local function GetStackPositions(origin, itemSize, countX, countY, countZ, totalItems, stackRotation)
     stackRotation = stackRotation or CFrame.new()
     local stepX = itemSize.X + Settings.StackPadding
-    local stepY = itemSize.Y + Settings.StackPadding
+    local stepY = itemSize.Y  -- no padding on Y, items sit flush on top of each other
     local stepZ = itemSize.Z + Settings.StackPadding
 
     -- Generate raw uncentered positions, filling X then Z then Y (layers upward last)
