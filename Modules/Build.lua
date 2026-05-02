@@ -24,6 +24,7 @@ function BuildModule.Init(Tab, LOT)
 
     -- Selection outline tracking
     local selectionBoxes = {}
+    local outlineConnections = {}
 
     local selectBtn, MaxSlider, bpClickToggle, autoFillBtn
 
@@ -31,24 +32,41 @@ function BuildModule.Init(Tab, LOT)
     -- OUTLINE MANAGEMENT
     -- ══════════════════════════════════════════════════════════
     local function ClearOutlines()
+        for _, conn in ipairs(outlineConnections) do conn:Disconnect() end
+        outlineConnections = {}
         for _, box in ipairs(selectionBoxes) do
             if box and box.Parent then box:Destroy() end
         end
         selectionBoxes = {}
     end
-
+    
     local function DrawOutlines()
         ClearOutlines()
         for _, entry in ipairs(filteredPlanks) do
             if entry.part and entry.part.Parent then
-                local box                  = Instance.new("SelectionBox")
-                box.Adornee                = entry.part
-                box.Color3                 = Color3.fromRGB(74, 120, 255)
-                box.LineThickness          = 0.03
-                box.SurfaceColor3          = Color3.fromRGB(74, 120, 255)
-                box.SurfaceTransparency    = 0.75
-                box.Parent                 = CoreGui
+                local box               = Instance.new("SelectionBox")
+                box.Adornee             = entry.part
+                box.Color3              = Color3.fromRGB(74, 120, 255)
+                box.LineThickness       = 0.03
+                box.SurfaceColor3       = Color3.fromRGB(74, 120, 255)
+                box.SurfaceTransparency = 0.75
+                box.Parent              = CoreGui
                 table.insert(selectionBoxes, box)
+    
+                -- When the part is consumed/deleted, remove it everywhere
+                local conn = entry.part.Destroying:Connect(function()
+                    box:Destroy()
+                    for i, e in ipairs(filteredPlanks) do
+                        if e.part == entry.part then table.remove(filteredPlanks, i) break end
+                    end
+                    for i, e in ipairs(allPlanks) do
+                        if e.part == entry.part then table.remove(allPlanks, i) break end
+                    end
+                    -- Reset plank index so it doesn't point past the end
+                    plankIndex = math.max(1, math.min(plankIndex, #filteredPlanks))
+                    RefreshStatus()
+                end)
+                table.insert(outlineConnections, conn)
             end
         end
     end
