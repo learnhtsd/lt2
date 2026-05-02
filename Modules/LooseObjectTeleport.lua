@@ -509,22 +509,26 @@ local function PerformStackExecute(hitPos)
         if obj and obj.Parent then refSize = obj.Size break end
     end
 
+    local capacity   = Settings.StackX * Settings.StackY * Settings.StackZ
+    local stackCount = math.min(capacity, #State.SelectedObjects)
+
     local groundOrigin  = hitPos + Vector3.new(0, refSize.Y * 0.5, 0)
     local goalPositions = GetStackPositions(
         groundOrigin, refSize,
         Settings.StackX, Settings.StackY, Settings.StackZ,
-        #State.SelectedObjects, State.StackRotation
+        stackCount, State.StackRotation
     )
     local capturedRotation = State.StackRotation
     StopStackMode(true)
 
-    local capacity = Settings.StackX * Settings.StackY * Settings.StackZ
-    local stackCount = math.min(capacity, #State.SelectedObjects)
     local jobs = {}
     for i = 1, stackCount do
         local obj = State.SelectedObjects[i]
         if obj and obj.Parent then
-            table.insert(jobs, { ... })
+            table.insert(jobs, {
+                target = obj,
+                goalCF = CFrame.new(goalPositions[i] or groundOrigin) * capturedRotation
+            })
         end
     end
 
