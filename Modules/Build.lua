@@ -326,36 +326,40 @@ function BuildModule.Init(Tab, LOT)
         SetWireLength(state and 60 or 20)
     end)
 
+    local undoStack  = {}
+    local btoolsConn = nil
+    
     Tab:CreateToggle("BTools", false, function(state)
-        local player   = Players.LocalPlayer
-        local backpack = player:FindFirstChildOfClass("Backpack")
-        if not backpack then return end
-    
         if state then
-            local delete     = Instance.new("HopperBin")
-            delete.Name      = "BTool_Delete"
-            delete.BinType   = Enum.BinType.Hammer
-            delete.Parent    = backpack
+            undoStack = {}
+            btoolsConn = UIS.InputBegan:Connect(function(input, processed)
+                if processed then return end
+                if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     
-            local undo       = Instance.new("HopperBin")
-            undo.Name        = "BTool_Undo"
-            undo.BinType     = Enum.BinType.Undo
-            undo.Parent      = backpack
+                local target = Mouse.Target
+                if not target or not target:IsA("BasePart") then return end
+                if target:IsDescendantOf(Player.Character or Instance.new("Folder")) then return end
+    
+                table.insert(undoStack, {
+                    part   = target,
+                    parent = target.Parent,
+                    cframe = target.CFrame,
+                })
+                target.Parent = nil
+            end)
         else
-            for _, item in ipairs(backpack:GetChildren()) do
-                if item.Name == "BTool_Delete" or item.Name == "BTool_Undo" then
-                    item:Destroy()
-                end
-            end
-            -- also clear from character hand if currently equipped
-            local char = player.Character
-            if char then
-                for _, item in ipairs(char:GetChildren()) do
-                    if item.Name == "BTool_Delete" or item.Name == "BTool_Undo" then
-                        item:Destroy()
+            if btoolsConn then btoolsConn:Disconnect(); btoolsConn = nil end
+            -- restore everything in reverse order
+            for i = #undoStack, 1, -1 do
+                local entry = undoStack[i]
+                if entry.part then
+                    entry.part.Parent = entry.parent
+                    if entry.part:IsA("BasePart") then
+                        entry.part.CFrame = entry.cframe
                     end
                 end
             end
+            undoStack = {}
         end
     end)
     
