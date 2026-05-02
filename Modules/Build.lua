@@ -339,7 +339,6 @@ function BuildModule.Init(Tab, LOT)
                 local target = Mouse.Target
                 if not target or not target:IsA("BasePart") then return end
                 if target:IsDescendantOf(Player.Character or Instance.new("Folder")) then return end
-                if target.Anchored then return end
                 if target == workspace.Terrain then return end
                 if target.Parent == workspace then return end
     
