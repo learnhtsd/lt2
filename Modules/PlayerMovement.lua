@@ -42,7 +42,6 @@ function PlayerMovement.Init(Tab)
     env.Noclip    = false
     env.WaterWalk = false
     env.ClickTP   = false
-    env.Fling     = false
 
     local flyVelocity = nil
     local flyGyro     = nil
@@ -81,7 +80,6 @@ function PlayerMovement.Init(Tab)
         -- Reset globals so the new session starts clean
         env.IsFlying = false
         env.Noclip   = false
-        env.Fling    = false
         flyVelocity = nil
         flyGyro     = nil
     end
@@ -191,7 +189,6 @@ function PlayerMovement.Init(Tab)
     Tab:CreateSection("Utility")
     Tab:CreateToggle("Infinite Jump", false, function(s) env.InfJump    = s end)
     Tab:CreateToggle("Noclip",        false, function(s) env.Noclip     = s end)
-    Tab:CreateToggle("G Fling",       false, function(s) env.Fling      = s end):AddTooltip("Walk into players or objects to launch them.")
     Tab:CreateToggle("Water Walk",    false, function(s) env.WaterWalk  = s end)
     Tab:CreateToggle("Ctrl + Click TP", false, function(s) env.ClickTP  = s end)
     Tab:CreateAction("Reset Character", "Kill", function()
@@ -208,18 +205,8 @@ function PlayerMovement.Init(Tab)
         local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart")
 
-        -- FLING LOGIC
-        if env.Fling and hrp then
-            if hum then hum.PlatformStand = true end
-            hrp.RotVelocity = Vector3.new(0, 10000, 0)
-            hrp.Velocity    = Vector3.new(0, 0, 0)
-            for _, v in pairs(char:GetDescendants()) do
-                if v:IsA("BasePart") then v.CanCollide = false end
-            end
-        else
-            if hum and not env.IsFlying then
-                hum.PlatformStand = false
-            end
+        if hum and not env.IsFlying then
+            hum.PlatformStand = false
         end
 
         -- NOCLIP
