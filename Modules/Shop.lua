@@ -671,7 +671,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     local function SetBuyingState(buying)
         if not PurchaseBtn then return end
         if buying then
-            PurchaseBtn:SetText("⛔ Stop")
+            PurchaseBtn:SetText("Stop")
         else
             UpdateDisplay()
         end
@@ -704,7 +704,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         UpdateDisplay()
     end)
 
-    PurchaseBtn = Tab:CreateAction("Finalize Order", ("$%d"):format(ShopItems[1].Price), function()
+    PurchaseBtn = Tab:CreateAction("Purchase", ("$%d"):format(ShopItems[1].Price), function()
 
         if _isBuying then
             _isBuying = false
