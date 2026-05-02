@@ -768,9 +768,6 @@ function LooseObjectTeleport.Init(Tab, LibraryInstance)
 
         if State.StackMode and input.UserInputType == Enum.UserInputType.Keyboard then
             if input.KeyCode == Enum.KeyCode.R then
-                State.StackRotation = State.StackRotation * CFrame.Angles(math.rad(90), 0, 0)
-                return
-            elseif input.KeyCode == Enum.KeyCode.T then
                 State.StackRotation = State.StackRotation * CFrame.Angles(0, math.rad(90), 0)
                 return
             end
