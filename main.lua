@@ -1,9 +1,11 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
+local Version = "v0.0.370"
+
 task.spawn(function()
     local ICON_FOLDER   = "DynxeLT2"
-    local versionStamp  = Version:gsub("%.", "")   -- "v00369"
+    local versionStamp  = Version:gsub("%.", "")
 
     -- Guard: only run if the full filesystem API is available
     if not (isfolder and listfiles and isfile and delfile) then return end
