@@ -39,7 +39,9 @@ function BuildModule.Init(Tab, LOT)
         end
         selectionBoxes = {}
     end
-    
+
+    local function RefreshBPStatus() end -- forward declaration, defined below
+
     local function DrawOutlines()
         ClearOutlines()
         for _, entry in ipairs(filteredPlanks) do
@@ -52,19 +54,17 @@ function BuildModule.Init(Tab, LOT)
                 box.SurfaceTransparency = 0.75
                 box.Parent              = CoreGui
                 table.insert(selectionBoxes, box)
-    
-                -- When the part is consumed/deleted, remove it everywhere
+
                 local conn = entry.part.Destroying:Connect(function()
                     box:Destroy()
                     for i, e in ipairs(filteredPlanks) do
-                        if e.part == entry.part then table.remove(filteredPlanks, i) break end
+                        if e.part == entry.part then table.remove(filteredPlanks, i); break end
                     end
                     for i, e in ipairs(allPlanks) do
-                        if e.part == entry.part then table.remove(allPlanks, i) break end
+                        if e.part == entry.part then table.remove(allPlanks, i); break end
                     end
-                    -- Reset plank index so it doesn't point past the end
                     plankIndex = math.max(1, math.min(plankIndex, #filteredPlanks))
-                    RefreshStatus()
+                    RefreshBPStatus()
                 end)
                 table.insert(outlineConnections, conn)
             end
@@ -157,39 +157,10 @@ function BuildModule.Init(Tab, LOT)
     end
 
     -- ══════════════════════════════════════════════════════════
-    -- STATUS BOX
+    -- PLANK SELECTION
     -- ══════════════════════════════════════════════════════════
     Tab:CreateSection("Plank Selection")
 
-    local StatusBox  = Tab:CreateInfoBox()
-    StatusBox:AddText("Press Start, then click any plank you own to load all of that type.", {
-        Size = 11, Opacity = 0.75, Italic = true, Wrap = true,
-    })
-    StatusBox:AddDivider()
-    local classHandle = StatusBox:AddText("Type: —",         { Size = 11, Wrap = true })
-    local totalHandle = StatusBox:AddText("Total planks: —", { Size = 11, Wrap = true })
-    local filtHandle  = StatusBox:AddText("After filter: —", { Size = 11, Wrap = true })
-    local yRngHandle  = StatusBox:AddText("Y range: —",      { Size = 11, Opacity = 0.65, Wrap = true })
-
-    local function RefreshStatus()
-        if not selectedClass then
-            classHandle:Set("Type: —")
-            totalHandle:Set("Total planks: —")
-            filtHandle:Set("After filter: —")
-            yRngHandle:Set("Y range: —")
-            return
-        end
-        classHandle:Set("Type: " .. selectedClass)
-        totalHandle:Set("Total planks: " .. #allPlanks)
-        filtHandle:Set("After filter: " .. #filteredPlanks)
-        yRngHandle:Set(#allPlanks > 0
-            and ("Y size range: %.1f — %.1f"):format(yMin, yMax)
-            or "Y range: —")
-    end
-
-    -- ══════════════════════════════════════════════════════════
-    -- PICKING MODE
-    -- ══════════════════════════════════════════════════════════
     local function StopPickingMode()
         pickingMode = false
         if pickConn then pickConn:Disconnect(); pickConn = nil end
@@ -222,7 +193,7 @@ function BuildModule.Init(Tab, LOT)
         end
 
         ApplyYFilter()
-        RefreshStatus()
+        RefreshBPStatus()
         StopPickingMode()
     end
 
@@ -238,26 +209,30 @@ function BuildModule.Init(Tab, LOT)
         end)
     end
 
+    selectBtn = Tab:CreateAction("Select Plank Type", "Start", StartPickingMode)
+
+    -- ══════════════════════════════════════════════════════════
+    -- SIZE FILTER (slider only, no section header)
+    -- ══════════════════════════════════════════════════════════
     MaxSlider = Tab:CreateSlider("Max Y Size", 0, 10, 1, function(val)
         filterMax = val
         if #allPlanks == 0 then return end
         ApplyYFilter()
-        RefreshStatus()
+        RefreshBPStatus()
     end, 1)
-    
-    selectBtn = Tab:CreateAction("Select Plank Type", "Start", StartPickingMode)
-
-    -- ══════════════════════════════════════════════════════════
-    -- MAX Y SLIDER
-    -- ══════════════════════════════════════════════════════════
-    Tab:CreateSection("Size Filter")
 
     -- ══════════════════════════════════════════════════════════
     -- BLUEPRINT FILL
     -- ══════════════════════════════════════════════════════════
     Tab:CreateSection("Blueprint Fill")
 
-    local function RefreshBPStatus()
+    -- Status infobox for blueprint section (this is where the handles live)
+    local BPStatus    = Tab:CreateInfoBox()
+    local bpCountHandle = BPStatus:AddText("Blueprints found: —", { Size = 11, Wrap = true })
+    local bpIdxHandle   = BPStatus:AddText("Next plank: — / —",   { Size = 11, Wrap = true })
+
+    -- Now define RefreshBPStatus properly (overwrites the forward declaration)
+    RefreshBPStatus = function()
         local bps = GetOwnedBlueprints()
         bpCountHandle:Set("Blueprints found: " .. #bps)
         bpIdxHandle:Set(
@@ -266,7 +241,7 @@ function BuildModule.Init(Tab, LOT)
         )
     end
 
-    -- ── Blueprint click mode ───────────────────────────────────
+    -- ── Blueprint click mode ──────────────────────────────────
     local function StopBPClickMode()
         bpClickMode = false
         if bpClickConn then bpClickConn:Disconnect(); bpClickConn = nil end
@@ -314,26 +289,25 @@ function BuildModule.Init(Tab, LOT)
             StopBPClickMode()
         end
     end)
-    
+
     local fillCancelled = false
     autoFillBtn = Tab:CreateAction("Fill All Blueprints", "Start", function()
-        -- If already running, cancel it
         if autoFillBtn and autoFillBtn._running then
             fillCancelled = true
             return
         end
-    
+
         if not LOT then warn("[Build] LOT not available.") return end
         if LOT.IsBusy() then warn("[Build] LOT busy.") return end
         if #filteredPlanks == 0 then warn("[Build] No filtered planks selected.") return end
-    
+
         local blueprints = GetOwnedBlueprints()
         if #blueprints == 0 then warn("[Build] No owned blueprints found.") return end
-    
+
         fillCancelled = false
         autoFillBtn._running = true
         autoFillBtn:SetText("Stop")
-    
+
         task.spawn(function()
             for i, blueprint in ipairs(blueprints) do
                 if fillCancelled then break end
@@ -348,7 +322,6 @@ function BuildModule.Init(Tab, LOT)
         end)
     end)
 
-    RefreshStatus()
     RefreshBPStatus()
 end
 
