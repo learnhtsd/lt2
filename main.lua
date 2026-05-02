@@ -1,7 +1,32 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.369"
+task.spawn(function()
+    local ICON_FOLDER   = "DynxeLT2"
+    local versionStamp  = Version:gsub("%.", "")   -- "v00369"
+
+    -- Guard: only run if the full filesystem API is available
+    if not (isfolder and listfiles and isfile and delfile) then return end
+    if not isfolder(ICON_FOLDER) then return end
+
+    local ok, files = pcall(listfiles, ICON_FOLDER)
+    if not ok or type(files) ~= "table" then return end
+
+    for _, path in ipairs(files) do
+        -- Only touch .png files that look like versioned tab icons
+        if path:match("%.png$") then
+            -- Keep the file if its name contains the current version stamp
+            -- Delete everything else (it's from an older version)
+            if not path:find(versionStamp, 1, true) then
+                local deleteOk, err = pcall(delfile, path)
+                if not deleteOk then
+                    warn("[Cleanup] Could not delete stale asset: " .. path .. " — " .. tostring(err))
+                end
+            end
+        end
+    end
+end)
+
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
