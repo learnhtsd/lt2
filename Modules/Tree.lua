@@ -83,8 +83,17 @@ local function ReadAxeName(tool)
     return (tipChild and tipChild:IsA("StringValue")) and tipChild.Value or tool.ToolTip
 end
 
--- Returns the first Tool found in the player's Backpack (no equip needed).
+-- Returns a tool to use for chopping.
+-- Prefers whatever the player already has equipped; falls back to the
+-- first Tool found in the Backpack so no manual equip is ever required.
 local function GetBackpackAxe()
+    local char = player.Character
+    if char then
+        local equipped = char:FindFirstChildOfClass("Tool")
+        if equipped then
+            return equipped, ReadAxeName(equipped)
+        end
+    end
     for _, tool in ipairs(player.Backpack:GetChildren()) do
         if tool:IsA("Tool") then
             return tool, ReadAxeName(tool)
