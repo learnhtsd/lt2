@@ -339,6 +339,9 @@ function BuildModule.Init(Tab, LOT)
                 local target = Mouse.Target
                 if not target or not target:IsA("BasePart") then return end
                 if target:IsDescendantOf(Player.Character or Instance.new("Folder")) then return end
+                if target.Anchored then return end
+                if target == workspace.Terrain then return end
+                if target.Parent == workspace then return end
     
                 table.insert(undoStack, {
                     part   = target,
@@ -349,7 +352,6 @@ function BuildModule.Init(Tab, LOT)
             end)
         else
             if btoolsConn then btoolsConn:Disconnect(); btoolsConn = nil end
-            -- restore everything in reverse order
             for i = #undoStack, 1, -1 do
                 local entry = undoStack[i]
                 if entry.part then
