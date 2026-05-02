@@ -42,7 +42,7 @@ return {
     { Name = "AND Gate", Image = "And_Gate.png", Price = 260, BoxItemName = "GateAND", Store = "LogicStore" },
     { Name = "OR Gate", Image = "OR_Gate.png", Price = 260, BoxItemName = "GateOR", Store = "LogicStore" },
     { Name = "XOR Gate", Image = "XOR_Gate.png", Price = 260, BoxItemName = "GateXOR", Store = "LogicStore" },
-    { Name = "Clock Switch", Image = "Click_Switch.png", Price = 902, BoxItemName = "ClockSwitch", Store = "LogicStore" },
+    { Name = "Clock Switch", Image = "Clock_Switch.png", Price = 902, BoxItemName = "ClockSwitch", Store = "LogicStore" },
     { Name = "Wood Detector", Image = "Wood_Detector.png", Price = 11300, BoxItemName = "WoodChecker", Store = "LogicStore" },
     { Name = "Laser", Image = "Laser.png", Price = 11300, BoxItemName = "Laser", Store = "LogicStore" },
     { Name = "Laser Detector", Image = "Laser_Detector.png", Price = 3200, BoxItemName = "LaserReceiver", Store = "LogicStore" },
@@ -75,7 +75,7 @@ return {
     { Name = "Tiny Glass Pane", Image = "Glass_Pane_Tiny.png", Price = 12, BoxItemName = "GlassPane1", Store = "FurnitureStore" },
     -- Other (Bob's Shack — Bob)
     { Name = "Sandbag", Image = "Sandbag.png", Price = 1600, BoxItemName = "BagOfSand", Store = "WoodRUs" },
-    { Name = "Can Of Worms", Image = "Can_Of_WWorms.png", Price = 3200, BoxItemName = "CanOfWorms", Store = "ShackShop" },
+    { Name = "Can Of Worms", Image = "Can_Of_Worms.png", Price = 3200, BoxItemName = "CanOfWorms", Store = "ShackShop" },
     { Name = "Ligh Bulb", Image = "Light_Bulb.png", Price = 2600, BoxItemName = "LightBulb", Store = "FurnitureStore" },
     { Name = "Dynamite", Image = "Dynamite.png", Price = 220, BoxItemName = "Dynamite", Store = "ShackShop" },
     { Name = "Worklight", Image = "Worklight.png", Price = 80, BoxItemName = "WorkLight", Store = "WoodRUs" },
