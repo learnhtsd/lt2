@@ -305,7 +305,24 @@ function BuildModule.Init(Tab, LOT)
             autoFillBtn:SetText("Start")
         end)
     end)
-
+    
+    -- ══════════════════════════════════════════════════════════
+    -- LONG WIRE
+    -- ══════════════════════════════════════════════════════════
+    Tab:CreateSection("Other")
+    
+    local function SetWireLength(length)
+        for _, v in next, game.ReplicatedStorage.Purchasables.WireObjects:GetChildren() do
+            if v:FindFirstChild("Type") and v.Type.Value == "Wire" then
+                v.Type.Parent.OtherInfo.MaxLength.Value = length
+            end
+        end
+    end
+    
+    Tab:CreateToggle("Long Wire", false, function(state)
+        SetWireLength(state and 60 or 20)
+    end)
+    
     RefreshBPStatus()
 end
 
