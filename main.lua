@@ -282,7 +282,7 @@ function Library:CreateWindow()
         local NotifFrame = Instance.new("Frame")
         NotifFrame.Size             = UDim2.new(1, 0, 0, 0)
         NotifFrame.BackgroundColor3 = T.NotifBackground
-        NotifFrame.BackgroundTransparency = 0.5
+        NotifFrame.BackgroundTransparency = 0.8
         NotifFrame.BorderSizePixel  = 0
         NotifFrame.ClipsDescendants = true
         NotifFrame.Parent           = NotificationContainer
