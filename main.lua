@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.345"
+local Version = "v0.0.346"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -282,6 +282,7 @@ function Library:CreateWindow()
         local NotifFrame = Instance.new("Frame")
         NotifFrame.Size             = UDim2.new(1, 0, 0, 0)
         NotifFrame.BackgroundColor3 = T.NotifBackground
+        NotifFrame.BackgroundTransparency = 0.5
         NotifFrame.BorderSizePixel  = 0
         NotifFrame.ClipsDescendants = true
         NotifFrame.Parent           = NotificationContainer
