@@ -35,15 +35,6 @@ local SetChatting = ReplicatedStorage.NPCDialog.SetChattingValue
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                   PER-STORE CONFIGURATION                       │
--- │                                                                 │
--- │  Each key matches a child name under workspace.Stores.          │
--- │  NPCName    → key in the NPCs table above.                      │
--- │  ItemDropCF → where the bought box is teleported to.            │
--- │  PlayerBuyCF→ where your character stands during purchase.      │
--- │                                                                 │
--- │  Items in LT2ItemList.lua must include  Store = "WoodRUs"       │
--- │  (or whichever key applies) so the module knows which config    │
--- │  to use.                                                        │
 -- └─────────────────────────────────────────────────────────────────┘
 local StoreConfigs = {
     WoodRUs = {
@@ -53,28 +44,28 @@ local StoreConfigs = {
     },
     FurnitureStore = {
         NPCName     = "Corey",
-        ItemDropCF  = CFrame.new(477.2, 5.6, -1721.8),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(481.4, 3.2, -1712.5),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(477.2, 5.6, -1721.8),
+        PlayerBuyCF = CFrame.new(481.4, 3.2, -1712.5),
     },
     CarStore = {
         NPCName     = "Jenny",
-        ItemDropCF  = CFrame.new(528, 5.7, -1460),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(524.9, 3.2, -1466.6),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(528, 5.7, -1460),
+        PlayerBuyCF = CFrame.new(524.9, 3.2, -1466.6),
     },
     ShackShop = {
         NPCName     = "Bob",
-        ItemDropCF  = CFrame.new(260.4, 10.4, -2551.3),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(256.7, 8.4, -2546.7),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(260.4, 10.4, -2551.3),
+        PlayerBuyCF = CFrame.new(256.7, 8.4, -2546.7),
     },
     FineArt = {
         NPCName     = "Timothy",
-        ItemDropCF  = CFrame.new(5238.2, -164.0, 740.3),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(5232.4, -166.0, 737.3),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(5238.2, -164.0, 740.3),
+        PlayerBuyCF = CFrame.new(5232.4, -166.0, 737.3),
     },
     LogicStore = {
         NPCName     = "Lincoln",
-        ItemDropCF  = CFrame.new(4595.5, 9.4, -785.1),   -- TODO: set real coordinates
-        PlayerBuyCF = CFrame.new(4598.4, 7.0, -778.4),   -- TODO: set real coordinates
+        ItemDropCF  = CFrame.new(4595.5, 9.4, -785.1),
+        PlayerBuyCF = CFrame.new(4598.4, 7.0, -778.4),
     },
 }
 
@@ -118,18 +109,9 @@ end
 local NPCIDs     = {}
 local IDsFetched = false
 
-local function Notify(title, text, duration)
-    StarterGui:SetCore("SendNotification", {
-        Title    = title,
-        Text     = text,
-        Duration = duration or 3,
-    })
-end
-
 local function FetchNPCIDs()
     if IDsFetched then return end
 
-    Notify("Shop", "Fetching NPC IDs, please wait…", 5)
     SetChatting:InvokeServer(true)
 
     local lastData
@@ -156,14 +138,10 @@ local function FetchNPCIDs()
     SetChatting:InvokeServer(false)
 
     IDsFetched = true
-    Notify("Shop", "NPC IDs ready.", 3)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                   NPC ARG — BY STORE NAME                       │
--- │                                                                  │
--- │  Looks up the store config directly instead of finding the      │
--- │  nearest counter. Guarantees the right NPC is always used.      │
 -- └─────────────────────────────────────────────────────────────────┘
 local function GetNPCArgForStore(storeName)
     local config = StoreConfigs[storeName]
@@ -231,38 +209,19 @@ local POE_INTERVAL = 0.2
 
 local function PurchasePowerOfEase()
     local funds = FetchFunds()
-    if funds == nil then
-        Notify("❌ Funds Error", "Could not retrieve your balance. Try again.", 4)
-        return
-    end
-
-    if funds < POE_PRICE then
-        Notify(
-            "❌ Insufficient Funds",
-            ("Need $%s  •  Have $%s  •  Short $%s"):format(
-                tostring(POE_PRICE), tostring(funds), tostring(POE_PRICE - funds)
-            ),
-            5
-        )
-        return
-    end
+    if funds == nil then return end
+    if funds < POE_PRICE then return end
 
     FetchNPCIDs()
 
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then
-        Notify("❌ Error", "No character found.", 3)
-        return
-    end
+    if not root then return end
 
     local returnCF = root.CFrame
     root.CFrame = POE_TP_CF
     task.wait(0.15)
 
-    Notify("Shop", "Teleported — initiating Power of Ease purchase…", 4)
-
-    -- POE has no specific store config, so fall back to nearest-counter logic
     local bestDist = math.huge
     local bestNPC, bestName
 
@@ -279,7 +238,6 @@ local function PurchasePowerOfEase()
     end
 
     if not bestNPC then
-        Notify("❌ No NPC", "Could not find an NPC at the Power of Ease location.", 4)
         root.CFrame = returnCF
         return
     end
@@ -311,17 +269,7 @@ local function PurchasePowerOfEase()
             break
         end
 
-        if fireCount % 25 == 0 then
-            Notify("⏳ Purchasing…", ("Fired %d times — waiting for deduction…"):format(fireCount), 3)
-        end
-
         task.wait(POE_INTERVAL)
-    end
-
-    if purchased then
-        Notify("✅ Power of Ease!", ("Purchased after %d fires. Returning…"):format(fireCount), 5)
-    else
-        Notify("❌ Timeout", ("Purchase not confirmed after %d fires."):format(fireCount), 5)
     end
 
     task.wait(0.1)
@@ -342,9 +290,9 @@ local FAIL_BACKOFF_WAIT  = 0.6
 
 local function IsSuccessParent(parent)
     if not parent then return false end
-    if parent.Name == "PlayerModels"  then return true end
-    if parent == Player.Backpack      then return true end
-    if parent == Player.Character     then return true end
+    if parent.Name == "PlayerModels" then return true end
+    if parent == Player.Backpack     then return true end
+    if parent == Player.Character    then return true end
     local current = parent
     while current do
         if current.Name == "PlayerModels" then return true end
@@ -389,11 +337,9 @@ local function SpamPurchase(mainPart, npcArg, itemName)
         local preState = CheckItemState(mainPart)
         if preState == "success" then
             FlushDialog(npcArg, 1)
-            Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
             return true
         elseif preState == "gone" then
             FlushDialog(npcArg, 1)
-            Notify("⚠️ Item Gone", ("'%s' disappeared before confirmation."):format(itemName), 4)
             return false
         end
 
@@ -404,10 +350,8 @@ local function SpamPurchase(mainPart, npcArg, itemName)
         SafeInvoke(npcArg, "EndChat")
 
         if postState == "success" then
-            Notify("✅ Purchased!", ("'%s' bought after %d fires."):format(itemName, fireCount), 5)
             return true
         elseif postState == "gone" then
-            Notify("⚠️ Item Gone", ("'%s' disappeared during purchase."):format(itemName), 4)
             return false
         end
 
@@ -419,22 +363,14 @@ local function SpamPurchase(mainPart, npcArg, itemName)
         else
             task.wait(CYCLE_GAP)
         end
-
-        if fireCount % SPAM_NOTIFY_FREQ == 0 then
-            Notify("⏳ Buying…", ("Fired %d times for '%s'"):format(fireCount, itemName), 3)
-        end
     end
 
     FlushDialog(npcArg, 2)
-    Notify("❌ Timeout", ("Purchase of '%s' timed out after %d fires."):format(itemName, fireCount), 5)
     return false
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                      PURCHASE PART                              │
--- │                                                                 │
--- │  Now accepts the full item table so it can read item.Store      │
--- │  and pull the correct ItemDropCF / PlayerBuyCF / NPC.           │
 -- └─────────────────────────────────────────────────────────────────┘
 local function PurchasePart(mainPart, item, originalCF)
     local storeName = item.Store
@@ -452,31 +388,21 @@ local function PurchasePart(mainPart, item, originalCF)
     local success = _LOT.TeleportMany({ { target = mainPart, goalCF = itemDropCF } })
 
     if _LOT.IsBusy() then
-        Notify("Shop", "Waiting for TP to settle…", 2)
         success = _LOT.WaitForBatch()
     end
 
-    if not success then
-        Notify("❌ TP Failed", ("Teleport cancelled for '%s'."):format(itemName), 4)
-        return false
-    end
+    if not success then return false end
 
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then
-        Notify("❌ Error", "No character found.", 3)
-        return false
-    end
+    if not root then return false end
 
     originalCF = originalCF or root.CFrame
     root.CFrame = playerBuyCF
     task.wait(0.1)
 
     local npcArg = GetNPCArgForStore(storeName)
-    if not npcArg or not npcArg.ID then
-        Notify("❌ No NPC", ("Could not find NPC for store '%s'."):format(tostring(storeName)), 4)
-        return false
-    end
+    if not npcArg or not npcArg.ID then return false end
 
     local purchased = SpamPurchase(mainPart, npcArg, itemName)
 
@@ -536,18 +462,10 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                   SHOPITEMS ↔ STORE MATCHER                     │
--- │                                                                  │
--- │  workspace.Stores has multiple children named "ShopItems".      │
--- │  We identify which one belongs to a given store by finding      │
--- │  the ShopItems container whose parts sit closest to that        │
--- │  store's Counter (same landmark used by the NPC distance code). │
--- │                                                                  │
--- │  Results are cached so the scan only runs once per store.       │
 -- └─────────────────────────────────────────────────────────────────┘
-local ShopItemsCache = {}  -- storeName → ShopItems instance (or false if not found)
+local ShopItemsCache = {}
 
 local function GetShopItemsForStore(storeName)
-    -- Return cached result (false means "already searched, not found")
     if ShopItemsCache[storeName] ~= nil then
         return ShopItemsCache[storeName] or nil
     end
@@ -558,7 +476,6 @@ local function GetShopItemsForStore(storeName)
         return nil
     end
 
-    -- Anchor point: the store's Counter position (same as NPC proximity logic)
     local npc   = NPCs[config.NPCName]
     local store = npc and npc.Parent
     local anchor
@@ -576,7 +493,6 @@ local function GetShopItemsForStore(storeName)
         return nil
     end
 
-    -- Scan all ShopItems containers and pick the closest one
     local stores = workspace:FindFirstChild("Stores")
     if not stores then
         warn("[ShopModule] workspace.Stores not found.")
@@ -589,7 +505,6 @@ local function GetShopItemsForStore(storeName)
     for _, child in ipairs(stores:GetChildren()) do
         if child.Name ~= "ShopItems" then continue end
 
-        -- Sample the first BasePart we find inside to get a position
         local samplePos
         for _, desc in ipairs(child:GetDescendants()) do
             if desc:IsA("BasePart") then
@@ -620,10 +535,6 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                      WORLD PATH RESOLVER                        │
--- │                                                                  │
--- │  Searches only the ShopItems container that belongs to the      │
--- │  item's linked store. Falls back to all containers if the       │
--- │  item has no Store field or the match fails.                    │
 -- └─────────────────────────────────────────────────────────────────┘
 local function ResolveItemParts(item, limit)
     local stores = workspace:FindFirstChild("Stores")
@@ -657,11 +568,9 @@ local function ResolveItemParts(item, limit)
             searchContainer(targetContainer)
             return results
         end
-        -- If the match failed, fall through to the broad scan below
         warn("[ShopModule] Falling back to full scan for item: " .. tostring(item.Name))
     end
 
-    -- Broad fallback: search every ShopItems container (original behaviour)
     for _, child in ipairs(stores:GetChildren()) do
         if #results >= limit then break end
         if child.Name ~= "ShopItems" then continue end
@@ -690,56 +599,22 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
     local itemName     = item.Name
     local restockTimer = 0
 
-    Notify("Shop", ("Starting order: %d × %s"):format(totalQty, itemName), 4)
-
     while bought < totalQty and _isBuying do
         local stillNeed = totalQty - bought
         local parts     = ResolveItemParts(item, stillNeed)
 
         if #parts == 0 then
-            if restockTimer == 0 then
-                Notify(
-                    "⏳ Waiting for restock…",
-                    ("Bought %d / %d × %s — shelf is empty."):format(bought, totalQty, itemName),
-                    RESTOCK_NOTIFY_EVERY
-                )
-            end
-
             task.wait(RESTOCK_POLL_RATE)
             restockTimer += RESTOCK_POLL_RATE
 
-            if restockTimer % RESTOCK_NOTIFY_EVERY < RESTOCK_POLL_RATE then
-                Notify(
-                    "⏳ Still waiting for restock…",
-                    ("Bought %d / %d × %s  •  %ds elapsed"):format(
-                        bought, totalQty, itemName, math.floor(restockTimer)
-                    ),
-                    RESTOCK_NOTIFY_EVERY
-                )
-            end
-
             if restockTimer >= RESTOCK_TIMEOUT then
-                Notify(
-                    "❌ Restock Timeout",
-                    ("No new '%s' appeared after %ds.\nStopping at %d / %d."):format(
-                        itemName, RESTOCK_TIMEOUT, bought, totalQty
-                    ),
-                    6
-                )
                 break
             end
 
             continue
         end
 
-        if restockTimer > 0 then
-            Notify(
-                "🛒 Restock detected!",
-                ("%d × '%s' appeared — resuming purchase…"):format(#parts, itemName),
-                3
-            )
-            restockTimer = 0
-        end
+        restockTimer = 0
 
         for _, mainPart in ipairs(parts) do
             if not _isBuying      then break end
@@ -752,17 +627,9 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
 
             if _LOT.IsBusy() then _LOT.WaitForBatch() end
 
-            -- Pass the full item table so PurchasePart can read item.Store
             local ok = PurchasePart(mainPart, item, pressedCF)
             if ok then
                 bought += 1
-                if bought % 5 == 0 and bought < totalQty then
-                    Notify(
-                        "🛒 Progress",
-                        ("Bought %d / %d × %s"):format(bought, totalQty, itemName),
-                        2
-                    )
-                end
             else
                 failed += 1
             end
@@ -770,16 +637,6 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
     end
 
     _isBuying = false
-
-    local reason = (bought >= totalQty) and "✅ Order Complete" or "🛑 Order Stopped"
-    Notify(
-        reason,
-        ("Bought %d / %d × %s.%s"):format(
-            bought, totalQty, itemName,
-            failed > 0 and ("\n%d failed."):format(failed) or ""
-        ),
-        6
-    )
 
     if onDone then onDone() end
 end
@@ -851,7 +708,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
         if _isBuying then
             _isBuying = false
-            Notify("🛑 Cancelling…", "Stopping after the current item finishes.", 3)
             return
         end
 
@@ -863,48 +719,23 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         end
 
         if not SelectedItem.Store then
-            Notify("❌ Config Error", ("Item '%s' has no Store field set."):format(SelectedItem.Name), 5)
             warn("[ShopModule] Item '" .. SelectedItem.Name .. "' is missing the Store field in LT2ItemList.lua")
             return
         end
 
-        if not StoreConfigs[SelectedItem.Store] then
-            Notify("❌ Config Error", ("Unknown store '%s' for item '%s'."):format(SelectedItem.Store, SelectedItem.Name), 5)
-            return
-        end
+        if not StoreConfigs[SelectedItem.Store] then return end
 
-        if _LOT.IsBusy() then
-            Notify("Shop", "A teleport is already running — please wait.", 3)
-            return
-        end
+        if _LOT.IsBusy() then return end
 
         local funds = FetchFunds()
-        if funds == nil then
-            Notify("❌ Funds Error", "Could not retrieve your balance. Try again.", 4)
-            return
-        end
+        if funds == nil then return end
 
-        if funds < SelectedItem.Price then
-            Notify(
-                "❌ Insufficient Funds",
-                ("Need at least $%d  •  You have $%d"):format(SelectedItem.Price, funds),
-                5
-            )
-            return
-        end
+        if funds < SelectedItem.Price then return end
 
         local totalCost = SelectedItem.Price * Quantity
         local targetQty = Quantity
         if funds < totalCost then
             targetQty = math.floor(funds / SelectedItem.Price)
-            Notify(
-                "⚠️ Partial Order",
-                ("Can only afford %d / %d × %s ($%d available, $%d needed).\nBuying %d."):format(
-                    targetQty, Quantity, SelectedItem.Name,
-                    funds, totalCost, targetQty
-                ),
-                6
-            )
         end
 
         local char      = Player.Character
@@ -925,7 +756,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
     Tab:CreateSection("Special")
 
-    Tab:CreateAction("Buy Power of Ease ($10,009,000)", "Buy", function()
+    Tab:CreateAction("Power of Ease ($10,009,000)", "Buy", function()
         task.spawn(PurchasePowerOfEase)
     end, false)
 end
