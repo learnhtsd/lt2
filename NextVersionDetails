@@ -7,3 +7,5 @@
 - Fixed Off center preview in item sorter when not having enough selected objects to fill.
 - Changed the fill loop to layer the stack in item sorter that then to collums first.
 - Added transparency to the notifications background to match UI theme.
+- Completed build tab with more features to come soon!
+- Temparaly disabled GhostSuite module for redizining purposes
