@@ -2,7 +2,7 @@ local BuildModule = {}
 
 -- ============================================================
 -- BUILD MODULE  —  Dynxe LT2
--- Click a plank to select all of that type → filter by Y size
+-- Click a plank to select all of that type → filter by max Y
 -- → click blueprints to fill them, or auto-fill all at once.
 --
 -- Wire up in main.lua:
@@ -25,17 +25,15 @@ function BuildModule.Init(Tab, LOT)
     local allPlanks      = {}
     local filteredPlanks = {}
     local yMin, yMax     = 0, 0
-    local filterMin      = 0
     local filterMax      = 0
-    local plankIndex     = 1   -- rolling pointer for blueprint fill
+    local plankIndex     = 1
 
     local pickingMode    = false
     local pickConn       = nil
     local bpClickMode    = false
     local bpClickConn    = nil
 
-    -- forward-declared so inner closures can reference them
-    local selectBtn, MinSlider, MaxSlider, bpClickToggle, autoFillBtn
+    local selectBtn, MaxSlider, bpClickToggle, autoFillBtn
 
     -- ══════════════════════════════════════════════════════════
     -- HELPERS
@@ -51,7 +49,6 @@ function BuildModule.Init(Tab, LOT)
         return workspace:FindFirstChild("PlayerModels")
     end
 
-    -- Walk a hit part up to its direct child-of-PlayerModels model
     local function ResolveModel(target)
         local pm = GetPlayerModels()
         if not pm or not target then return nil end
@@ -71,9 +68,7 @@ function BuildModule.Init(Tab, LOT)
     end
 
     local function GetBlueprintCenter(model)
-        if model.PrimaryPart then
-            return model.PrimaryPart.Position
-        end
+        if model.PrimaryPart then return model.PrimaryPart.Position end
         local sum, count = Vector3.new(0, 0, 0), 0
         for _, part in ipairs(model:GetDescendants()) do
             if part:IsA("BasePart") then
@@ -96,7 +91,7 @@ function BuildModule.Init(Tab, LOT)
                         table.insert(result, {
                             model = model,
                             part  = part,
-                            sizeY = math.floor(part.Size.Y * 100 + 0.5) / 100,
+                            sizeY = math.floor(part.Size.Y * 10 + 0.5) / 10,
                         })
                     end
                 end
@@ -119,7 +114,7 @@ function BuildModule.Init(Tab, LOT)
     local function ApplyYFilter()
         filteredPlanks = {}
         for _, e in ipairs(allPlanks) do
-            if e.sizeY >= filterMin and e.sizeY <= filterMax then
+            if e.sizeY <= filterMax then
                 table.insert(filteredPlanks, e)
             end
         end
@@ -132,7 +127,7 @@ function BuildModule.Init(Tab, LOT)
     Tab:CreateSection("Plank Selection")
 
     local StatusBox  = Tab:CreateInfoBox()
-    StatusBox:AddText("Press Start, then click any plank you own to select all of that type.", {
+    StatusBox:AddText("Press Start, then click any plank you own to load all of that type.", {
         Size = 11, Opacity = 0.75, Italic = true, Wrap = true,
     })
     StatusBox:AddDivider()
@@ -153,12 +148,12 @@ function BuildModule.Init(Tab, LOT)
         totalHandle:Set("Total planks: " .. #allPlanks)
         filtHandle:Set("After filter: " .. #filteredPlanks)
         yRngHandle:Set(#allPlanks > 0
-            and ("Y size range: %.2f — %.2f"):format(yMin, yMax)
+            and ("Y size range: %.1f — %.1f"):format(yMin, yMax)
             or "Y range: —")
     end
 
     -- ══════════════════════════════════════════════════════════
-    -- PICKING MODE  (click a plank → load all of that class)
+    -- PICKING MODE
     -- ══════════════════════════════════════════════════════════
     local function StopPickingMode()
         pickingMode = false
@@ -185,12 +180,11 @@ function BuildModule.Init(Tab, LOT)
                 if e.sizeY < yMin then yMin = e.sizeY end
                 if e.sizeY > yMax then yMax = e.sizeY end
             end
-            filterMin = yMin
             filterMax = yMax
-            if MinSlider then MinSlider:SetValue(0)   end
-            if MaxSlider then MaxSlider:SetValue(100) end
+            -- Set slider to the real max Y value and reset to full range
+            if MaxSlider then MaxSlider:SetValue(yMax) end
         else
-            yMin, yMax, filterMin, filterMax = 0, 0, 0, 0
+            yMin, yMax, filterMax = 0, 0, 0
         end
 
         ApplyYFilter()
@@ -214,32 +208,24 @@ function BuildModule.Init(Tab, LOT)
     selectBtn:AddTooltip("Press Start then click any plank you own. All planks of that type will be loaded.")
 
     -- ══════════════════════════════════════════════════════════
-    -- Y SIZE FILTER
+    -- MAX Y SLIDER  (single slider, 1 decimal, real-time filter)
     -- ══════════════════════════════════════════════════════════
     Tab:CreateSection("Size Filter")
 
     local filterBox = Tab:CreateInfoBox()
-    filterBox:AddText("Filter loaded planks by Y thickness. 0% = thinnest, 100% = thickest in the selected type.", {
+    filterBox:AddText("Planks with a Y size at or below this value will be included. Updates the selection in real time.", {
         Size = 11, Opacity = 0.75, Italic = true, Wrap = true,
     })
 
-    MinSlider = Tab:CreateSlider("Min Y %", 0, 100, 0, function(val)
+    -- Slider range is 0.0 – 20.0 studs; covers all practical plank thicknesses.
+    -- After a class is picked the slider snaps to that class's actual yMax.
+    MaxSlider = Tab:CreateSlider("Max Y Size", 0, 20, 20, function(val)
+        filterMax = val
         if #allPlanks == 0 then return end
-        local span = yMax - yMin
-        filterMin  = span > 0 and (yMin + span * (val / 100)) or yMin
-        if filterMin > filterMax then filterMin = filterMax end
-        ApplyYFilter(); RefreshStatus()
-    end, 0)
-    MinSlider:AddTooltip("Lower thickness bound as a percentage of this type's Y range.")
-
-    MaxSlider = Tab:CreateSlider("Max Y %", 0, 100, 100, function(val)
-        if #allPlanks == 0 then return end
-        local span = yMax - yMin
-        filterMax  = span > 0 and (yMin + span * (val / 100)) or yMax
-        if filterMax < filterMin then filterMax = filterMin end
-        ApplyYFilter(); RefreshStatus()
-    end, 0)
-    MaxSlider:AddTooltip("Upper thickness bound as a percentage of this type's Y range.")
+        ApplyYFilter()
+        RefreshStatus()
+    end, 1)   -- 1 decimal place
+    MaxSlider:AddTooltip("Maximum Y (thickness) a plank can have to be included. 1 decimal precision.")
 
     -- ══════════════════════════════════════════════════════════
     -- BLUEPRINT FILL
@@ -278,18 +264,14 @@ function BuildModule.Init(Tab, LOT)
         if #filteredPlanks == 0 then
             warn("[Build] No filtered planks to place."); return
         end
-
         local entry = filteredPlanks[plankIndex]
         if not entry or not entry.part or not entry.part.Parent then
             plankIndex = (plankIndex % #filteredPlanks) + 1
             RefreshBPStatus(); return
         end
-
-        local goalCF = CFrame.new(GetBlueprintCenter(model))
         task.spawn(function()
-            if LOT then LOT.TeleportObjectTo(entry.part, goalCF) end
+            if LOT then LOT.TeleportObjectTo(entry.part, CFrame.new(GetBlueprintCenter(model))) end
         end)
-
         plankIndex = (plankIndex % #filteredPlanks) + 1
         RefreshBPStatus()
     end
@@ -311,8 +293,8 @@ function BuildModule.Init(Tab, LOT)
                 bpClickToggle:SetState(false)
                 return
             end
+            RefreshBPStatus()   -- scan on enable
             StartBPClickMode()
-            RefreshBPStatus()
         else
             StopBPClickMode()
         end
@@ -325,9 +307,10 @@ function BuildModule.Init(Tab, LOT)
         if LOT.IsBusy() then warn("[Build] LOT busy.") return end
         if #filteredPlanks == 0 then warn("[Build] No filtered planks selected.") return end
 
-        local blueprints = GetOwnedBlueprints()
+        local blueprints = GetOwnedBlueprints()   -- scan fresh on press
         if #blueprints == 0 then warn("[Build] No owned blueprints found.") return end
 
+        RefreshBPStatus()
         autoFillBtn:SetText("Filling...")
 
         task.spawn(function()
@@ -342,10 +325,7 @@ function BuildModule.Init(Tab, LOT)
             RefreshBPStatus()
         end)
     end)
-    autoFillBtn:AddTooltip("Teleports one filtered plank to each owned blueprint in sequence.")
-
-    Tab:CreateAction("Scan Blueprints", "Scan", RefreshBPStatus)
-        :AddTooltip("Refreshes the blueprint count without moving anything.")
+    autoFillBtn:AddTooltip("Scans for owned blueprints and teleports one filtered plank to each automatically.")
 
     -- Initial draw
     RefreshStatus()
