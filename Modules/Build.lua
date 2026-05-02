@@ -225,22 +225,6 @@ function BuildModule.Init(Tab, LOT)
     -- BLUEPRINT FILL
     -- ══════════════════════════════════════════════════════════
     Tab:CreateSection("Blueprint Fill")
-
-    -- Status infobox for blueprint section (this is where the handles live)
-    local BPStatus    = Tab:CreateInfoBox()
-    local bpCountHandle = BPStatus:AddText("Blueprints found: —", { Size = 11, Wrap = true })
-    local bpIdxHandle   = BPStatus:AddText("Next plank: — / —",   { Size = 11, Wrap = true })
-
-    -- Now define RefreshBPStatus properly (overwrites the forward declaration)
-    RefreshBPStatus = function()
-        local bps = GetOwnedBlueprints()
-        bpCountHandle:Set("Blueprints found: " .. #bps)
-        bpIdxHandle:Set(
-            "Next plank: " .. plankIndex ..
-            " / " .. math.max(1, #filteredPlanks)
-        )
-    end
-
     -- ── Blueprint click mode ──────────────────────────────────
     local function StopBPClickMode()
         bpClickMode = false
