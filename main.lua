@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.349"
+local Version = "v0.0.350"
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
 
 -- ██████╗  ██████╗ ███╗   ██╗███████╗██╗ ██████╗
@@ -1929,6 +1929,7 @@ local VehicleTab     = HubWindow:CreateTab("Vehicle")
 local BuildTab       = HubWindow:CreateTab("Build")
 local ToolTab        = HubWindow:CreateTab("Tool")
 local ProtectionTab  = HubWindow:CreateTab("Protection")
+local HelpTab        = HubWindow:CreateTab("Help")
 local SettingsTab    = HubWindow:CreateTab("Settings")
 
 local function LoadModule(ModuleName)
@@ -2029,6 +2030,10 @@ Library:Notify("Loaded", "Tree", 2)
 local ShopScript = LoadModule("Shop")
 if ShopScript and ShopScript.Init then ShopScript.Init(ShopTab, LooseObjectTeleportModule) end
 Library:Notify("Loaded", "Shop", 2)
+
+local HelpModule = LoadModule("Help")
+if HelpModule and HelpModule.Init then HelpModule.Init(HelpTab) end
+Library:Notify("Loaded", "Help", 2)
 
 local Duplicationodule = LoadModule("Duplication")
 if Duplicationodule and Duplicationodule.Init then Duplicationodule.Init(DuplicationTab) end
