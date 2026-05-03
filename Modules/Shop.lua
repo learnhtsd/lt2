@@ -963,9 +963,10 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         },
         {
             BoxItemName = "LightBulb",
-            GoalCF      = CFrame.new(322.2, 46, 1916.3),322.3, 45.9, 1916.2
+            GoalCF      = CFrame.new(322.4, 43.6, 1916.4),
         },
     }
+
     local RUKIRY_PLAYER_CF = CFrame.new(320.6, 45.8, 1919.2)
 
     local RukiryBtn
