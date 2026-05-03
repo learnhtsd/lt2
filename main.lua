@@ -1,39 +1,36 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.375"
+local Version = "v0.0.376"
 
 task.spawn(function()
     local versionStamp = Version:gsub("%.", "")
 
     if not (listfiles and delfile) then return end
 
-    -- Use pcall(listfiles) to detect folders instead of isfolder,
-    -- which is unreliable on some executors with full paths.
-    local function IsFolder(path)
-        local ok, result = pcall(listfiles, path)
-        return ok and type(result) == "table"
-    end
-
-    local function CleanImageFolder(folderPath)
+    local function CleanFolder(folderPath)
         local ok, entries = pcall(listfiles, folderPath)
         if not ok or type(entries) ~= "table" then return end
         for _, path in ipairs(entries) do
-            if IsFolder(path) then
-                CleanImageFolder(path)  -- recurse into subfolders
-            elseif path:match("%.png$") and not path:match("Placeholder%.png$") then
-                if not path:find(versionStamp, 1, true) then
-                    local deleted, err = pcall(delfile, path)
-                    if not deleted then
-                        warn("[Cleanup] Failed to delete: " .. path .. " — " .. tostring(err))
+            if path:match("%.%a+$") then
+                -- Has a file extension — treat as file
+                if path:match("%.png$") and not path:match("Placeholder%.png$") then
+                    if not path:find(versionStamp, 1, true) then
+                        pcall(delfile, path)
                     end
                 end
+            else
+                -- No extension — treat as folder and recurse
+                CleanFolder(path)
             end
         end
     end
 
-    if IsFolder("DynxeLT2")     then CleanImageFolder("DynxeLT2")     end
-    if IsFolder("Dynxe/Images") then CleanImageFolder("Dynxe/Images") end
+    local ok1, _ = pcall(listfiles, "DynxeLT2")
+    if ok1 then CleanFolder("DynxeLT2") end
+
+    local ok2, _ = pcall(listfiles, "Dynxe/Images")
+    if ok2 then CleanFolder("Dynxe/Images") end
 end)
 
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
