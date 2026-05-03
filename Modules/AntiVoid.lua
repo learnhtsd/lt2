@@ -34,7 +34,7 @@ function AntiVoid.Init(Tab)
 
 
     -- UI SECTION
-    Tab:CreateToggle("Enable Anti-Void", true, function(state)
+    Tab:CreateToggle("Anti-Void", true, function(state)
         _G.AntiVoidEnabled = state
     end)
 
