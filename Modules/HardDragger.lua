@@ -66,9 +66,6 @@ function HardDragger.Init(Tab)
         end)
     end)
 
-    -- UI
-    Tab:CreateSection("Hard Dragger")
-
     Tab:CreateToggle("Hard Dragger", false, function(state)
         Config.Enabled = state
         if not state then Restore() end
