@@ -16,7 +16,7 @@ local Settings = {
     LogDropDistance = 6,
 
     -- [ Sell Location ]
-    SellPosition    = Vector3.new(315, 0.5, 95)
+    SellPosition    = Vector3.new(315, -1, 95)
 }
 
 -- ==========================================
@@ -321,7 +321,7 @@ end
 -- ==========================================
 --   PLANK SELLING
 -- ==========================================
-local PLANK_SELL_CF = CFrame.new(315.5, 0, 83)
+local PLANK_SELL_CF = CFrame.new(315.5, -2, 83)
 local _sellPlanksOn = false
 local _hoverOutline = nil
 local _hoverPlank   = nil
