@@ -1,31 +1,53 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.378"
+local Version = "v0.0.379"
 
 task.spawn(function()
     local versionStamp = Version:gsub("%.", "")
 
     if not (listfiles and delfile) then return end
 
-    -- pcall(readfile) is used instead of isfile because isfile returns false
-    -- for real files on Xeno. If the saved stamp matches, nothing to do.
     local stampPath = "Dynxe/version.txt"
     local stampOk, stampData = pcall(readfile, stampPath)
     if stampOk and stampData == versionStamp then return end
 
     local function CleanFolder(folderPath)
         local ok, entries = pcall(listfiles, folderPath)
-        if not ok or type(entries) ~= "table" then return end
+        if not ok or type(entries) ~= "table" then
+            warn("[CleanFolder] listfiles failed or returned non-table for: " .. tostring(folderPath))
+            return
+        end
+
+        warn("[CleanFolder] Scanning: " .. tostring(folderPath) .. " (" .. #entries .. " entries)")
+
         for _, path in ipairs(entries) do
-            -- isfolder is reliable in Xeno; extension-guessing is not.
-            if isfolder and isfolder(path) then
+            warn("[CleanFolder]   entry: '" .. tostring(path) .. "'")
+
+            local isDir = false
+            local subOk, subEntries = pcall(listfiles, path)
+            if subOk and type(subEntries) == "table" then
+                isDir = true
+            end
+
+            warn("[CleanFolder]     isDir=" .. tostring(isDir))
+
+            if isDir then
                 CleanFolder(path)
             else
                 local fileName = path:match("[^/\\]+$") or path
-                if fileName:match("%.png$") and not fileName:match("Placeholder%.png$") then
-                    if not fileName:find(versionStamp, 1, true) then
-                        pcall(delfile, path)
+                local isPng = fileName:match("%.png$") ~= nil
+                local isPlaceholder = fileName:match("Placeholder%.png$") ~= nil
+                local hasStamp = fileName:find(versionStamp, 1, true) ~= nil
+
+                warn("[CleanFolder]     fileName='" .. fileName .. "' isPng=" .. tostring(isPng) .. " isPlaceholder=" .. tostring(isPlaceholder) .. " hasStamp=" .. tostring(hasStamp))
+
+                if isPng and not isPlaceholder then
+                    if not hasStamp then
+                        local delOk, delErr = pcall(delfile, path)
+                        warn("[CleanFolder]     DELETED: " .. tostring(delOk) .. (delOk and "" or (" err=" .. tostring(delErr))))
+                    else
+                        warn("[CleanFolder]     KEPT (current version)")
                     end
                 end
             end
@@ -38,7 +60,6 @@ task.spawn(function()
     local ok2 = pcall(listfiles, "Dynxe/Images")
     if ok2 then CleanFolder("Dynxe/Images") end
 
-    -- Stamp the version so the next load skips this entirely.
     if writefile then
         if isfolder and not isfolder("Dynxe") then
             pcall(makefolder, "Dynxe")
