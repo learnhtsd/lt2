@@ -7,7 +7,7 @@ local Settings = {
     RespawnSettleDelay = 2.0,   -- seconds to wait after respawn before scanning
     PickupTimeout      = 3,     -- seconds to keep retrying one axe before skipping
     PickupFireRate     = 0.15,  -- seconds between remote fires during retry loop
-    AxeRecoverRadius   = 20,    -- studs around death position to search
+    AxeRecoverRadius   = 50,    -- studs around death position to search
     MaxAxesToRecover   = 10,    -- hard cap on axes processed per respawn
 }
 
