@@ -1,31 +1,39 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.374"
+local Version = "v0.0.375"
 
 task.spawn(function()
     local versionStamp = Version:gsub("%.", "")
 
-    if not (isfolder and listfiles and delfile) then return end
+    if not (listfiles and delfile) then return end
 
-    -- Recursively delete any versioned .png that doesn't match current version.
-    -- Placeholder.png is unversioned and always kept.
+    -- Use pcall(listfiles) to detect folders instead of isfolder,
+    -- which is unreliable on some executors with full paths.
+    local function IsFolder(path)
+        local ok, result = pcall(listfiles, path)
+        return ok and type(result) == "table"
+    end
+
     local function CleanImageFolder(folderPath)
         local ok, entries = pcall(listfiles, folderPath)
         if not ok or type(entries) ~= "table" then return end
         for _, path in ipairs(entries) do
-            if isfolder(path) then
+            if IsFolder(path) then
                 CleanImageFolder(path)  -- recurse into subfolders
             elseif path:match("%.png$") and not path:match("Placeholder%.png$") then
                 if not path:find(versionStamp, 1, true) then
-                    pcall(delfile, path)
+                    local deleted, err = pcall(delfile, path)
+                    if not deleted then
+                        warn("[Cleanup] Failed to delete: " .. path .. " — " .. tostring(err))
+                    end
                 end
             end
         end
     end
 
-    if isfolder("DynxeLT2") then CleanImageFolder("DynxeLT2") end
-    if isfolder("Dynxe/Images") then CleanImageFolder("Dynxe/Images") end
+    if IsFolder("DynxeLT2")     then CleanImageFolder("DynxeLT2")     end
+    if IsFolder("Dynxe/Images") then CleanImageFolder("Dynxe/Images") end
 end)
 
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
@@ -767,9 +775,11 @@ function Library:CreateWindow()
             local function LoadImage(fileName)
                 if not fileName or fileName == "" then return end
                 task.spawn(function()
-                    local localPath = "Dynxe/Images/" .. fileName
+                    local versionStamp  = Version:gsub("%.", "")
+                    local versionedName = versionStamp .. "_" .. fileName
+                    local localPath     = "Dynxe/Images/" .. versionedName  -- ← versioned
                     local asset
-        
+            
                     if isfile and getcustomasset and isfile(localPath) then
                         asset = getcustomasset(localPath)
                     else
@@ -791,7 +801,7 @@ function Library:CreateWindow()
                             warn("[CreateImage] Asset missing: " .. fileName)
                         end
                     end
-        
+            
                     if asset then ImageFrame.Image = asset end
                 end)
             end
