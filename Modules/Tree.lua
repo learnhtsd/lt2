@@ -16,7 +16,11 @@ local Settings = {
     LogDropDistance = 6,
 
     -- [ Sell Location ]
-    SellPosition    = Vector3.new(315, -1, 95)
+    SellPosition    = Vector3.new(315, -1, 95),
+
+    -- [ Auto Recover Settings ]
+    RespawnSettleDelay = 2.0,   -- seconds to wait after respawn before acting
+    AxePickupDelay     = 0.1,   -- delay between picking up each axe
 }
 
 -- ==========================================
@@ -76,16 +80,12 @@ local preChopLogModels    = {}
 --             UTILITY
 -- ==========================================
 
--- Reads the axe name from a Tool's ToolTip child or property.
 local function ReadAxeName(tool)
     if not tool then return nil end
     local tipChild = tool:FindFirstChild("ToolTip")
     return (tipChild and tipChild:IsA("StringValue")) and tipChild.Value or tool.ToolTip
 end
 
--- Returns a tool to use for chopping.
--- Prefers whatever the player already has equipped; falls back to the
--- first Tool found in the Backpack so no manual equip is ever required.
 local function GetBackpackAxe()
     local char = player.Character
     if char then
@@ -423,7 +423,8 @@ end
 -- ==========================================
 --   REMOTE CUT
 -- ==========================================
-local RemoteProxy = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
+local RemoteProxy       = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
+local ClientInteracted  = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("ClientInteracted")
 
 local function CutHeightFrac(sizeY)
     return math.clamp(0.1 + (8 - sizeY) / 60, 0.1, 0.2)
@@ -471,6 +472,101 @@ local function TreeHasFallen(treeClass)
 end
 
 -- ==========================================
+--   AUTO RECOVER AXE
+-- ==========================================
+local _autoRecoverOn   = false
+local _autoRecoverConn = nil  -- CharacterAdded connection
+
+-- Searches workspace.PlayerModels for dropped axe models.
+-- A dropped axe appears as a Model named "Model" (matching the reference script).
+local function GetAxesInWorld()
+    local axes        = {}
+    local playerModels = Workspace:FindFirstChild("PlayerModels")
+    if not playerModels then
+        warn("[TreeModule] Auto Recover: PlayerModels not found.")
+        return axes
+    end
+    for _, obj in ipairs(playerModels:GetDescendants()) do
+        if obj.Name == "Model" and obj:IsA("Model") then
+            table.insert(axes, obj)
+        end
+    end
+    return axes
+end
+
+-- Teleports the player's HumanoidRootPart next to the axe's handle.
+local function TeleportToAxe(axe)
+    local char = player.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local handle = axe:FindFirstChild("Handle") or axe.PrimaryPart
+    if not handle then return end
+    -- Stand slightly above and in front of the axe so physics doesn't clip
+    hrp.CFrame = CFrame.new(handle.Position + Vector3.new(0, 3, 0))
+    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    task.wait(0.2)  -- brief settle so the server registers the new position
+end
+
+-- Fires the ClientInteracted pickup remote for one axe model.
+local function PickupAxe(axe)
+    local handle = axe:FindFirstChild("Handle") or axe.PrimaryPart
+    if not handle then return end
+    ClientInteracted:FireServer(axe, "Pick up tool", handle.CFrame)
+end
+
+-- Called once per respawn when the toggle is active.
+local function OnRespawnedRecover(char)
+    -- Wait for the character to be fully ready before doing anything.
+    local hrp = char:WaitForChild("HumanoidRootPart", 10)
+    local hum = char:WaitForChild("Humanoid", 10)
+    if not hrp or not hum then
+        warn("[TreeModule] Auto Recover: Character parts missing after respawn.")
+        return
+    end
+
+    -- Extra settle time so the server has placed the dropped axes in the world.
+    task.wait(Settings.RespawnSettleDelay)
+
+    if not _autoRecoverOn then return end  -- user may have toggled off while waiting
+
+    local axes = GetAxesInWorld()
+    if #axes == 0 then
+        warn("[TreeModule] Auto Recover: No axes found in world after respawn.")
+        return
+    end
+
+    -- TP to the first axe so the pickup distance check passes, then pick up all.
+    TeleportToAxe(axes[1])
+
+    for _, axe in ipairs(axes) do
+        if not axe or not axe.Parent then continue end
+        PickupAxe(axe)
+        task.wait(Settings.AxePickupDelay)
+    end
+
+    print(("[TreeModule] Auto Recover: Picked up %d axe(s) after respawn."):format(#axes))
+end
+
+local function StartAutoRecoverAxe()
+    if _autoRecoverConn then return end  -- already running
+    _autoRecoverOn   = true
+    _autoRecoverConn = player.CharacterAdded:Connect(function(char)
+        if not _autoRecoverOn then return end
+        task.spawn(OnRespawnedRecover, char)
+    end)
+    print("[TreeModule] Auto Recover Axe: ON")
+end
+
+local function StopAutoRecoverAxe()
+    _autoRecoverOn = false
+    if _autoRecoverConn then
+        _autoRecoverConn:Disconnect()
+        _autoRecoverConn = nil
+    end
+    print("[TreeModule] Auto Recover Axe: OFF")
+end
+
+-- ==========================================
 --   MAIN CHOP SEQUENCE
 -- ==========================================
 local function StartChopping(treeClass, LOT, onComplete)
@@ -492,7 +588,6 @@ local function StartChopping(treeClass, LOT, onComplete)
         return
     end
 
-    -- Grab the first tool sitting in the backpack — no equip required.
     local tool, axeName = GetBackpackAxe()
     if not tool then
         warn("[TreeModule] No tool found in Backpack. Cannot chop.")
@@ -508,12 +603,10 @@ local function StartChopping(treeClass, LOT, onComplete)
         return
     end
 
-    -- Save state
     preChopCFrame       = hrp.CFrame
     preChopCameraCFrame = camera.CFrame
     isChopping          = true
 
-    -- TP player next to the base section once, then leave them free
     local targetPart = sections[1]
     local standPos   = targetPart.Position + Vector3.new(4, 0, 0)
     hrp.CFrame       = CFrame.lookAt(standPos, targetPart.Position)
@@ -531,7 +624,6 @@ local function StartChopping(treeClass, LOT, onComplete)
             return
         end
 
-        -- Keep firing until the tree falls — no timeout
         while not TreeHasFallen(treeClass) and isChopping do
             if not baseSection or not baseSection.Parent then
                 local fresh = GetSectionsBottomFirst(treeModel)
@@ -543,7 +635,6 @@ local function StartChopping(treeClass, LOT, onComplete)
         end
 
         if not isChopping then
-            -- User cancelled
             CleanupState()
             if onComplete then onComplete() end
             return
@@ -646,6 +737,12 @@ function TreeModule.Init(Tab, LOT)
 
     Tab:CreateToggle("Click To Sell (Planks)", false, function(state)
         if state then StartSellPlanks(LOT) else StopSellPlanks() end
+    end)
+
+    Tab:CreateSection("Tool Recovery")
+
+    Tab:CreateToggle("Auto Recover Axe", false, function(state)
+        if state then StartAutoRecoverAxe() else StopAutoRecoverAxe() end
     end)
 end
 
