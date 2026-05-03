@@ -6,7 +6,7 @@ game.ReplicatedStorage.Interaction.Verify:FireServer('Item owned by player',Tree
 game.ReplicatedStorage.Interaction.RemoteProxy:FireServer(TreePart.Parent.CutEvent, CutArguments)
 game.ReplicatedStorage.Interaction.DestroyStructure:FireServer(Thing.Parent)
 game.ReplicatedStorage.Interaction.ClientInteracted:FireServer(b, "Drop tool", game.Players.LocalPlayer.Character.Head.CFrame)
-
+game.ReplicatedStorage.Interaction.InteractionPermission
 
 
 
