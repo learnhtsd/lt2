@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.391"
+local Version = "v0.0.392"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -2015,9 +2015,9 @@ if SettingsModule and SettingsModule.Init then
 end
 Library:Notify("Loaded", "Settings", 2)
 
---local DraggerModule = LoadModule("HardDragger")
---if DraggerModule and DraggerModule.Init then DraggerModule.Init(PlayerTab) end
---Library:Notify("Loaded", "Hard Dragger", 2)
+local HardDraggerModule = LoadModule("HardDragger")
+if HardDraggerModule and HardDraggerModule.Init then HardDraggerModule.Init(PlayerTab) end
+Library:Notify("Loaded", "Hard Dragger", 2)
 
 local AntiFlingModule = LoadModule("AntiFling")
 if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(ProtectionTab) end
