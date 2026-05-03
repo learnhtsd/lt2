@@ -32,7 +32,7 @@ local NPCs = {
 local Remote      = ReplicatedStorage.NPCDialog.PlayerChatted
 local PromptChat  = ReplicatedStorage.NPCDialog.PromptChat
 local SetChatting = ReplicatedStorage.NPCDialog.SetChattingValue
-local Interact    = ReplicatedStorage.Interaction.ClientInteracted -- ← NEW
+local Interact    = ReplicatedStorage.Interaction.ClientInteracted
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                   PER-STORE CONFIGURATION                       │
@@ -101,21 +101,35 @@ end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                      NPC ID FETCHING                            │
+-- │  IDsFetched is keyed per-NPC so individual NPCs can be          │
+-- │  refreshed without re-fetching the whole set.                   │
 -- └─────────────────────────────────────────────────────────────────┘
 local NPCIDs     = {}
-local IDsFetched = false
+local IDsFetched = {} -- keyed by NPC name
 
-local function FetchNPCIDs()
-    if IDsFetched then return end
+local function FetchNPCIDs(refreshName)
+    local toFetch = {}
+    if refreshName then
+        -- Force re-fetch a single NPC
+        toFetch[refreshName] = NPCs[refreshName]
+    else
+        for name, npc in pairs(NPCs) do
+            if not IDsFetched[name] then
+                toFetch[name] = npc
+            end
+        end
+    end
 
-    SetChatting:InvokeServer(true)
+    if not next(toFetch) then return end
+
+    pcall(function() SetChatting:InvokeServer(true) end)
 
     local lastData
     local conn = PromptChat.OnClientEvent:Connect(function(_, chatData)
         lastData = chatData
     end)
 
-    for name, npc in pairs(NPCs) do
+    for name, npc in pairs(toFetch) do
         if not npc:FindFirstChild("Dialog") then
             Instance.new("Dialog", npc)
         end
@@ -124,14 +138,13 @@ local function FetchNPCIDs()
         local t = tick()
         repeat task.wait() until lastData or tick() - t > 5
         if lastData then
-            NPCIDs[name] = lastData.ID
+            NPCIDs[name]     = lastData.ID
+            IDsFetched[name] = true
         end
     end
 
     conn:Disconnect()
-    SetChatting:InvokeServer(false)
-
-    IDsFetched = true
+    pcall(function() SetChatting:InvokeServer(false) end)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
@@ -241,7 +254,7 @@ local function PurchasePowerOfEase()
         Dialog    = bestNPC.Dialog,
     }
 
-    local deadline  = tick() + POE_TIMEOUT
+    local deadline = tick() + POE_TIMEOUT
 
     while tick() < deadline do
         SafeInvoke(npcArg, "Initiate")
@@ -270,6 +283,7 @@ local INVOKE_GAP         = 0.05
 local CYCLE_GAP          = 0.12
 local FAIL_BACKOFF_AFTER = 8
 local FAIL_BACKOFF_WAIT  = 0.6
+local FAIL_HARD_RESET    = 20  -- consecutive fails before NPC dialog hard-reset
 
 local function IsSuccessParent(parent)
     if not parent then return false end
@@ -307,6 +321,7 @@ end
 
 local function SpamPurchase(mainPart, npcArg, itemName)
     local failStreak = 0
+    local totalFails = 0
     local deadline   = tick() + SPAM_TIMEOUT
 
     FlushDialog(npcArg, 2)
@@ -337,7 +352,21 @@ local function SpamPurchase(mainPart, npcArg, itemName)
         end
 
         failStreak += 1
-        if failStreak >= FAIL_BACKOFF_AFTER then
+        totalFails += 1
+
+        if totalFails >= FAIL_HARD_RESET then
+            -- NPC dialog is likely stuck server-side — reset and re-fetch its ID
+            warn(("[Shop] NPC '%s' appears stuck — hard resetting dialog state."):format(npcArg.Name))
+            FlushDialog(npcArg, 3)
+            pcall(function() SetChatting:InvokeServer(false) end)
+            task.wait(0.5)
+            IDsFetched[npcArg.Name] = nil
+            FetchNPCIDs(npcArg.Name)
+            npcArg.ID = NPCIDs[npcArg.Name]
+            task.wait(0.3)
+            failStreak = 0
+            totalFails = 0
+        elseif failStreak >= FAIL_BACKOFF_AFTER then
             FlushDialog(npcArg, 3)
             task.wait(FAIL_BACKOFF_WAIT)
             failStreak = 0
@@ -604,14 +633,12 @@ local function PurchaseBlueprintPart(mainPart, item)
     local config    = StoreConfigs[storeName]
     if not config then return false end
 
-    -- TP the item to the store drop position so the server accepts the purchase
     local success = _LOT.TeleportMany({ { target = mainPart, goalCF = config.ItemDropCF } })
     if _LOT.IsBusy() then
         success = _LOT.WaitForBatch()
     end
     if not success then return false end
 
-    -- TP player to the buy counter
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return false end
@@ -622,7 +649,6 @@ local function PurchaseBlueprintPart(mainPart, item)
     local npcArg = GetNPCArgForStore(storeName)
     if not npcArg or not npcArg.ID then return false end
 
-    -- Purchase — intentionally no return TP after, blueprint box goes to PlayerModels
     return SpamPurchase(mainPart, npcArg, item.Name)
 end
 
@@ -639,7 +665,6 @@ local function OpenBlueprintBox(boxItemName)
 
     while tick() < deadline do
         for _, model in ipairs(PlayerModels:GetChildren()) do
-            -- Box models are named "Box Purchased by <PlayerName>"
             if model:IsA("Model") and model.Name:find("Box Purchased by") then
                 local nameVal = model:FindFirstChild("PurchasedBoxItemName")
                 if nameVal and nameVal.Value == boxItemName then
@@ -647,7 +672,7 @@ local function OpenBlueprintBox(boxItemName)
                     local head = char and char:FindFirstChild("Head")
                     if head then
                         Interact:FireServer(model, "Open box", head.CFrame)
-                        task.wait(0.5) -- let the box open before moving on
+                        task.wait(0.5)
                         return true
                     end
                 end
@@ -670,12 +695,10 @@ local function RunBlueprintLoop(ShopItems, onDone)
 
     FetchNPCIDs()
 
-    -- Capture return position before moving anywhere
     local char     = Player.Character
     local root     = char and char:FindFirstChild("HumanoidRootPart")
     local returnCF = root and root.CFrame
 
-    -- Collect all blueprint items from the item list
     local blueprints = {}
     for _, item in ipairs(ShopItems) do
         if item.Name:find("Blueprint") then
@@ -695,7 +718,6 @@ local function RunBlueprintLoop(ShopItems, onDone)
     for _, item in ipairs(blueprints) do
         if not _isBuyingBlueprints then break end
 
-        -- Find the shop box for this blueprint
         local parts = ResolveItemParts(item, 1)
         if #parts == 0 then
             warn("[Blueprints] No stock found for:", item.Name, "— skipping.")
@@ -708,7 +730,6 @@ local function RunBlueprintLoop(ShopItems, onDone)
             continue
         end
 
-        -- Skip if player already owns this blueprint
         local blueprintsFolder = Player:FindFirstChild("PlayerBlueprints")
             and Player.PlayerBlueprints:FindFirstChild("Blueprints")
         if blueprintsFolder and blueprintsFolder:FindFirstChild(item.BoxItemName) then
@@ -716,7 +737,6 @@ local function RunBlueprintLoop(ShopItems, onDone)
             continue
         end
 
-        -- Check funds before attempting purchase
         local funds = FetchFunds()
         if funds == nil or funds < item.Price then
             warn("[Blueprints] Not enough funds for:", item.Name, "(need $" .. item.Price .. ")")
@@ -728,7 +748,6 @@ local function RunBlueprintLoop(ShopItems, onDone)
 
         if purchased then
             print("[Blueprints] Purchased! Opening box for:", item.Name)
-            -- Use BoxItemName if available, fallback to Name
             local boxName = item.BoxItemName or item.Name
             OpenBlueprintBox(boxName)
         else
@@ -738,7 +757,6 @@ local function RunBlueprintLoop(ShopItems, onDone)
         task.wait(0.2)
     end
 
-    -- TP player back to where they were
     local returnChar = Player.Character
     local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
     if returnRoot and returnCF then
@@ -801,10 +819,16 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         UpdateDisplay()
     end)
 
+    -- Slots are added immediately with lazy image loading —
+    -- each image fetches in its own thread so nothing blocks.
     for _, item in pairs(ShopItems) do
         pcall(function()
-            local img = GetImage("", item.Image)
-            Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
+            local capturedItem = item
+            Catalog:AddSlot(
+                function() return GetImage("", capturedItem.Image) end,
+                item.Name,
+                "$" .. tostring(item.Price)
+            )
         end)
     end
 
@@ -821,18 +845,13 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         end
 
         if not SelectedItem then return end
-
         if _LOT == nil then return end
-
         if not SelectedItem.Store then return end
-
         if not StoreConfigs[SelectedItem.Store] then return end
-
         if _LOT.IsBusy() then return end
 
         local funds = FetchFunds()
         if funds == nil then return end
-
         if funds < SelectedItem.Price then return end
 
         local totalCost = SelectedItem.Price * Quantity
@@ -866,9 +885,8 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         task.spawn(PurchasePowerOfEase)
     end, false)
 
-    -- ── NEW: Purchase All Blueprints ─────────────────────────────────
+    -- ── Purchase All Blueprints ──────────────────────────────────────
 
-    -- Collect blueprint items from the loaded list
     local BlueprintItems = {}
     for _, item in ipairs(ShopItems) do
         if item.Name:find("Blueprint") then
@@ -877,20 +895,11 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     end
 
     local function CheckAllBlueprintsOwned()
-        if #BlueprintItems == 0 then
-            print("[Blueprints] BlueprintItems is empty — returning false")
-            return false
-        end
+        if #BlueprintItems == 0 then return false end
         local playerBP = Player:FindFirstChild("PlayerBlueprints")
-        if not playerBP then
-            print("[Blueprints] No PlayerBlueprints folder found — returning false")
-            return false
-        end
+        if not playerBP then return false end
         local blueprintsFolder = playerBP:FindFirstChild("Blueprints")
-        if not blueprintsFolder then
-            print("[Blueprints] No Blueprints subfolder found — returning false")
-            return false
-        end
+        if not blueprintsFolder then return false end
         local owned, total = 0, #BlueprintItems
         for _, item in ipairs(BlueprintItems) do
             if blueprintsFolder:FindFirstChild(item.BoxItemName) then
@@ -918,7 +927,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
     local function UpdateBlueprintBtnState()
         if not BlueprintBtn then return end
-        if _isBuyingBlueprints then return end -- don't override Stop state
+        if _isBuyingBlueprints then return end
         local allOwned = CheckAllBlueprintsOwned()
         BlueprintBtn:SetDisabled(allOwned)
         if allOwned then
@@ -930,8 +939,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     end
 
     BlueprintBtn = Tab:CreateAction("Purchase All Blueprints", "Buy", function()
-
-        -- Toggle stop if already running
         if _isBuyingBlueprints then
             _isBuyingBlueprints = false
             UpdateBlueprintBtnState()
@@ -945,13 +952,11 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                 UpdateBlueprintBtnState()
             end)
         end)
-
     end, false)
 
-    -- Initial state check on load
     UpdateBlueprintBtnState()
 
-    -- ── NEW: Purchase Rukiry Axe ──────────────────────────────────────
+    -- ── Purchase Rukiry Axe ──────────────────────────────────────────
     local RUKIRY_ITEMS = {
         {
             BoxItemName = "CanOfWorms",
@@ -966,7 +971,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
             GoalCF      = CFrame.new(322.4, 43.6, 1916.4),
         },
     }
-
     local RUKIRY_PLAYER_CF = CFrame.new(320.6, 45.8, 1919.2)
 
     local RukiryBtn
@@ -977,12 +981,10 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         local config    = StoreConfigs[storeName]
         if not config then return false end
 
-        -- TP item to store drop zone
         local success = _LOT.TeleportMany({ { target = mainPart, goalCF = config.ItemDropCF } })
         if _LOT.IsBusy() then _LOT.WaitForBatch() end
         if not success then return false end
 
-        -- TP player to store counter
         local char = Player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if not root then return false end
@@ -997,7 +999,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         if purchased then
             task.wait(0.05)
 
-            -- Snapshot existing models in PlayerModels before opening
             local PlayerModels = workspace:FindFirstChild("PlayerModels")
             local existingModels = {}
             if PlayerModels then
@@ -1006,17 +1007,15 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                 end
             end
 
-            -- Open the box
             local boxModel = mainPart and mainPart.Parent
             if boxModel and boxModel:IsA("Model") then
-                local char = Player.Character
-                local head = char and char:FindFirstChild("Head")
+                local c = Player.Character
+                local head = c and c:FindFirstChild("Head")
                 if head then
                     Interact:FireServer(boxModel, "Open box", head.CFrame)
                 end
             end
 
-            -- Wait for the spawned item to appear (it's a new model in PlayerModels)
             local spawnedPart = nil
             local deadline = tick() + 5
             while tick() < deadline do
@@ -1024,17 +1023,11 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                 if PlayerModels then
                     for _, m in ipairs(PlayerModels:GetChildren()) do
                         if not existingModels[m] and m:IsA("Model") then
-                            -- Match by ItemName value == BoxItemName
                             local itemNameVal = m:FindFirstChild("ItemName")
-                            if not (itemNameVal and itemNameVal.Value == item.BoxItemName) then
-                                continue
-                            end
-                            -- Confirm ownership via Owner.OwnerString
+                            if not (itemNameVal and itemNameVal.Value == item.BoxItemName) then continue end
                             local ownerFolder = m:FindFirstChild("Owner")
                             local ownerString = ownerFolder and ownerFolder:FindFirstChild("OwnerString")
-                            if not (ownerString and ownerString.Value == Player.Name) then
-                                continue
-                            end
+                            if not (ownerString and ownerString.Value == Player.Name) then continue end
                             local foundMain = m:FindFirstChild("Main")
                             if foundMain then
                                 spawnedPart = foundMain
@@ -1046,7 +1039,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                 if spawnedPart then break end
             end
 
-            -- TP the newly spawned item to the goal position
             if spawnedPart and spawnedPart.Parent then
                 _LOT.TeleportMany({ { target = spawnedPart, goalCF = goalCF } })
                 if _LOT.IsBusy() then _LOT.WaitForBatch() end
@@ -1058,18 +1050,18 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         return purchased
     end
 
-local function RunRukiryLoop()
+    local function RunRukiryLoop()
         _isBuyingRukiry = true
         FetchNPCIDs()
 
-        local returnChar = Player.Character
-        local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
+        -- Capture return position before moving anywhere
+        local returnChar     = Player.Character
+        local returnRoot     = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
         local rukiryReturnCF = returnRoot and returnRoot.CFrame
 
         for _, rukiryItem in ipairs(RUKIRY_ITEMS) do
             if not _isBuyingRukiry then break end
 
-            -- Find matching item in ShopItems
             local itemDef = nil
             for _, shopItem in ipairs(ShopItems) do
                 if shopItem.BoxItemName == rukiryItem.BoxItemName then
@@ -1083,14 +1075,12 @@ local function RunRukiryLoop()
                 continue
             end
 
-            -- Check funds
             local funds = FetchFunds()
             if funds == nil or funds < itemDef.Price then
                 warn("[Rukiry] Not enough funds for:", itemDef.Name, "(need $" .. itemDef.Price .. ")")
                 continue
             end
 
-            -- Find part in world
             local parts = ResolveItemParts(itemDef, 1)
             if #parts == 0 then
                 warn("[Rukiry] No stock found for:", itemDef.Name)
@@ -1115,17 +1105,16 @@ local function RunRukiryLoop()
             task.wait(0.2)
         end
 
-        -- TP player to final position
-        local returnChar = Player.Character
-        local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
-        if returnRoot then
-            returnRoot.CFrame = RUKIRY_PLAYER_CF
-        end
+        -- TP player to axe spawn position
+        local rc = Player.Character
+        local rr = rc and rc:FindFirstChild("HumanoidRootPart")
+        if rr then rr.CFrame = RUKIRY_PLAYER_CF end
 
         -- Wait for the Rukiry axe to spawn then pick it up
         print("[Rukiry] Waiting for axe to spawn...")
-        local axeModel = nil
+        local axeModel    = nil
         local axeDeadline = tick() + 20
+
         while tick() < axeDeadline do
             task.wait(0.2)
             local PlayerModels = workspace:FindFirstChild("PlayerModels")
@@ -1135,27 +1124,23 @@ local function RunRukiryLoop()
             local root = char and char:FindFirstChild("HumanoidRootPart")
 
             for _, m in ipairs(PlayerModels:GetChildren()) do
-                if not (m:IsA("Model") and m.Name == "Model") then continue end
+                if not m:IsA("Model") then continue end
 
-                -- Check ToolName == "Rukiryaxe"
                 local toolName = m:FindFirstChild("ToolName")
                 if not (toolName and toolName.Value == "Rukiryaxe") then continue end
 
-                -- Check Owner.OwnerString is blank
                 local ownerFolder = m:FindFirstChild("Owner")
                 local ownerString = ownerFolder and ownerFolder:FindFirstChild("OwnerString")
                 if not (ownerString and ownerString.Value == "") then continue end
 
-                -- Check Owner.LastInteraction == 0
                 local lastInteraction = ownerFolder and ownerFolder:FindFirstChild("LastInteraction")
                 if not (lastInteraction and lastInteraction.Value == 0) then continue end
 
-                -- Check within 50 studs of player
                 if root then
                     local handle = m:FindFirstChild("Handle") or m.PrimaryPart
                     if handle then
                         local dist = (handle.Position - root.Position).Magnitude
-                        if dist > 50 then continue end
+                        if dist > 150 then continue end
                     end
                 end
 
@@ -1174,10 +1159,9 @@ local function RunRukiryLoop()
                 if _LOT.IsBusy() then _LOT.WaitForBatch() end
                 task.wait(0.1)
                 print("[Rukiry] Picking up axe...")
-                
                 Interact:FireServer(axeModel, "Pick up tool", handle.CFrame)
                 print("[Rukiry] Axe picked up!")
-                task.wait(0.1)
+                task.wait(0.3)
                 local retChar = Player.Character
                 local retRoot = retChar and retChar:FindFirstChild("HumanoidRootPart")
                 if retRoot and rukiryReturnCF then
@@ -1207,7 +1191,7 @@ local function RunRukiryLoop()
         task.spawn(RunRukiryLoop)
     end, false)
 
-    -- Watch for blueprints being added OR removed (e.g. slot swap clears the folder)
+    -- Watch for blueprints being added OR removed
     local bpFolder = Player:FindFirstChild("PlayerBlueprints")
         and Player.PlayerBlueprints:FindFirstChild("Blueprints")
     if bpFolder then
