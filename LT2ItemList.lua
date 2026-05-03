@@ -36,7 +36,6 @@ return {
     { Name = "Blue Icicle Wire", Image = "Wire_Icicle.png", Price = 750, BoxItemName = "IcicleWireBlue", Store = "FurnitureStore" },
     { Name = "Green Icicle Wire", Image = "Wire_Icicle.png", Price = 750, BoxItemName = "IcicleWireGreen", Store = "FurnitureStore" },
     { Name = "Red Icicle Wire", Image = "Wire_Icicle.png", Price = 750, BoxItemName = "IcicleWireRed", Store = "FurnitureStore" },
-
     { Name = "White Neon Wire", Image = "Wire_Neon.png", Price = 720, BoxItemName = "NeonWireWhite", Store = "LogicStore" },
     { Name = "Red Neon Wire", Image = "Wire_Neon.png", Price = 720, BoxItemName = "NeonWireRed", Store = "LogicStore" },
     { Name = "Orange Neon Wire", Image = "Wire_Neon.png", Price = 720, BoxItemName = "NeonWireOrange", Store = "LogicStore" },
@@ -45,7 +44,6 @@ return {
     { Name = "Cyan Neon Wire", Image = "Wire_Neon.png", Price = 720, BoxItemName = "NeonWireCyan", Store = "LogicStore" },
     { Name = "Blue Neon Wire", Image = "Wire_Neon.png", Price = 720, BoxItemName = "NeonWireBlue", Store = "LogicStore" },
     { Name = "Violet Neon Wire", Image = "Wire_Neon.png", Price = 720, BoxItemName = "NeonWireViolet", Store = "LogicStore" },
-    
     { Name = "Button", Image = "Button.png", Price = 320, BoxItemName = "Button0", Store = "WoodRUs" },
     { Name = "Lever", Image = "Lever.png", Price = 520, BoxItemName = "Lever0", Store = "WoodRUs" },
     { Name = "Pressure Plate", Image = "Pressure_Plate.png", Price = 640, BoxItemName = "PressurePlate", Store = "WoodRUs" },
@@ -90,13 +88,13 @@ return {
     { Name = "Tiny Glass Pane", Image = "Glass_Pane_Tiny.png", Price = 12, BoxItemName = "GlassPane1", Store = "FurnitureStore" },
     
     -- Paintings
-    { Name = "Outdoor Water Sketch Painting", Image = "Painting_Outdoor_Watercolor_Sketch.png", Price = 6, BoxItemName = "Painting3", Store = "FineArt " },
-    { Name = "Disturbed Painting", Image = "Painting_Disturbed.png", Price = 2006, BoxItemName = "Painting2", Store = "FineArt " },
-    { Name = "Title Uknown Painting", Image = "Painting_Title_Uknown.png", Price = 5980, BoxItemName = "Painting1", Store = "FineArt " },
-    { Name = "Arctic Light Painting", Image = "Painting_Arctic_Light.png", Price = 16000, BoxItemName = "Painting7", Store = "FineArt " },
-    { Name = "Gloomy Seascape At Dusk Painting", Image = "Painting_Gloomy_Seascape_At_Dusk.png", Price = 16800, BoxItemName = "Painting6", Store = "FineArt " },
-    { Name = "The Lonely Giraffe Painting", Image = "Painting_The_Lonely_Giraffe.png", Price = 26800, BoxItemName = "Painting9", Store = "FineArt " },
-    { Name = "Pineapple Painting", Image = "Painting_Pineapple.png", Price = 2406000, BoxItemName = "Painting8", Store = "FineArt " },
+    { Name = "Outdoor Water Sketch Painting", Image = "Painting_Outdoor_Watercolor_Sketch.png", Price = 6, BoxItemName = "Painting3", Store = "FineArt" },
+    { Name = "Disturbed Painting", Image = "Painting_Disturbed.png", Price = 2006, BoxItemName = "Painting2", Store = "FineArt" },
+    { Name = "Title Uknown Painting", Image = "Painting_Title_Uknown.png", Price = 5980, BoxItemName = "Painting1", Store = "FineArt" },
+    { Name = "Arctic Light Painting", Image = "Painting_Arctic_Light.png", Price = 16000, BoxItemName = "Painting7", Store = "FineArt" },
+    { Name = "Gloomy Seascape At Dusk Painting", Image = "Painting_Gloomy_Seascape_At_Dusk.png", Price = 16800, BoxItemName = "Painting6", Store = "FineArt" },
+    { Name = "The Lonely Giraffe Painting", Image = "Painting_The_Lonely_Giraffe.png", Price = 26800, BoxItemName = "Painting9", Store = "FineArt" },
+    { Name = "Pineapple Painting", Image = "Painting_Pineapple.png", Price = 2406000, BoxItemName = "Painting8", Store = "FineArt" },
     
     -- Other (Bob's Shack — Bob)
     { Name = "Sandbag", Image = "Sandbag.png", Price = 1600, BoxItemName = "BagOfSand", Store = "WoodRUs" },
