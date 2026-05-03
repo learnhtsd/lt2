@@ -1058,32 +1058,9 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         return purchased
     end
 
-    local function RunRukiryLoop()
+local function RunRukiryLoop()
         _isBuyingRukiry = true
         FetchNPCIDs()
-
-        -- ── Pre-flight: total cost check ──────────────────────────────
-        -- Sum the price of every Rukiry item before touching anything.
-        local totalCost = 0
-        for _, rukiryItem in ipairs(RUKIRY_ITEMS) do
-            for _, shopItem in ipairs(ShopItems) do
-                if shopItem.BoxItemName == rukiryItem.BoxItemName then
-                    totalCost += shopItem.Price
-                    break
-                end
-            end
-        end
-
-        local funds = FetchFunds()
-        if funds == nil or funds < totalCost then
-            warn(("[Rukiry] Not enough funds — need $%d, have $%s"):format(
-                totalCost, funds ~= nil and tostring(funds) or "unknown"
-            ))
-            _isBuyingRukiry = false
-            RukiryBtn:SetText("$7,400")
-            return
-        end
-        -- ─────────────────────────────────────────────────────────────
 
         local returnChar = Player.Character
         local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
@@ -1106,9 +1083,9 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                 continue
             end
 
-            -- Per-item live funds re-check (in case something changed mid-loop)
-            local currentFunds = FetchFunds()
-            if currentFunds == nil or currentFunds < itemDef.Price then
+            -- Check funds
+            local funds = FetchFunds()
+            if funds == nil or funds < itemDef.Price then
                 warn("[Rukiry] Not enough funds for:", itemDef.Name, "(need $" .. itemDef.Price .. ")")
                 continue
             end
@@ -1139,10 +1116,10 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         end
 
         -- TP player to final position
-        local returnChar2 = Player.Character
-        local returnRoot2 = returnChar2 and returnChar2:FindFirstChild("HumanoidRootPart")
-        if returnRoot2 then
-            returnRoot2.CFrame = RUKIRY_PLAYER_CF
+        local returnChar = Player.Character
+        local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
+        if returnRoot then
+            returnRoot.CFrame = RUKIRY_PLAYER_CF
         end
 
         -- Wait for the Rukiry axe to spawn then pick it up
@@ -1160,16 +1137,20 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
             for _, m in ipairs(PlayerModels:GetChildren()) do
                 if not (m:IsA("Model") and m.Name == "Model") then continue end
 
+                -- Check ToolName == "Rukiryaxe"
                 local toolName = m:FindFirstChild("ToolName")
                 if not (toolName and toolName.Value == "Rukiryaxe") then continue end
 
+                -- Check Owner.OwnerString is blank
                 local ownerFolder = m:FindFirstChild("Owner")
                 local ownerString = ownerFolder and ownerFolder:FindFirstChild("OwnerString")
                 if not (ownerString and ownerString.Value == "") then continue end
 
+                -- Check Owner.LastInteraction == 0
                 local lastInteraction = ownerFolder and ownerFolder:FindFirstChild("LastInteraction")
                 if not (lastInteraction and lastInteraction.Value == 0) then continue end
 
+                -- Check within 50 studs of player
                 if root then
                     local handle = m:FindFirstChild("Handle") or m.PrimaryPart
                     if handle then
@@ -1193,6 +1174,7 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
                 if _LOT.IsBusy() then _LOT.WaitForBatch() end
                 task.wait(0.1)
                 print("[Rukiry] Picking up axe...")
+                
                 Interact:FireServer(axeModel, "Pick up tool", handle.CFrame)
                 print("[Rukiry] Axe picked up!")
                 task.wait(0.1)
@@ -1212,6 +1194,29 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         print("[Rukiry] Done!")
         _isBuyingRukiry = false
         RukiryBtn:SetText("$7,400")
+    end
+
+    RukiryBtn = Tab:CreateAction("Purchase Rukiry Axe", "$7,400", function()
+        if _isBuyingRukiry then
+            _isBuyingRukiry = false
+            RukiryBtn:SetText("$7,400")
+            return
+        end
+
+        RukiryBtn:SetText("Stop")
+        task.spawn(RunRukiryLoop)
+    end, false)
+
+    -- Watch for blueprints being added OR removed (e.g. slot swap clears the folder)
+    local bpFolder = Player:FindFirstChild("PlayerBlueprints")
+        and Player.PlayerBlueprints:FindFirstChild("Blueprints")
+    if bpFolder then
+        bpFolder.ChildAdded:Connect(function()
+            UpdateBlueprintBtnState()
+        end)
+        bpFolder.ChildRemoved:Connect(function()
+            UpdateBlueprintBtnState()
+        end)
     end
 end
 
