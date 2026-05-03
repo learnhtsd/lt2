@@ -1,32 +1,31 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.373"
+local Version = "v0.0.374"
 
 task.spawn(function()
-    local ICON_FOLDER   = "DynxeLT2"
-    local versionStamp  = Version:gsub("%.", "")
+    local versionStamp = Version:gsub("%.", "")
 
-    -- Guard: only run if the full filesystem API is available
-    if not (isfolder and listfiles and isfile and delfile) then return end
-    if not isfolder(ICON_FOLDER) then return end
+    if not (isfolder and listfiles and delfile) then return end
 
-    local ok, files = pcall(listfiles, ICON_FOLDER)
-    if not ok or type(files) ~= "table" then return end
-
-    for _, path in ipairs(files) do
-        -- Only touch .png files that look like versioned tab icons
-        if path:match("%.png$") then
-            -- Keep the file if its name contains the current version stamp
-            -- Delete everything else (it's from an older version)
-            if not path:find(versionStamp, 1, true) then
-                local deleteOk, err = pcall(delfile, path)
-                if not deleteOk then
-                    warn("[Cleanup] Could not delete stale asset: " .. path .. " — " .. tostring(err))
+    -- Recursively delete any versioned .png that doesn't match current version.
+    -- Placeholder.png is unversioned and always kept.
+    local function CleanImageFolder(folderPath)
+        local ok, entries = pcall(listfiles, folderPath)
+        if not ok or type(entries) ~= "table" then return end
+        for _, path in ipairs(entries) do
+            if isfolder(path) then
+                CleanImageFolder(path)  -- recurse into subfolders
+            elseif path:match("%.png$") and not path:match("Placeholder%.png$") then
+                if not path:find(versionStamp, 1, true) then
+                    pcall(delfile, path)
                 end
             end
         end
     end
+
+    if isfolder("DynxeLT2") then CleanImageFolder("DynxeLT2") end
+    if isfolder("Dynxe/Images") then CleanImageFolder("Dynxe/Images") end
 end)
 
 --loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/main.lua"))()
@@ -96,21 +95,29 @@ local function FileExists(path)
 end
 
 getgenv().GetImage = function(folder, fileName)
-    local localPath        = "Dynxe/Images/" .. folder .. "/" .. fileName
-    local folderPath       = "Dynxe/Images/" .. folder
+    local versionStamp  = Version:gsub("%.", "")
+    local versionedName = versionStamp .. "_" .. fileName        -- e.g. "v00373_Banner.png"
+    local localPath     = "Dynxe/Images/" .. folder .. "/" .. versionedName
+    local folderPath    = "Dynxe/Images/" .. folder
     local placeholderLocal = "Dynxe/Images/Placeholder.png"
     local placeholderUrl   = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/Placeholder.png",
         User, Repo, Branch
     )
+
     if isfolder and not isfolder("Dynxe")        then makefolder("Dynxe") end
     if isfolder and not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
     if folder ~= "" and isfolder and not isfolder(folderPath) then makefolder(folderPath) end
+
     if not FileExists(placeholderLocal) then
         local pOk, pData = pcall(function() return game:HttpGet(placeholderUrl) end)
         if pOk and #pData > 100 then writefile(placeholderLocal, pData) end
     end
+
+    -- Versioned file already cached — serve it immediately
     if FileExists(localPath) then return getcustomasset(localPath) end
+
+    -- Fetch from GitHub (URL still uses the original fileName, version is local-only)
     local url = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/%s/%s",
         User, Repo, Branch, folder, fileName
