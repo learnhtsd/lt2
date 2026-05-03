@@ -1996,9 +1996,9 @@ local MovementModule = LoadModule("PlayerMovement")
 if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end
 Library:Notify("Loaded", "Player Movement", 2)
 
-local FlashlightModule = LoadModule("FlashLight")
-if FlashlightModule and FlashlightModule.Init then FlashlightModule.Init(PlayerTab) end
-Library:Notify("Loaded", "Flashlight", 2)
+--local FlashlightModule = LoadModule("FlashLight")
+--if FlashlightModule and FlashlightModule.Init then FlashlightModule.Init(PlayerTab) end
+--Library:Notify("Loaded", "Flashlight", 2)
 
 local TeleportModule = LoadModule("Teleport")
 if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) end
@@ -2018,9 +2018,9 @@ if SettingsModule and SettingsModule.Init then
 end
 Library:Notify("Loaded", "Settings", 2)
 
-local DraggerModule = LoadModule("HardDragger")
-if DraggerModule and DraggerModule.Init then DraggerModule.Init(PlayerTab) end
-Library:Notify("Loaded", "Hard Dragger", 2)
+--local DraggerModule = LoadModule("HardDragger")
+--if DraggerModule and DraggerModule.Init then DraggerModule.Init(PlayerTab) end
+--Library:Notify("Loaded", "Hard Dragger", 2)
 
 local AntiFlingModule = LoadModule("AntiFling")
 if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(ProtectionTab) end
