@@ -1,44 +1,35 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.377"
+local Version = "v0.0.378"
 
 task.spawn(function()
-    local ICON_FOLDER   = "DynxeLT2"
-    local MARKER_NAME   = "DynxeLT2_" .. Version  -- e.g. "DynxeLT2_v0.0.375"
-    local MARKER_PREFIX = "DynxeLT2_v"
+    local ICON_FOLDER  = "DynxeLT2"
+    local VERSION_FILE = ICON_FOLDER .. "/_version"
 
     if not (isfolder and listfiles and isfile and delfile and writefile) then return end
 
-    -- Check whether this version's marker already exists
-    local markerOk, markerData = pcall(readfile, MARKER_NAME)
-    local markerExists = markerOk and type(markerData) == "string" and #markerData > 0
+    -- Read whatever version is stamped inside the folder
+    local storedOk, storedVersion = pcall(readfile, VERSION_FILE)
+    local upToDate = storedOk and storedVersion == Version
 
-    if not markerExists then
-        -- Remove any stale version markers from root
-        local rootOk, rootFiles = pcall(listfiles, "")
-        if rootOk and type(rootFiles) == "table" then
-            for _, path in ipairs(rootFiles) do
-                if path:find(MARKER_PREFIX, 1, true) and not path:find(Version, 1, true) then
-                    pcall(delfile, path)
-                end
-            end
-        end
-
-        -- Wipe all cached icons so they re-download with fresh names
+    if not upToDate then
+        -- Wipe every cached asset in the folder
         if isfolder(ICON_FOLDER) then
-            local iconsOk, files = pcall(listfiles, ICON_FOLDER)
-            if iconsOk and type(files) == "table" then
+            local ok, files = pcall(listfiles, ICON_FOLDER)
+            if ok and type(files) == "table" then
                 for _, path in ipairs(files) do
                     if path:match("%.png$") then
                         pcall(delfile, path)
                     end
                 end
             end
+        else
+            makefolder(ICON_FOLDER)
         end
 
-        -- Stamp the new version marker
-        pcall(writefile, MARKER_NAME, Version)
+        -- Stamp the new version
+        pcall(writefile, VERSION_FILE, Version)
     end
 end)
 
