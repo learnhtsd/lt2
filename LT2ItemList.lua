@@ -80,13 +80,13 @@ return {
     { Name = "Tiny Glass Pane", Image = "Glass_Pane_Tiny.png", Price = 12, BoxItemName = "GlassPane1", Store = "FurnitureStore" },
     
     -- Paintings
-    { Name = "Outdoor Water Sketch Painting", Image = "Painting_Outdoor_Watercolor_Sketch.png", Price = 6, BoxItemName = "wwwwwww", Store = "FineArt " },
-    { Name = "Disturbed Painting", Image = "Painting_Disturbed.png", Price = 2006, BoxItemName = "wwwwwww", Store = "FineArt " },
-    { Name = "Title Uknown Painting", Image = "Painting_Title_Uknown.png", Price = 5980, BoxItemName = "wwwwwww", Store = "FineArt " },
-    { Name = "Arctic Light Painting", Image = "Painting_Arctic_Light.png", Price = 16000, BoxItemName = "wwwwwww", Store = "FineArt " },
-    { Name = "Gloomy Seascape At Dusk Painting", Image = "Painting_Gloomy_Seascape_At_Dusk.png", Price = 16800, BoxItemName = "wwwwwww", Store = "FineArt " },
-    { Name = "The Lonely Giraffe Painting", Image = "Painting_The_Lonely_Giraffe.png", Price = 26800, BoxItemName = "wwwwwww", Store = "FineArt " },
-    { Name = "Pineapple Painting", Image = "Painting_Pineapple.png", Price = 2406000, BoxItemName = "wwwwwww", Store = "FineArt " },
+    { Name = "Outdoor Water Sketch Painting", Image = "Painting_Outdoor_Watercolor_Sketch.png", Price = 6, BoxItemName = "Painting3", Store = "FineArt " },
+    { Name = "Disturbed Painting", Image = "Painting_Disturbed.png", Price = 2006, BoxItemName = "Painting2", Store = "FineArt " },
+    { Name = "Title Uknown Painting", Image = "Painting_Title_Uknown.png", Price = 5980, BoxItemName = "Painting1", Store = "FineArt " },
+    { Name = "Arctic Light Painting", Image = "Painting_Arctic_Light.png", Price = 16000, BoxItemName = "Painting7", Store = "FineArt " },
+    { Name = "Gloomy Seascape At Dusk Painting", Image = "Painting_Gloomy_Seascape_At_Dusk.png", Price = 16800, BoxItemName = "Painting6", Store = "FineArt " },
+    { Name = "The Lonely Giraffe Painting", Image = "Painting_The_Lonely_Giraffe.png", Price = 26800, BoxItemName = "Painting9", Store = "FineArt " },
+    { Name = "Pineapple Painting", Image = "Painting_Pineapple.png", Price = 2406000, BoxItemName = "Painting8", Store = "FineArt " },
     
     -- Other (Bob's Shack — Bob)
     { Name = "Sandbag", Image = "Sandbag.png", Price = 1600, BoxItemName = "BagOfSand", Store = "WoodRUs" },
