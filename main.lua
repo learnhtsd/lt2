@@ -1,77 +1,31 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.380"
+local Version = "v0.0.374"
 
 task.spawn(function()
-    local versionStamp = Version:gsub("%.", "")
+    local ICON_FOLDER   = "DynxeLT2"
+    local versionStamp  = Version:gsub("%.", "")
 
-    if not (listfiles and delfile) then return end
+    -- Guard: only run if the full filesystem API is available
+    if not (isfolder and listfiles and isfile and delfile) then return end
+    if not isfolder(ICON_FOLDER) then return end
 
-    local stampPath = "Dynxe/version.txt"
-    local stampOk, stampData = pcall(readfile, stampPath)
-    if stampOk and stampData == versionStamp then return end
+    local ok, files = pcall(listfiles, ICON_FOLDER)
+    if not ok or type(files) ~= "table" then return end
 
-    -- Xeno stores files under Xeno/workspace/ so we try both prefixes
-    local function TryPaths(base)
-        local candidates = {
-            base,
-            "Xeno/workspace/" .. base,
-        }
-        for _, p in ipairs(candidates) do
-            local ok, entries = pcall(listfiles, p)
-            if ok and type(entries) == "table" then
-                return p, entries
-            end
-        end
-        return nil, nil
-    end
-
-    local function CleanFolder(folderPath)
-        local ok, entries = pcall(listfiles, folderPath)
-        if not ok or type(entries) ~= "table" then return end
-
-        warn("[CleanFolder] Scanning: " .. folderPath .. " (" .. #entries .. " entries)")
-
-        for _, path in ipairs(entries) do
-            warn("[CleanFolder]   entry: '" .. path .. "'")
-
-            local isDir = false
-            local subOk, subEntries = pcall(listfiles, path)
-            if subOk and type(subEntries) == "table" then
-                isDir = true
-            end
-
-            if isDir then
-                CleanFolder(path)
-            else
-                local fileName = path:match("[^/\\]+$") or path
-                local isPng         = fileName:match("%.png$") ~= nil
-                local isPlaceholder = fileName:match("Placeholder%.png$") ~= nil
-                local hasStamp      = fileName:find(versionStamp, 1, true) ~= nil
-
-                warn("[CleanFolder]   fileName='" .. fileName .. "' isPng=" .. tostring(isPng) .. " hasStamp=" .. tostring(hasStamp))
-
-                if isPng and not isPlaceholder and not hasStamp then
-                    local delOk, delErr = pcall(delfile, path)
-                    warn("[CleanFolder]   DELETED=" .. tostring(delOk) .. (delOk and "" or " err=" .. tostring(delErr)))
+    for _, path in ipairs(files) do
+        -- Only touch .png files that look like versioned tab icons
+        if path:match("%.png$") then
+            -- Keep the file if its name contains the current version stamp
+            -- Delete everything else (it's from an older version)
+            if not path:find(versionStamp, 1, true) then
+                local deleteOk, err = pcall(delfile, path)
+                if not deleteOk then
+                    warn("[Cleanup] Could not delete stale asset: " .. path .. " — " .. tostring(err))
                 end
             end
         end
-    end
-
-    local lt2Path  = TryPaths("DynxeLT2")
-    local imgsPath = TryPaths("Dynxe/Images")
-
-    warn("[Cleanup] DynxeLT2 resolved to: "    .. tostring(lt2Path))
-    warn("[Cleanup] Dynxe/Images resolved to: " .. tostring(imgsPath))
-
-    if lt2Path  then CleanFolder(lt2Path)  end
-    if imgsPath then CleanFolder(imgsPath) end
-
-    if writefile then
-        if isfolder and not isfolder("Dynxe") then pcall(makefolder, "Dynxe") end
-        pcall(writefile, stampPath, versionStamp)
     end
 end)
 
@@ -134,55 +88,29 @@ for _, v in pairs(CoreGui:GetChildren()) do
 end
 
 -- ── Image helper (unchanged) ─────────────────────────────────
--- ── Faster existence check: isfile first (fast), readfile as fallback
--- isfile returns false in some executors (e.g. Xeno) for real files,
--- so we only fall back to readfile if isfile says no.
+-- Reliable cross-executor existence check. isfile() returns false in Xeno
+-- even for real files; pcall(readfile) succeeds iff the file truly exists.
 local function FileExists(path)
-    if isfile then
-        if isfile(path) then return true end
-    end
     local ok, data = pcall(readfile, path)
     return ok and type(data) == "string" and #data > 0
 end
 
--- ── In-memory asset cache: path → rbxasset URL
--- Avoids filesystem hits on repeated GetImage calls for the same file.
-local AssetCache = {}
-local ContentProvider = game:GetService("ContentProvider")
-
 getgenv().GetImage = function(folder, fileName)
-    local versionStamp  = Version:gsub("%.", "")
-    local versionedName = versionStamp .. "_" .. fileName
-    local localPath     = "Dynxe/Images/" .. folder .. "/" .. versionedName
-    local folderPath    = "Dynxe/Images/" .. folder
+    local localPath        = "Dynxe/Images/" .. folder .. "/" .. fileName
+    local folderPath       = "Dynxe/Images/" .. folder
     local placeholderLocal = "Dynxe/Images/Placeholder.png"
     local placeholderUrl   = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/Placeholder.png",
         User, Repo, Branch
     )
-
-    -- Memory cache hit — no filesystem or network needed
-    if AssetCache[localPath] then return AssetCache[localPath] end
-
     if isfolder and not isfolder("Dynxe")        then makefolder("Dynxe") end
     if isfolder and not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
     if folder ~= "" and isfolder and not isfolder(folderPath) then makefolder(folderPath) end
-
     if not FileExists(placeholderLocal) then
         local pOk, pData = pcall(function() return game:HttpGet(placeholderUrl) end)
         if pOk and #pData > 100 then writefile(placeholderLocal, pData) end
     end
-
-    -- Filesystem cache hit
-    if FileExists(localPath) then
-        local asset = getcustomasset(localPath)
-        -- Preload so texture is decoded before it's needed
-        pcall(function() ContentProvider:PreloadAsync({asset}) end)
-        AssetCache[localPath] = asset
-        return asset
-    end
-
-    -- Fetch from GitHub
+    if FileExists(localPath) then return getcustomasset(localPath) end
     local url = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/%s/%s",
         User, Repo, Branch, folder, fileName
@@ -190,14 +118,10 @@ getgenv().GetImage = function(folder, fileName)
     local ok, content = pcall(function() return game:HttpGet(url) end)
     if ok and content and not content:find("404: Not Found") and #content > 100 then
         writefile(localPath, content)
-        local asset = getcustomasset(localPath)
-        pcall(function() ContentProvider:PreloadAsync({asset}) end)
-        AssetCache[localPath] = asset
-        return asset
+        return getcustomasset(localPath)
     else
         warn("Asset Missing: " .. fileName)
-        local fallback = FileExists(placeholderLocal) and getcustomasset(placeholderLocal) or "rbxassetid://6023426923"
-        return fallback
+        return FileExists(placeholderLocal) and getcustomasset(placeholderLocal) or "rbxassetid://6023426923"
     end
 end
 
@@ -836,18 +760,9 @@ function Library:CreateWindow()
             local function LoadImage(fileName)
                 if not fileName or fileName == "" then return end
                 task.spawn(function()
-                    local versionStamp  = Version:gsub("%.", "")
-                    local versionedName = versionStamp .. "_" .. fileName
-                    local localPath     = "Dynxe/Images/" .. versionedName
-            
-                    -- Memory cache hit
-                    if AssetCache[localPath] then
-                        ImageFrame.Image = AssetCache[localPath]
-                        return
-                    end
-            
+                    local localPath = "Dynxe/Images/" .. fileName
                     local asset
-            
+        
                     if isfile and getcustomasset and isfile(localPath) then
                         asset = getcustomasset(localPath)
                     else
@@ -869,12 +784,8 @@ function Library:CreateWindow()
                             warn("[CreateImage] Asset missing: " .. fileName)
                         end
                     end
-            
-                    if asset then
-                        pcall(function() ContentProvider:PreloadAsync({asset}) end)
-                        AssetCache[localPath] = asset
-                        ImageFrame.Image = asset
-                    end
+        
+                    if asset then ImageFrame.Image = asset end
                 end)
             end
         
