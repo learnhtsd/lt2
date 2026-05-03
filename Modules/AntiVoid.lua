@@ -7,7 +7,7 @@ function AntiVoid.Init(Tab)
 
 
     -- STATE VARIABLES
-    _G.AntiVoidEnabled = false
+    _G.AntiVoidEnabled = true
     local VOID_THRESHOLD = -60 -- Hardcoded threshold
 
 
@@ -34,7 +34,7 @@ function AntiVoid.Init(Tab)
 
 
     -- UI SECTION
-    Tab:CreateToggle("Enable Anti-Void", false, function(state)
+    Tab:CreateToggle("Enable Anti-Void", true, function(state)
         _G.AntiVoidEnabled = state
     end)
 
