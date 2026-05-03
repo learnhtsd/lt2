@@ -167,7 +167,7 @@ return {
     { Name = "Wide Cabinet Corner Blueprint", Image = "Blueprint_Kitchen_Wide_Cabinet_Corner.png", Price = 220, BoxItemName = "Cabinet1CornerWide", Store = "FurnitureStore" },
     { Name = "Cabinet Blueprint", Image = "Blueprint_Kitchen_Cabinet.png", Price = 220, BoxItemName = "Cabinet1", Store = "FurnitureStore" },
     { Name = "Thin Cabinet Blueprint", Image = "Blueprint_Kitchen_Thin_Cabinet.png", Price = 80, BoxItemName = "Cabinet1Thin", Store = "FurnitureStore" },
-    { Name = "Cabnet Corner Blueprint", Image = "Blueprint_Kitchen_Cabnet_Corner.png", Price = 150, BoxItemName = "Cabinet1CornerTight", Store = "FurnitureStore" },
+    { Name = "Cabnet Corner Blueprint", Image = "Blueprint_Kitchen_Cabinet_Corner.png", Price = 150, BoxItemName = "Cabinet1CornerTight", Store = "FurnitureStore" },
     { Name = "Countertop Blueprint", Image = "Blueprint_Kitchen_Countertop.png", Price = 180, BoxItemName = "CounterTop1", Store = "FurnitureStore" },
     { Name = "Thin Countertop Blueprint", Image = "Blueprint_Kitchen_Thin_Countertop.png", Price = 100, BoxItemName = "CounterTop1Thin", Store = "FurnitureStore" },
     { Name = "Countertop With Sink Blueprint", Image = "Blueprint_Kitchen_Countertop_With_Sink.png", Price = 300, BoxItemName = "CounterTop1Sink", Store = "FurnitureStore" },
