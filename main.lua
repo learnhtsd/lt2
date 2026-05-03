@@ -2115,10 +2115,6 @@ local TreeModule = LoadModule("Tree")
 if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, LooseObjectTeleportModule) end
 Library:Notify("Loaded", "Tree", 2)
 
-local ShopScript = LoadModule("Shop")
-if ShopScript and ShopScript.Init then ShopScript.Init(ShopTab, LooseObjectTeleportModule) end
-Library:Notify("Loaded", "Shop", 2)
-
 local HelpModule = LoadModule("Help")
 if HelpModule and HelpModule.Init then HelpModule.Init(HelpTab) end
 Library:Notify("Loaded", "Help", 2)
@@ -2130,5 +2126,9 @@ Library:Notify("Loaded", "Duplication", 2)
 local BuildModule = LoadModule("Build")
 if BuildModule and BuildModule.Init then BuildModule.Init(BuildTab, LooseObjectTeleportModule) end
 Library:Notify("Loaded", "Build", 2)
+
+local ShopScript = LoadModule("Shop")
+if ShopScript and ShopScript.Init then ShopScript.Init(ShopTab, LooseObjectTeleportModule) end
+Library:Notify("Loaded", "Shop", 2)
 
 Library:Notify("Dynxe LT2", "All modules loaded!", 5)
