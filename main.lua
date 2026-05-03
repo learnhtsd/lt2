@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.394"
+local Version = "v0.0.393"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -640,12 +640,7 @@ function Library:CreateWindow()
                     resetBtn()
                 end
             end
-
-            ActionFrame.InputBegan:Connect(function(input)
-                if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-                ActionBtn.MouseButton1Click:Fire()
-            end)
-            
+        
             -- CLICK LOGIC
             ActionBtn.MouseButton1Click:Connect(function()
                 if Element.Disabled then return end
@@ -726,12 +721,7 @@ function Library:CreateWindow()
                 TweenService:Create(ToggleDot, TweenInfo.new(0.2), {Position = targetPos}):Play()
                 TweenService:Create(ToggleBG,  TweenInfo.new(0.2), {BackgroundColor3 = targetCol}):Play()
             end
-            
-            ToggleFrame.InputBegan:Connect(function(input)
-                if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-                ToggleBG.MouseButton1Click:Fire()
-            end)
-            
+        
             ToggleBG.MouseButton1Click:Connect(function()
                 if toggleDisabled then return end
                 Toggled = not Toggled
