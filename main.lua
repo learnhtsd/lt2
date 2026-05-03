@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.376"
+local Version = "v0.0.377"
 
 task.spawn(function()
     local versionStamp = Version:gsub("%.", "")
