@@ -7,11 +7,11 @@ function AntiAFK.Init(Tab)
 
 
     -- STATE VARIABLES
-    _G.AntiAFKEnabled = false
+    _G.AntiAFKEnabled = true
 
 
     -- UI SECTION
-    Tab:CreateToggle("Enable Anti-AFK", false, function(state)
+    Tab:CreateToggle("Anti-AFK", true, function(state)
         _G.AntiAFKEnabled = state
     end)
 
