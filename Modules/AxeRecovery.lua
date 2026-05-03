@@ -21,7 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player           = Players.LocalPlayer
 local ClientInteracted = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("ClientInteracted")
 
-local _autoRecoverOn   = false
+local _autoRecoverOn   = true
 local _autoRecoverConn = nil    -- CharacterAdded connection
 local _deathPosition   = nil    -- Vector3 recorded the moment the player dies
 local _deathHumConn    = nil    -- Humanoid.Died connection for the current character
@@ -227,7 +227,7 @@ end
 --             UI INIT
 -- ==========================================
 function AxeRecoverModule.Init(Tab)
-    Tab:CreateToggle("Auto Recover Axe", false, function(state)
+    Tab:CreateToggle("Axe Recovery", true, function(state)
         if state then Start() else Stop() end
     end)
 end
