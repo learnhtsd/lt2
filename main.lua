@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.392"
+local Version = "v0.0.391"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -321,11 +321,27 @@ function Library:CreateWindow()
         NotifFrame.BorderSizePixel  = 0
         NotifFrame.ClipsDescendants = true
         NotifFrame.Parent           = NotificationContainer
-        Instance.new("UICorner", NotifFrame).CornerRadius = UDim.new(0, 4)
+        Instance.new("UICorner", NotifFrame).CornerRadius = UDim.new(0, 6)
         local Stroke = Instance.new("UIStroke", NotifFrame)
         Stroke.Color     = T.Accent
         Stroke.Thickness = 1
         local TitleLabel = Instance.new("TextLabel")
+        TitleLabel.Size            = UDim2.new(1, -20, 0, ES(20))
+        TitleLabel.Position        = UDim2.new(0, 10, 0, 5)
+        TitleLabel.BackgroundTransparency = 1
+        TitleLabel.Text            = Title:upper()
+        TitleLabel.TextColor3      = T.Accent
+        TitleLabel.Font            = Enum.Font.GothamBold
+        TitleLabel.TextSize        = FS(12)
+        TitleLabel.TextXAlignment  = Enum.TextXAlignment.Left
+        TitleLabel.Parent          = NotifFrame
+        local Divider = Instance.new("Frame")
+        Divider.Size             = UDim2.new(1, -20, 0, 1)
+        Divider.Position         = UDim2.new(0, 10, 0, ES(20) + 7)
+        Divider.BackgroundColor3 = T.Stroke
+        Divider.BorderSizePixel  = 0
+        Divider.Parent           = NotifFrame
+        local ContentLabel = Instance.new("TextLabel")
         TitleLabel.Size            = UDim2.new(1, -20, 0, ES(20))
         TitleLabel.Position        = UDim2.new(0, 10, 0, 5)
         TitleLabel.BackgroundTransparency = 1
