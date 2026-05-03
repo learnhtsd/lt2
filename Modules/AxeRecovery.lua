@@ -4,7 +4,7 @@ local AxeRecoverModule = {}
 --             SETTINGS
 -- ==========================================
 local Settings = {
-    RespawnSettleDelay = 5.0,   -- seconds to wait after respawn before scanning
+    RespawnSettleDelay = 2.0,   -- seconds to wait after respawn before scanning
     PickupTimeout      = 3,     -- seconds to keep retrying one axe before skipping
     PickupFireRate     = 0.15,  -- seconds between remote fires during retry loop
     AxeRecoverRadius   = 20,    -- studs around death position to search
@@ -21,7 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player           = Players.LocalPlayer
 local ClientInteracted = ReplicatedStorage:WaitForChild("Interaction"):WaitForChild("ClientInteracted")
 
-local _autoRecoverOn   = true
+local _autoRecoverOn   = false
 local _autoRecoverConn = nil    -- CharacterAdded connection
 local _deathPosition   = nil    -- Vector3 recorded the moment the player dies
 local _deathHumConn    = nil    -- Humanoid.Died connection for the current character
@@ -230,6 +230,10 @@ function AxeRecoverModule.Init(Tab)
     Tab:CreateToggle("Axe Recovery", true, function(state)
         if state then Start() else Stop() end
     end)
+
+    -- CreateToggle only fires the callback on user interaction, not on creation.
+    -- Call Start() directly here to honour the default-on state immediately.
+    Start()
 end
 
 return AxeRecoverModule
