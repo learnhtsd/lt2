@@ -109,16 +109,20 @@ local function FileExists(path)
 end
 
 getgenv().GetImage = function(folder, fileName)
-    local localPath        = "Dynxe/Images/" .. folder .. "/" .. fileName
-    local folderPath       = "Dynxe/Images/" .. folder
-    local placeholderLocal = "Dynxe/Images/Placeholder.png"
+    local base       = "DynxeLT2"
+    local localPath  = (folder ~= "" and folder ~= nil)
+                       and (base .. "/" .. folder .. "/" .. fileName)
+                       or  (base .. "/" .. fileName)
+    local folderPath = (folder ~= "" and folder ~= nil)
+                       and (base .. "/" .. folder)
+                       or  base
+    local placeholderLocal = base .. "/Placeholder.png"
     local placeholderUrl   = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/Placeholder.png",
         User, Repo, Branch
     )
-    if isfolder and not isfolder("Dynxe")        then makefolder("Dynxe") end
-    if isfolder and not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
-    if folder ~= "" and isfolder and not isfolder(folderPath) then makefolder(folderPath) end
+    if isfolder and not isfolder(base)       then makefolder(base)       end
+    if isfolder and not isfolder(folderPath) then makefolder(folderPath) end
     if not FileExists(placeholderLocal) then
         local pOk, pData = pcall(function() return game:HttpGet(placeholderUrl) end)
         if pOk and #pData > 100 then writefile(placeholderLocal, pData) end
