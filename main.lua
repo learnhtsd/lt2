@@ -95,16 +95,25 @@ for _, v in pairs(CoreGui:GetChildren()) do
 end
 
 -- ── Image helper (unchanged) ─────────────────────────────────
--- Reliable cross-executor existence check. isfile() returns false in Xeno
--- even for real files; pcall(readfile) succeeds iff the file truly exists.
+-- ── Faster existence check: isfile first (fast), readfile as fallback
+-- isfile returns false in some executors (e.g. Xeno) for real files,
+-- so we only fall back to readfile if isfile says no.
 local function FileExists(path)
+    if isfile then
+        if isfile(path) then return true end
+    end
     local ok, data = pcall(readfile, path)
     return ok and type(data) == "string" and #data > 0
 end
 
+-- ── In-memory asset cache: path → rbxasset URL
+-- Avoids filesystem hits on repeated GetImage calls for the same file.
+local AssetCache = {}
+local ContentProvider = game:GetService("ContentProvider")
+
 getgenv().GetImage = function(folder, fileName)
     local versionStamp  = Version:gsub("%.", "")
-    local versionedName = versionStamp .. "_" .. fileName        -- e.g. "v00373_Banner.png"
+    local versionedName = versionStamp .. "_" .. fileName
     local localPath     = "Dynxe/Images/" .. folder .. "/" .. versionedName
     local folderPath    = "Dynxe/Images/" .. folder
     local placeholderLocal = "Dynxe/Images/Placeholder.png"
@@ -112,6 +121,9 @@ getgenv().GetImage = function(folder, fileName)
         "https://raw.githubusercontent.com/%s/%s/%s/Images/Placeholder.png",
         User, Repo, Branch
     )
+
+    -- Memory cache hit — no filesystem or network needed
+    if AssetCache[localPath] then return AssetCache[localPath] end
 
     if isfolder and not isfolder("Dynxe")        then makefolder("Dynxe") end
     if isfolder and not isfolder("Dynxe/Images") then makefolder("Dynxe/Images") end
@@ -122,10 +134,16 @@ getgenv().GetImage = function(folder, fileName)
         if pOk and #pData > 100 then writefile(placeholderLocal, pData) end
     end
 
-    -- Versioned file already cached — serve it immediately
-    if FileExists(localPath) then return getcustomasset(localPath) end
+    -- Filesystem cache hit
+    if FileExists(localPath) then
+        local asset = getcustomasset(localPath)
+        -- Preload so texture is decoded before it's needed
+        pcall(function() ContentProvider:PreloadAsync({asset}) end)
+        AssetCache[localPath] = asset
+        return asset
+    end
 
-    -- Fetch from GitHub (URL still uses the original fileName, version is local-only)
+    -- Fetch from GitHub
     local url = string.format(
         "https://raw.githubusercontent.com/%s/%s/%s/Images/%s/%s",
         User, Repo, Branch, folder, fileName
@@ -133,10 +151,14 @@ getgenv().GetImage = function(folder, fileName)
     local ok, content = pcall(function() return game:HttpGet(url) end)
     if ok and content and not content:find("404: Not Found") and #content > 100 then
         writefile(localPath, content)
-        return getcustomasset(localPath)
+        local asset = getcustomasset(localPath)
+        pcall(function() ContentProvider:PreloadAsync({asset}) end)
+        AssetCache[localPath] = asset
+        return asset
     else
         warn("Asset Missing: " .. fileName)
-        return FileExists(placeholderLocal) and getcustomasset(placeholderLocal) or "rbxassetid://6023426923"
+        local fallback = FileExists(placeholderLocal) and getcustomasset(placeholderLocal) or "rbxassetid://6023426923"
+        return fallback
     end
 end
 
@@ -777,7 +799,14 @@ function Library:CreateWindow()
                 task.spawn(function()
                     local versionStamp  = Version:gsub("%.", "")
                     local versionedName = versionStamp .. "_" .. fileName
-                    local localPath     = "Dynxe/Images/" .. versionedName  -- ← versioned
+                    local localPath     = "Dynxe/Images/" .. versionedName
+            
+                    -- Memory cache hit
+                    if AssetCache[localPath] then
+                        ImageFrame.Image = AssetCache[localPath]
+                        return
+                    end
+            
                     local asset
             
                     if isfile and getcustomasset and isfile(localPath) then
@@ -802,7 +831,11 @@ function Library:CreateWindow()
                         end
                     end
             
-                    if asset then ImageFrame.Image = asset end
+                    if asset then
+                        pcall(function() ContentProvider:PreloadAsync({asset}) end)
+                        AssetCache[localPath] = asset
+                        ImageFrame.Image = asset
+                    end
                 end)
             end
         
