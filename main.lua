@@ -1,31 +1,44 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.375"
+local Version = "v0.0.376"
 
 task.spawn(function()
     local ICON_FOLDER   = "DynxeLT2"
-    local versionStamp  = Version:gsub("%.", "")
+    local MARKER_NAME   = "DynxeLT2_" .. Version  -- e.g. "DynxeLT2_v0.0.375"
+    local MARKER_PREFIX = "DynxeLT2_v"
 
-    -- Guard: only run if the full filesystem API is available
-    if not (isfolder and listfiles and isfile and delfile) then return end
-    if not isfolder(ICON_FOLDER) then return end
+    if not (isfolder and listfiles and isfile and delfile and writefile) then return end
 
-    local ok, files = pcall(listfiles, ICON_FOLDER)
-    if not ok or type(files) ~= "table" then return end
+    -- Check whether this version's marker already exists
+    local markerOk, markerData = pcall(readfile, MARKER_NAME)
+    local markerExists = markerOk and type(markerData) == "string" and #markerData > 0
 
-    for _, path in ipairs(files) do
-        -- Only touch .png files that look like versioned tab icons
-        if path:match("%.png$") then
-            -- Keep the file if its name contains the current version stamp
-            -- Delete everything else (it's from an older version)
-            if not path:find(versionStamp, 1, true) then
-                local deleteOk, err = pcall(delfile, path)
-                if not deleteOk then
-                    warn("[Cleanup] Could not delete stale asset: " .. path .. " — " .. tostring(err))
+    if not markerExists then
+        -- Remove any stale version markers from root
+        local rootOk, rootFiles = pcall(listfiles, "")
+        if rootOk and type(rootFiles) == "table" then
+            for _, path in ipairs(rootFiles) do
+                if path:find(MARKER_PREFIX, 1, true) and not path:find(Version, 1, true) then
+                    pcall(delfile, path)
                 end
             end
         end
+
+        -- Wipe all cached icons so they re-download with fresh names
+        if isfolder(ICON_FOLDER) then
+            local iconsOk, files = pcall(listfiles, ICON_FOLDER)
+            if iconsOk and type(files) == "table" then
+                for _, path in ipairs(files) do
+                    if path:match("%.png$") then
+                        pcall(delfile, path)
+                    end
+                end
+            end
+        end
+
+        -- Stamp the new version marker
+        pcall(writefile, MARKER_NAME, Version)
     end
 end)
 
@@ -387,7 +400,7 @@ function Library:CreateWindow()
 
         -- icon download (unchanged logic)
         local folderName  = "DynxeLT2"
-        local fileName    = TabName .. "_" .. Version:gsub("%.", "") .. ".png"
+        local fileName    = TabName .. ".png"          -- no version stamp; marker handles invalidation
         local filePath    = folderName .. "/" .. fileName
         local finalAssetUrl = ""
         if isfolder and makefolder and writefile and isfile and getcustomasset then
