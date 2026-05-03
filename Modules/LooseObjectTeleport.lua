@@ -50,7 +50,7 @@ local Settings = {
     OwnershipTimeout = 3,
     FallbackWait     = 0.5,
     PreFireWait      = 0.05,
-    PostObjectDelay  = 0.2,
+    PostObjectDelay  = 0.1,
 
     SelectionColor   = Color3.fromRGB(74, 120, 255),
     OutlineThickness = 0.02,
