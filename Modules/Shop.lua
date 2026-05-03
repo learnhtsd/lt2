@@ -86,11 +86,7 @@ end
 local function FetchFunds()
     if not GetFundsRemote then
         GetFundsRemote = FindRemoteRecursive(ReplicatedStorage, "GetFunds")
-        if not GetFundsRemote then
-            warn("[ShopModule] GetFunds RemoteFunction not found anywhere in ReplicatedStorage.")
-            return nil
-        end
-        print("[ShopModule] Found GetFunds at: " .. GetFundsRemote:GetFullName())
+        if not GetFundsRemote then return nil end
     end
 
     local ok, result = pcall(function()
@@ -99,7 +95,6 @@ local function FetchFunds()
     if ok and type(result) == "number" then
         return result
     end
-    warn("[ShopModule] GetFunds remote call failed: " .. tostring(result))
     return nil
 end
 
@@ -129,8 +124,6 @@ local function FetchNPCIDs()
         repeat task.wait() until lastData or tick() - t > 5
         if lastData then
             NPCIDs[name] = lastData.ID
-        else
-            warn("[ShopModule] Timed out fetching ID for NPC: " .. name)
         end
     end
 
@@ -145,17 +138,11 @@ end
 -- └─────────────────────────────────────────────────────────────────┘
 local function GetNPCArgForStore(storeName)
     local config = StoreConfigs[storeName]
-    if not config then
-        warn("[ShopModule] No StoreConfig found for store: " .. tostring(storeName))
-        return nil
-    end
+    if not config then return nil end
 
     local npcName = config.NPCName
     local npc     = NPCs[npcName]
-    if not npc then
-        warn("[ShopModule] NPC '" .. tostring(npcName) .. "' not found in NPCs table.")
-        return nil
-    end
+    if not npc then return nil end
 
     if not npc:FindFirstChild("Dialog") then
         Instance.new("Dialog", npc)
@@ -253,19 +240,15 @@ local function PurchasePowerOfEase()
         Dialog    = bestNPC.Dialog,
     }
 
-    local fireCount = 0
     local deadline  = tick() + POE_TIMEOUT
-    local purchased = false
 
     while tick() < deadline do
         SafeInvoke(npcArg, "Initiate")
         SafeInvoke(npcArg, "ConfirmPurchase")
         SafeInvoke(npcArg, "EndChat")
-        fireCount += 1
 
         local newFunds = FetchFunds()
         if newFunds and newFunds < funds then
-            purchased = true
             break
         end
 
@@ -282,7 +265,6 @@ end
 -- │                       PURCHASE SEQUENCE                         │
 -- └─────────────────────────────────────────────────────────────────┘
 local SPAM_TIMEOUT       = 30
-local SPAM_NOTIFY_FREQ   = 50
 local INVOKE_GAP         = 0.05
 local CYCLE_GAP          = 0.12
 local FAIL_BACKOFF_AFTER = 8
@@ -323,7 +305,6 @@ local function FlushDialog(npcArg, count)
 end
 
 local function SpamPurchase(mainPart, npcArg, itemName)
-    local fireCount  = 0
     local failStreak = 0
     local deadline   = tick() + SPAM_TIMEOUT
 
@@ -344,7 +325,6 @@ local function SpamPurchase(mainPart, npcArg, itemName)
         end
 
         SafeInvoke(npcArg, "ConfirmPurchase")
-        fireCount += 1
 
         local postState = CheckItemState(mainPart)
         SafeInvoke(npcArg, "EndChat")
@@ -376,10 +356,7 @@ local function PurchasePart(mainPart, item, originalCF)
     local storeName = item.Store
     local config    = StoreConfigs[storeName]
 
-    if not config then
-        warn("[ShopModule] No StoreConfig for store '" .. tostring(storeName) .. "' — skipping purchase.")
-        return false
-    end
+    if not config then return false end
 
     local itemDropCF  = config.ItemDropCF
     local playerBuyCF = config.PlayerBuyCF
@@ -440,23 +417,15 @@ local function LoadItemList()
     end)
 
     if not ok or not result or result:find("404: Not Found") then
-        warn("[ShopModule] Could not fetch LT2ItemList.lua — " .. tostring(result))
         return nil
     end
 
     local fn, parseErr = loadstring(result)
-    if not fn then
-        warn("[ShopModule] LT2ItemList.lua has a syntax error — " .. tostring(parseErr))
-        return nil
-    end
+    if not fn then return nil end
 
     local ok2, items = pcall(fn)
-    if not ok2 or type(items) ~= "table" then
-        warn("[ShopModule] LT2ItemList.lua must return a table — " .. tostring(items))
-        return nil
-    end
+    if not ok2 or type(items) ~= "table" then return nil end
 
-    print(("[ShopModule] Loaded %d item(s) from LT2ItemList.lua"):format(#items))
     return items
 end
 
@@ -488,14 +457,12 @@ local function GetShopItemsForStore(storeName)
     end
 
     if not anchor then
-        warn("[ShopModule] Could not determine position for store: " .. storeName)
         ShopItemsCache[storeName] = false
         return nil
     end
 
     local stores = workspace:FindFirstChild("Stores")
     if not stores then
-        warn("[ShopModule] workspace.Stores not found.")
         ShopItemsCache[storeName] = false
         return nil
     end
@@ -522,13 +489,6 @@ local function GetShopItemsForStore(storeName)
         end
     end
 
-    if bestContainer then
-        print(("[ShopModule] Matched ShopItems for '%s' → %s (dist %.1f)"):format(
-            storeName, bestContainer:GetFullName(), bestDist))
-    else
-        warn("[ShopModule] No ShopItems container found near store: " .. storeName)
-    end
-
     ShopItemsCache[storeName] = bestContainer or false
     return bestContainer
 end
@@ -538,10 +498,7 @@ end
 -- └─────────────────────────────────────────────────────────────────┘
 local function ResolveItemParts(item, limit)
     local stores = workspace:FindFirstChild("Stores")
-    if not stores then
-        warn("[ShopModule] workspace.Stores not found.")
-        return {}
-    end
+    if not stores then return {} end
 
     local results = {}
 
@@ -568,7 +525,6 @@ local function ResolveItemParts(item, limit)
             searchContainer(targetContainer)
             return results
         end
-        warn("[ShopModule] Falling back to full scan for item: " .. tostring(item.Name))
     end
 
     for _, child in ipairs(stores:GetChildren()) do
@@ -583,9 +539,8 @@ end
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                    RESTOCK-AWARE BUY LOOP                       │
 -- └─────────────────────────────────────────────────────────────────┘
-local RESTOCK_POLL_RATE    = 0.5
-local RESTOCK_NOTIFY_EVERY = 10
-local RESTOCK_TIMEOUT      = 120
+local RESTOCK_POLL_RATE = 0.5
+local RESTOCK_TIMEOUT   = 120
 
 local _isBuying = false
 
@@ -596,7 +551,6 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
 
     local bought       = 0
     local failed       = 0
-    local itemName     = item.Name
     local restockTimer = 0
 
     while bought < totalQty and _isBuying do
@@ -653,7 +607,6 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
     local ShopItems = LoadItemList()
     if not ShopItems or #ShopItems == 0 then
-        warn("[ShopModule] No items loaded — shop tab will be empty.")
         Tab:CreateSection("Hardware Store")
         return
     end
@@ -713,15 +666,9 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
         if not SelectedItem then return end
 
-        if _LOT == nil then
-            warn("[ShopModule] LOT is not set. Call ShopModule.SetLOT(lot) or pass it to Init.")
-            return
-        end
+        if _LOT == nil then return end
 
-        if not SelectedItem.Store then
-            warn("[ShopModule] Item '" .. SelectedItem.Name .. "' is missing the Store field in LT2ItemList.lua")
-            return
-        end
+        if not SelectedItem.Store then return end
 
         if not StoreConfigs[SelectedItem.Store] then return end
 
