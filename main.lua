@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.387"
+local Version = "v0.0.388"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -2037,6 +2037,10 @@ Library:Notify("Loaded", "Anti-Ragdoll", 2)
 local AntiAFKModule = LoadModule("AntiAFK")
 if AntiAFKModule and AntiAFKModule.Init then AntiAFKModule.Init(ProtectionTab) end
 Library:Notify("Loaded", "Anti-AFK", 2)
+
+local AxeRecoveryModule = LoadModule("AxeRecovery")
+if AxeRecoveryModule and AxeRecoveryModule.Init then AxeRecoveryModule.Init(ProtectionTab) end
+Library:Notify("Loaded", "Axe Recovery", 2)
 
 local LooseObjectTeleportModule = LoadModule("LooseObjectTeleport")
 if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(ToolTab, Library) end
