@@ -25,12 +25,17 @@ function HardDragger.Init(Tab)
     end
 
     -- ── Start overriding a Dragger's position every frame ─────────
+    local MAX_RADIUS = 20  -- max studs from player HRP
+
     local function StartControlling(dragger)
         StopControlling()
 
         -- Match hold distance to wherever the dragger spawned
         local holdDist = (Camera.CFrame.Position - dragger.Position).Magnitude
         if holdDist < 2 then holdDist = Config.Distance end
+
+        -- Lock rotation to spawn orientation so it never drifts
+        local lockedRotation = dragger.CFrame - dragger.CFrame.Position
 
         dragLoop = RunService.Heartbeat:Connect(function()
             -- Stop if dragger was removed or feature toggled off
@@ -40,12 +45,23 @@ function HardDragger.Init(Tab)
             end
             if not Config.Enabled then return end
 
+            local char = Player.Character
+            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+
             local targetPos = Camera.CFrame.Position
                 + Mouse.UnitRay.Direction * holdDist
 
-            -- Preserve the dragger's current orientation so the game's
-            -- own rotation logic isn't broken — only move it.
-            dragger.CFrame = CFrame.new(targetPos)
+            -- Clamp to MAX_RADIUS studs from the player so third-person
+            -- can't fling objects across the map
+            if hrp then
+                local toTarget = targetPos - hrp.Position
+                if toTarget.Magnitude > MAX_RADIUS then
+                    targetPos = hrp.Position + toTarget.Unit * MAX_RADIUS
+                end
+            end
+
+            -- Apply position with locked rotation
+            dragger.CFrame = CFrame.new(targetPos) * lockedRotation
         end)
     end
 
@@ -66,9 +82,15 @@ function HardDragger.Init(Tab)
     end)
 
     -- ── UI ────────────────────────────────────────────────────────
+    Tab:CreateSection("Hard Dragger")
+
     Tab:CreateToggle("Hard Dragger", false, function(state)
         Config.Enabled = state
         if not state then StopControlling() end
+    end)
+
+    Tab:CreateSlider("Hold Distance", 2, 50, Config.Distance, function(val)
+        Config.Distance = val
     end)
 end
 
