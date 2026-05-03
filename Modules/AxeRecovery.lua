@@ -4,7 +4,7 @@ local AxeRecoverModule = {}
 --             SETTINGS
 -- ==========================================
 local Settings = {
-    RespawnSettleDelay = 2.0,   -- seconds to wait after respawn before scanning
+    RespawnSettleDelay = 5.0,   -- seconds to wait after respawn before scanning
     PickupTimeout      = 3,     -- seconds to keep retrying one axe before skipping
     PickupFireRate     = 0.15,  -- seconds between remote fires during retry loop
     AxeRecoverRadius   = 20,    -- studs around death position to search
@@ -227,8 +227,6 @@ end
 --             UI INIT
 -- ==========================================
 function AxeRecoverModule.Init(Tab)
-    Tab:CreateSection("Tool Recovery")
-
     Tab:CreateToggle("Auto Recover Axe", false, function(state)
         if state then Start() else Stop() end
     end)
