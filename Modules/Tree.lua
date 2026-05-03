@@ -474,22 +474,42 @@ end
 -- ==========================================
 --   AUTO RECOVER AXE
 -- ==========================================
-local _autoRecoverOn   = false
-local _autoRecoverConn = nil  -- CharacterAdded connection
+local _autoRecoverOn    = false
+local _autoRecoverConn  = nil   -- CharacterAdded connection
+local _deathPosition    = nil   -- Vector3 recorded the moment the player dies
+local _deathHumConn     = nil   -- Humanoid.Died connection for the current character
 
--- Searches workspace.PlayerModels for dropped axe models.
--- A dropped axe appears as a Model named "Model" (matching the reference script).
-local function GetAxesInWorld()
-    local axes        = {}
+local AXE_RECOVER_RADIUS = 20   -- studs around death position to search
+
+-- Searches workspace.PlayerModels for dropped axe models that:
+--   1. Are owned by the local player (Owner.OwnerString == player.Name)
+--   2. Have a Handle within AXE_RECOVER_RADIUS studs of _deathPosition
+local function GetOwnedAxesNearDeath()
+    local axes         = {}
     local playerModels = Workspace:FindFirstChild("PlayerModels")
     if not playerModels then
         warn("[TreeModule] Auto Recover: PlayerModels not found.")
         return axes
     end
+
     for _, obj in ipairs(playerModels:GetDescendants()) do
-        if obj.Name == "Model" and obj:IsA("Model") then
-            table.insert(axes, obj)
+        if not (obj.Name == "Model" and obj:IsA("Model")) then continue end
+
+        -- Ownership check
+        local ownerFolder = obj:FindFirstChild("Owner")
+        if not ownerFolder then continue end
+        local ownerStr = ownerFolder:FindFirstChild("OwnerString")
+        if not ownerStr or not ownerStr:IsA("StringValue") then continue end
+        if ownerStr.Value ~= player.Name then continue end
+
+        -- Distance check (only when we have a recorded death position)
+        if _deathPosition then
+            local handle = obj:FindFirstChild("Handle") or obj.PrimaryPart
+            if not handle then continue end
+            if (handle.Position - _deathPosition).Magnitude > AXE_RECOVER_RADIUS then continue end
         end
+
+        table.insert(axes, obj)
     end
     return axes
 end
@@ -507,11 +527,61 @@ local function TeleportToAxe(axe)
     task.wait(0.2)  -- brief settle so the server registers the new position
 end
 
--- Fires the ClientInteracted pickup remote for one axe model.
-local function PickupAxe(axe)
+local MAX_AXES_TO_RECOVER = 10
+local PICKUP_TIMEOUT      = 3     -- seconds to keep retrying one axe before skipping
+local PICKUP_FIRE_RATE    = 0.15  -- seconds between remote fires during retry loop
+
+-- Counts "Tool"-named tools currently held by the player
+-- (backpack, equipped on character, and the workspace character model).
+local function CountHeldTools()
+    local count = 0
+    -- Backpack (unequipped)
+    for _, v in ipairs(player.Backpack:GetChildren()) do
+        if v.Name == "Tool" and v:IsA("Tool") then count += 1 end
+    end
+    -- Character (equipped slot)
+    local char = player.Character
+    if char then
+        for _, v in ipairs(char:GetChildren()) do
+            if v.Name == "Tool" and v:IsA("Tool") then count += 1 end
+        end
+    end
+    -- workspace.<PlayerName> model (game may place the equipped tool here)
+    local wsChar = Workspace:FindFirstChild(player.Name)
+    if wsChar then
+        for _, v in ipairs(wsChar:GetChildren()) do
+            if v.Name == "Tool" and v:IsA("Tool") then count += 1 end
+        end
+    end
+    return count
+end
+
+-- Fires the pickup remote repeatedly for up to PICKUP_TIMEOUT seconds.
+-- Returns true if a new Tool appeared in the player's possession, false if timed out.
+local function PickupAxeWithRetry(axe)
     local handle = axe:FindFirstChild("Handle") or axe.PrimaryPart
-    if not handle then return end
-    ClientInteracted:FireServer(axe, "Pick up tool", handle.CFrame)
+    if not handle then
+        warn("[TreeModule] Auto Recover: Axe has no Handle, skipping.")
+        return false
+    end
+
+    local before   = CountHeldTools()
+    local deadline = tick() + PICKUP_TIMEOUT
+
+    while tick() < deadline do
+        if not axe or not axe.Parent then
+            warn("[TreeModule] Auto Recover: Axe disappeared mid-retry, skipping.")
+            return false
+        end
+        ClientInteracted:FireServer(axe, "Pick up tool", handle.CFrame)
+        task.wait(PICKUP_FIRE_RATE)
+        if CountHeldTools() > before then
+            return true
+        end
+    end
+
+    warn("[TreeModule] Auto Recover: Timed out on axe — skipping.")
+    return false
 end
 
 -- Called once per respawn when the toggle is active.
@@ -529,29 +599,65 @@ local function OnRespawnedRecover(char)
 
     if not _autoRecoverOn then return end  -- user may have toggled off while waiting
 
-    local axes = GetAxesInWorld()
+    local axes = GetOwnedAxesNearDeath()
     if #axes == 0 then
-        warn("[TreeModule] Auto Recover: No axes found in world after respawn.")
+        warn("[TreeModule] Auto Recover: No owned axes found near death position after respawn.")
         return
     end
 
-    -- TP to the first axe so the pickup distance check passes, then pick up all.
-    TeleportToAxe(axes[1])
-
-    for _, axe in ipairs(axes) do
-        if not axe or not axe.Parent then continue end
-        PickupAxe(axe)
-        task.wait(Settings.AxePickupDelay)
+    -- Cap to MAX_AXES_TO_RECOVER so we never loop over dozens of stale models.
+    if #axes > MAX_AXES_TO_RECOVER then
+        axes = {table.unpack(axes, 1, MAX_AXES_TO_RECOVER)}
     end
 
-    print(("[TreeModule] Auto Recover: Picked up %d axe(s) after respawn."):format(#axes))
+    -- TP to the first axe so the server's proximity check passes.
+    TeleportToAxe(axes[1])
+
+    local picked = 0
+    for i, axe in ipairs(axes) do
+        if not axe or not axe.Parent then continue end
+
+        -- TP to each axe before attempting pickup so distance stays valid.
+        if i > 1 then TeleportToAxe(axe) end
+
+        if PickupAxeWithRetry(axe) then
+            picked += 1
+            print(("[TreeModule] Auto Recover: Axe %d/%d picked up."):format(i, #axes))
+        else
+            print(("[TreeModule] Auto Recover: Axe %d/%d skipped."):format(i, #axes))
+        end
+    end
+
+    print(("[TreeModule] Auto Recover: Done — %d/%d axe(s) recovered."):format(picked, #axes))
+end
+
+-- Hooks Humanoid.Died on the current character to record the death position.
+local function HookDeathPosition(char)
+    if _deathHumConn then _deathHumConn:Disconnect(); _deathHumConn = nil end
+    local hum = char:WaitForChild("Humanoid", 10)
+    if not hum then return end
+    _deathHumConn = hum.Died:Connect(function()
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        _deathPosition = hrp and hrp.Position or nil
+        if _deathPosition then
+            print(("[TreeModule] Auto Recover: Death position recorded at %s."):format(tostring(_deathPosition)))
+        end
+    end)
 end
 
 local function StartAutoRecoverAxe()
     if _autoRecoverConn then return end  -- already running
-    _autoRecoverOn   = true
+    _autoRecoverOn = true
+
+    -- Hook the current character immediately in case they die without respawning first.
+    if player.Character then
+        task.spawn(HookDeathPosition, player.Character)
+    end
+
     _autoRecoverConn = player.CharacterAdded:Connect(function(char)
         if not _autoRecoverOn then return end
+        -- Always hook the new character so the next death position is captured.
+        task.spawn(HookDeathPosition, char)
         task.spawn(OnRespawnedRecover, char)
     end)
     print("[TreeModule] Auto Recover Axe: ON")
@@ -563,6 +669,11 @@ local function StopAutoRecoverAxe()
         _autoRecoverConn:Disconnect()
         _autoRecoverConn = nil
     end
+    if _deathHumConn then
+        _deathHumConn:Disconnect()
+        _deathHumConn = nil
+    end
+    _deathPosition = nil
     print("[TreeModule] Auto Recover Axe: OFF")
 end
 
