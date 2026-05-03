@@ -1,39 +1,33 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.377"
+local Version = "v0.0.378"
 
 task.spawn(function()
     local versionStamp = Version:gsub("%.", "")
 
     if not (listfiles and delfile) then return end
 
-    -- Short-circuit: if we already cleaned up for this version, do nothing.
-    -- The stamp file is written at the end of a successful cleanup pass.
-    local stampPath = "Dynxe/.version"
-    if isfile and readfile and isfile(stampPath) then
-        local ok, saved = pcall(readfile, stampPath)
-        if ok and saved == versionStamp then return end
-    end
+    -- pcall(readfile) is used instead of isfile because isfile returns false
+    -- for real files on Xeno. If the saved stamp matches, nothing to do.
+    local stampPath = "Dynxe/version.txt"
+    local stampOk, stampData = pcall(readfile, stampPath)
+    if stampOk and stampData == versionStamp then return end
 
     local function CleanFolder(folderPath)
         local ok, entries = pcall(listfiles, folderPath)
         if not ok or type(entries) ~= "table" then return end
         for _, path in ipairs(entries) do
-            -- Extract just the filename (drop any leading folder prefix),
-            -- handling both forward-slash and backslash separators.
-            local fileName = path:match("[^/\\]+$") or path
-
-            if fileName:match("%.%a+$") then
-                -- It's a file — delete .png files whose name lacks the current stamp.
+            -- isfolder is reliable in Xeno; extension-guessing is not.
+            if isfolder and isfolder(path) then
+                CleanFolder(path)
+            else
+                local fileName = path:match("[^/\\]+$") or path
                 if fileName:match("%.png$") and not fileName:match("Placeholder%.png$") then
                     if not fileName:find(versionStamp, 1, true) then
                         pcall(delfile, path)
                     end
                 end
-            else
-                -- No extension — treat as a subfolder and recurse.
-                CleanFolder(path)
             end
         end
     end
@@ -44,9 +38,11 @@ task.spawn(function()
     local ok2 = pcall(listfiles, "Dynxe/Images")
     if ok2 then CleanFolder("Dynxe/Images") end
 
-    -- Stamp the current version so the next load skips this entire block.
+    -- Stamp the version so the next load skips this entirely.
     if writefile then
-        if isfolder and not isfolder("Dynxe") then makefolder("Dynxe") end
+        if isfolder and not isfolder("Dynxe") then
+            pcall(makefolder, "Dynxe")
+        end
         pcall(writefile, stampPath, versionStamp)
     end
 end)
