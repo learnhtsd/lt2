@@ -5,6 +5,7 @@ return {
     { Name = "Steel Axe", Image = "Axe_Steel.png", Price = 190, BoxItemName = "Axe2", Store = "WoodRUs" },
     { Name = "Hardened Axe", Image = "Axe_Hardened.png", Price = 550, BoxItemName = "Axe3", Store = "WoodRUs" },
     { Name = "Silver Axe", Image = "Axe_Silver.png", Price = 2040, BoxItemName = "SilverAxe", Store = "WoodRUs" },
+    
     -- Conveyors (Bob's Shack — Bob)
     { Name = "Straight Conveyor", Image = "Conveyor_Straight.png", Price = 80, BoxItemName = "StraightConveyor", Store = "WoodRUs" },
     { Name = "Turn Conveyor", Image = "Conveyor_Turn.png", Price = 100, BoxItemName = "TightTurnConveyor", Store = "WoodRUs" },
@@ -16,6 +17,7 @@ return {
     { Name = "Sweeper Conveyor", Image = "Conveyor_Sweeper.png", Price = 430, BoxItemName = "LogSweeper", Store = "WoodRUs" },
     { Name = "Conveyor Supports", Image = "Conveyor_Supports.png", Price = 12, BoxItemName = "ConveyorSupports", Store = "WoodRUs" },
     { Name = "Turn Conveyor Supports", Image = "Conveyor_Turn_Supports.png", Price = 20, BoxItemName = "TightTurnConveyorSupports", Store = "WoodRUs" },
+    
     -- Sawmills (Bob's Shack — Bob)
     { Name = "Shabby Sawmill", Image = "Sawmill_Shabby.png", Price = 130, BoxItemName = "Sawmill", Store = "WoodRUs" },
     { Name = "Fair Sawmill", Image = "Sawmill_Fair.png", Price = 1600, BoxItemName = "Sawmill2", Store = "WoodRUs" },
@@ -23,6 +25,7 @@ return {
     { Name = "Sawmax 02", Image = "Sawmax_02.png", Price = 22500, BoxItemName = "Sawmill4", Store = "WoodRUs" },
     { Name = "Sawmax 02L", Image = "Sawmax_02L.png", Price = 86500, BoxItemName = "Sawmill4L", Store = "WoodRUs" },
     { Name = "Chop Saw", Image = "Chop_Saw.png", Price = 12200, BoxItemName = "ChopSaw", Store = "WoodRUs" },
+    
     -- Logic (Lincoln's Logic — Lincoln)
     { Name = "Wire", Image = "Wire.png", Price = 205, BoxItemName = "Wire", Store = "WoodRUs" },
     { Name = "Maple Icicle Wire", Image = "Wire_Icicle_Maple.png", Price = 1450, BoxItemName = "IcicleWireMaple", Store = "FurnitureStore" },
@@ -47,12 +50,14 @@ return {
     { Name = "Laser", Image = "Laser.png", Price = 11300, BoxItemName = "Laser", Store = "LogicStore" },
     { Name = "Laser Detector", Image = "Laser_Detector.png", Price = 3200, BoxItemName = "LaserReceiver", Store = "LogicStore" },
     { Name = "Hatch", Image = "Hatch.png", Price = 830, BoxItemName = "Hatch", Store = "LogicStore" },
+    
     -- Vehicles (Jenny's Cars — Jenny)
     { Name = "Utility Truck", Image = "Vehicle_Utility_Truck.png", Price = 400, BoxItemName = "UtilityTruck", Store = "WoodRUs" },
     { Name = "Utility Truck XL", Image = "Vehicle_Utility_Truck_XL.png", Price = 5000, BoxItemName = "UtilityTruck2", Store = "CarStore" },
     { Name = "Pickup Truck", Image = "Vehicle_Pickup_Truck.png", Price = 19000, BoxItemName = "Pickup1", Store = "CarStore" },
     { Name = "Small Trailer", Image = "Vehicle_Trailer_Small.png", Price = 1800, BoxItemName = "SmallTrailer", Store = "CarStore" },
     { Name = "Large Trailer", Image = "Vehicle_Trailer_Large.png", Price = 13000, BoxItemName = "Trailer2", Store = "CarStore" },
+    
     -- Furniture
     { Name = "Armchair", Image = "Furniture_Armchair.png", Price = 140, BoxItemName = "Seat_Armchair", Store = "FurnitureStore" },
     { Name = "Loveseat", Image = "Furniture_Loveseat.png", Price = 200, BoxItemName = "Seat_Loveseat", Store = "FurnitureStore" },
@@ -73,6 +78,7 @@ return {
     { Name = "Glass Pane", Image = "Glass_Pane.png", Price = 220, BoxItemName = "GlassPane3", Store = "FurnitureStore" },
     { Name = "Small Glass Pane", Image = "Glass_Pane_Small.png", Price = 50, BoxItemName = "GlassPane2", Store = "FurnitureStore" },
     { Name = "Tiny Glass Pane", Image = "Glass_Pane_Tiny.png", Price = 12, BoxItemName = "GlassPane1", Store = "FurnitureStore" },
+    
     -- Paintings
     { Name = "Outdoor Water Sketch Painting", Image = "Painting_Outdoor_Watercolor_Sketch.png", Price = 6, BoxItemName = "wwwwwww", Store = "FineArt " },
     { Name = "Disturbed Painting", Image = "Painting_Disturbed.png", Price = 2006, BoxItemName = "wwwwwww", Store = "FineArt " },
@@ -81,11 +87,89 @@ return {
     { Name = "Gloomy Seascape At Dusk Painting", Image = "Painting_Gloomy_Seascape_At_Dusk.png", Price = 16800, BoxItemName = "wwwwwww", Store = "FineArt " },
     { Name = "The Lonely Giraffe Painting", Image = "Painting_The_Lonely_Giraffe.png", Price = 26800, BoxItemName = "wwwwwww", Store = "FineArt " },
     { Name = "Pineapple Painting", Image = "Painting_Pineapple.png", Price = 2406000, BoxItemName = "wwwwwww", Store = "FineArt " },
+    
     -- Other (Bob's Shack — Bob)
     { Name = "Sandbag", Image = "Sandbag.png", Price = 1600, BoxItemName = "BagOfSand", Store = "WoodRUs" },
     { Name = "Can Of Worms", Image = "Can_Of_Worms.png", Price = 3200, BoxItemName = "CanOfWorms", Store = "ShackShop" },
     { Name = "Ligh Bulb", Image = "Light_Bulb.png", Price = 2600, BoxItemName = "LightBulb", Store = "FurnitureStore" },
     { Name = "Dynamite", Image = "Dynamite.png", Price = 220, BoxItemName = "Dynamite", Store = "ShackShop" },
     { Name = "Worklight", Image = "Worklight.png", Price = 80, BoxItemName = "WorkLight", Store = "WoodRUs" },
+    
+    -- Blueprints
+     Name = "Smooth Wall Blueprint", Image = "Blueprint_Smooth_Wall.png", Price = 100, BoxItemName = "Wall2Tall", Store = "WoodRUs" },
+     Name = "Short Smooth Wall Blueprint", Image = "Blueprint_Smooth_Short_Wall.png", Price = 60, BoxItemName = "Wall2", Store = "WoodRUs" },
+     Name = "Smooth Wall Stub Blueprint", Image = "Blueprint_Smooth_Wall_Stub.png", Price = 40, BoxItemName = "Wall2Short", Store = "WoodRUs" },
+     Name = "Smooth Wall Thin Blueprint", Image = "Blueprint_Smooth_Wall_Thin.png", Price = 60, BoxItemName = "Wall2TallThin", Store = "WoodRUs" },
+     Name = "Short Smooth Wall Thin Blueprint", Image = "Blueprint_Smooth_Short_Wall_Thin.png", Price = 40, BoxItemName = "Wall2Thin", Store = "WoodRUs" },
+     Name = "Smooth Wall Stub Thin Blueprint", Image = "Blueprint_Smooth_Wall_Stub_Thin.png", Price = 30, BoxItemName = "Wall2ShortThin", Store = "WoodRUs" },
+     Name = "Smooth Wall Corner Blueprint", Image = "Blueprint_Smooth_Wall_Corner.png", Price = 80, BoxItemName = "Wall2TallCorner", Store = "WoodRUs" },
+     Name = "Short Smooth Wall Corner Blueprint", Image = "Blueprint_Smooth_Short_Wall_Corner.png", Price = 50, BoxItemName = "Wall2Corner", Store = "WoodRUs" },
+     Name = "Smooth Wall Corner Stub Blueprint", Image = "Blueprint_Smooth_Wall_Corner_Stub.png", Price = 30, BoxItemName = "Wall2ShortCorner", Store = "WoodRUs" },
+
+     Name = "Corrugated Wall Blueprint", Image = "Blueprint_Corrugated_Wall.png", Price = 100, BoxItemName = "Wall1Tall", Store = "WoodRUs" },
+     Name = "Short Corrugated Wall Blueprint", Image = "Blueprint_Corrugated_Short_Wall.png", Price = 60, BoxItemName = "Wall1", Store = "WoodRUs" },
+     Name = "Corrugated Wall Stub Blueprint", Image = "Blueprint_Corrugated_Wall_Stub.png", Price = 40, BoxItemName = "Wall1Short", Store = "WoodRUs" },
+     Name = "Corrugated Wall Thin Blueprint", Image = "Blueprint_Corrugated_Wall_Thin.png", Price = 60, BoxItemName = "Wall1TallThin", Store = "WoodRUs" },
+     Name = "Short Corrugated Wall Thin Blueprint", Image = "Blueprint_Corrugated_Short_Wall_Thin.png", Price = 40, BoxItemName = "Wall1Thin", Store = "WoodRUs" },
+     Name = "Corrugated Wall Stub Thin Blueprint", Image = "Blueprint_Corrugated_Wall_Stub_Thin.png", Price = 30, BoxItemName = "Wall1ShortThin", Store = "WoodRUs" },
+     Name = "Corrugated Wall Corner Blueprint", Image = "Blueprint_Corrugated_Wall_Corner.png", Price = 80, BoxItemName = "Wall1TallCorner", Store = "WoodRUs" },
+     Name = "Short Corrugated Wall Corner Blueprint", Image = "Blueprint_Corrugated_Short_Wall_Corner.png", Price = 50, BoxItemName = "Wall1Corner", Store = "WoodRUs" },
+     Name = "Corrugated Wall Corner Stub Blueprint", Image = "Blueprint_Corrugated_Wall_Corner_Stub.png", Price = 30, BoxItemName = "Wall1ShortCorner", Store = "WoodRUs" },
+
+     Name = "Fence Blueprint", Image = "Blueprint_Fence.png", Price = 80, BoxItemName = "Wall3Tall", Store = "WoodRUs" },
+     Name = "Short Fence Blueprint", Image = "Blueprint_Fence_Short.png", Price = 50, BoxItemName = "Wall3", Store = "WoodRUs" },
+     Name = "Fence Thin Blueprint", Image = "Blueprint_Fence_Thin.png", Price = 50, BoxItemName = "Wall3TallThin", Store = "WoodRUs" },
+     Name = "Short Fence Thin Blueprint", Image = "Blueprint_Fence_Short_Thin.png", Price = 30, BoxItemName = "Wall3Thin", Store = "WoodRUs" },
+     Name = "Fence Corner Blueprint", Image = "Blueprint_Fence_Corner.png", Price = 30, BoxItemName = "Wall3TallCorner", Store = "WoodRUs" },
+     Name = "Short Fence Corner Blueprint", Image = "Blueprint_Fence_Short_Corner.png", Price = 40, BoxItemName = "Wall3Corner", Store = "WoodRUs" },
+
+     Name = "Large Floor Blueprint", Image = "Blueprint_Floor_Large.png", Price = 180, BoxItemName = "Floor1Large", Store = "WoodRUs" },
+     Name = "Floor Blueprint", Image = "Blueprint_Floor.png", Price = 60, BoxItemName = "Floor1", Store = "WoodRUs" },
+     Name = "Small Floor Blueprint", Image = "Blueprint_Floor_Small.png", Price = 20, BoxItemName = "Floor1Small", Store = "WoodRUs" },
+     Name = "Tiny Floor Blueprint", Image = "Blueprint_Floor_Tiny.png", Price = 20, BoxItemName = "Floor1Tiny", Store = "WoodRUs" },
+     Name = "Large Tile Blueprint", Image = "Blueprint_Tile_Large.png", Price = 80, BoxItemName = "Floor2Large", Store = "WoodRUs" },
+     Name = "Tile Blueprint", Image = "Blueprint_Tile.png", Price = 20, BoxItemName = "Floor2", Store = "WoodRUs" },
+     Name = "Small Tile Blueprint", Image = "Blueprint_Tile_Small.png", Price = 20, BoxItemName = "Floor2Small", Store = "WoodRUs" },
+     Name = "Tiny Tile Blueprint", Image = "Blueprint_Tile_Tiny.png", Price = 20, BoxItemName = "Floor2Tiny", Store = "WoodRUs" },
+
+     Name = "Wedge Blueprint 4/4", Image = "Blueprint_Wedge_4/4.png", Price = 140, BoxItemName = "Wedge1", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 4/4x1", Image = "Blueprint_Wedge_4/4x1.png", Price = 50, BoxItemName = "Wedge1_Thin", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 3/4", Image = "Blueprint_Wedge_3/4.png", Price = 120, BoxItemName = "Wedge2", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 3/4x1", Image = "Blueprint_Wedge_3/4x1.png", Price = 40, BoxItemName = "Wedge2_Thin", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 2/4", Image = "Blueprint_Wedge_2/4.png", Price = 100, BoxItemName = "Wedge3", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 2/4x1", Image = "Blueprint_Wedge_2/4x1.png", Price = 30, BoxItemName = "Wedge3_Thin", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 1/4", Image = "Blueprint_Wedge_1/4.png", Price = 80, BoxItemName = "Wedge4", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 1/4x1", Image = "Blueprint_Wedge_1/4x1.png", Price = 30, BoxItemName = "Wedge4_Thin", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 3/3", Image = "Blueprint_Wedge_3/3.png", Price = 100, BoxItemName = "Wedge5", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 3/3x1", Image = "Blueprint_Wedge_3/3x1.png", Price = 30, BoxItemName = "Wedge5_Thin", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 2/3", Image = "Blueprint_Wedge_2/3.png", Price = 80, BoxItemName = "Wedge6", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 2/3x1", Image = "Blueprint_Wedge_2/3x1.png", Price = 30, BoxItemName = "Wedge6_Thin", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 1/3", Image = "Blueprint_Wedge_1/3.png", Price = 60, BoxItemName = "Wedge7", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 1/3x1", Image = "Blueprint_Wedge_1/3x1.png", Price = 20, BoxItemName = "Wedge7_Thin", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 2/2", Image = "Blueprint_Wedge_2/2.png", Price = 80, BoxItemName = "Wedge8", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 2/2x1", Image = "Blueprint_Wedge_2/2x1.png", Price = 30, BoxItemName = "Wedge8_Thin", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 1/2", Image = "Blueprint_Wedge_1/2.png", Price = 60, BoxItemName = "Wedge9", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 1/2x1", Image = "Blueprint_Wedge_1/2x1.png", Price = 20, BoxItemName = "Wedge9_Thin", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 1/1", Image = "Blueprint_Wedge_1/1.png", Price = 40, BoxItemName = "Wedge10", Store = "WoodRUs" },
+     Name = "Wedge Blueprint 1/1x1", Image = "Blueprint_Wedge_1/1x1.png", Price = 10, BoxItemName = "Wedge10_Thin", Store = "WoodRUs" },
+
+     Name = "Steep Stairs Blueprint", Image = "Blueprint_Steep_Stairs.png", Price = 140, BoxItemName = "Stair1", Store = "WoodRUs" },
+     Name = "Stairs Blueprint", Image = "Blueprint_Stairs.png", Price = 100, BoxItemName = "Stair2", Store = "WoodRUs" },
+     Name = "Ladder Blueprint", Image = "Blueprint_Ladder.png", Price = 60, BoxItemName = "Ladder1", Store = "WoodRUs" },
+     Name = "Post Blueprint", Image = "Blueprint_Post.png", Price = 30, BoxItemName = "Post", Store = "WoodRUs" },
+     Name = "Basic Door Blueprint", Image = "Blueprint_Basic_Door.png", Price = 100, BoxItemName = "Door1", Store = "WoodRUs" },
+     Name = "Half Door Blueprint", Image = "Blueprint_Half_Door.png", Price = 60, BoxItemName = "Door2", Store = "WoodRUs" },
+     Name = "Fat Door Blueprint", Image = "Blueprint_Fat_Door.png", Price = 180, BoxItemName = "Door3", Store = "WoodRUs" },
+     Name = "Squear Table Blueprint", Image = "Blueprint_Square_Table.png", Price = 80, BoxItemName = "Table1", Store = "WoodRUs" },
+     Name = "Long Table Blueprint", Image = "Blueprint_Long_Table.png", Price = 140, BoxItemName = "Table2", Store = "WoodRUs" },
+     Name = "Mundane Chair Blueprint", Image = "Blueprint_Mundane_Chair.png", Price = 60, BoxItemName = "Chair1", Store = "WoodRUs" },
+
+     Name = "Wide Cabinet Corner Blueprint", Image = "Blueprint_Kitchen_Wide_Cabinet_Corner.png", Price = 220, BoxItemName = "Cabinet1CornerWide", Store = "WoodRUs" },
+     Name = "Cabinet Blueprint", Image = "Blueprint_Kitchen_Cabinet.png", Price = 220, BoxItemName = "Cabinet1", Store = "WoodRUs" },
+     Name = "Thin Cabinet Blueprint", Image = "Blueprint_Kitchen_Thin_Cabinet.png", Price = 80, BoxItemName = "Cabinet1Thin", Store = "WoodRUs" },
+     Name = "Cabnet Corner Blueprint", Image = "Blueprint_Kitchen_Cabnet_Corner.png", Price = 150, BoxItemName = "Cabinet1CornerTight", Store = "WoodRUs" },
+     Name = "Countertop Blueprint", Image = "Blueprint_Kitchen_Countertop.png", Price = 180, BoxItemName = "CounterTop1", Store = "WoodRUs" },
+     Name = "Thin Countertop Blueprint", Image = "Blueprint_Kitchen_Thin_Countertop.png", Price = 100, BoxItemName = "CounterTop1Thin", Store = "WoodRUs" },
+     Name = "Countertop With Sink Blueprint", Image = "Blueprint_Kitchen_Countertop_With_Sink.png", Price = 300, BoxItemName = "CounterTop1Sink", Store = "WoodRUs" },
 }
 --{ Name = "", Image = ".png", Price = , BoxItemName = "", Store = "" },
