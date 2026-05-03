@@ -632,11 +632,10 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
 
     Tab:CreateSection("Stores")
 
-    local WoodRUsbanner = Tab:CreateImage("WoodRUs.png", 50)
-    local Catalog = Tab:CreateImageSelector("Wood R Us", {
+    local Catalog = Tab:CreateImageSelector("Slect a Item", {
         MultiSelect = false,
-        VisibleRows = 3,
-        SlotSize    = UDim2.new(0, 72, 0, 72),
+        VisibleRows = 4,
+        SlotSize    = UDim2.new(0, 73, 0, 73),
     }, function(name)
         for _, item in pairs(ShopItems) do
             if item.Name == name then
