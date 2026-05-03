@@ -42,7 +42,7 @@ return {
     { Name = "Signal Inverter", Image = "Signal_Inverter.png", Price = 200, BoxItemName = "GateNOT", Store = "LogicStore" },
     { Name = "Signal Substain", Image = "Signal_Substain.png", Price = 520, BoxItemName = "SignalSustain", Store = "LogicStore" },
     { Name = "Signal Delay", Image = "Signal_Delay.png", Price = 520, BoxItemName = "SignalDelay", Store = "LogicStore" },
-    { Name = "AND Gate", Image = "And_Gate.png", Price = 260, BoxItemName = "GateAND", Store = "LogicStore" },
+    { Name = "AND Gate", Image = "AND_Gate.png", Price = 260, BoxItemName = "GateAND", Store = "LogicStore" },
     { Name = "OR Gate", Image = "OR_Gate.png", Price = 260, BoxItemName = "GateOR", Store = "LogicStore" },
     { Name = "XOR Gate", Image = "XOR_Gate.png", Price = 260, BoxItemName = "GateXOR", Store = "LogicStore" },
     { Name = "Clock Switch", Image = "Clock_Switch.png", Price = 902, BoxItemName = "ClockSwitch", Store = "LogicStore" },
