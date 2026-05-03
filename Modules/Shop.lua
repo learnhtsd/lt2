@@ -32,6 +32,7 @@ local NPCs = {
 local Remote      = ReplicatedStorage.NPCDialog.PlayerChatted
 local PromptChat  = ReplicatedStorage.NPCDialog.PromptChat
 local SetChatting = ReplicatedStorage.NPCDialog.SetChattingValue
+local Interact    = ReplicatedStorage.Interaction.ClientInteracted -- ← NEW
 
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                   PER-STORE CONFIGURATION                       │
@@ -596,6 +597,160 @@ local function RunBuyLoop(item, totalQty, pressedCF, onDone)
 end
 
 -- ┌─────────────────────────────────────────────────────────────────┐
+-- │              BLUEPRINT — PURCHASE WITHOUT ITEM TP               │
+-- └─────────────────────────────────────────────────────────────────┘
+local function PurchaseBlueprintPart(mainPart, item)
+    local storeName = item.Store
+    local config    = StoreConfigs[storeName]
+    if not config then return false end
+
+    -- TP the item to the store drop position so the server accepts the purchase
+    local success = _LOT.TeleportMany({ { target = mainPart, goalCF = config.ItemDropCF } })
+    if _LOT.IsBusy() then
+        success = _LOT.WaitForBatch()
+    end
+    if not success then return false end
+
+    -- TP player to the buy counter
+    local char = Player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+
+    root.CFrame = config.PlayerBuyCF
+    task.wait(0.1)
+
+    local npcArg = GetNPCArgForStore(storeName)
+    if not npcArg or not npcArg.ID then return false end
+
+    -- Purchase — intentionally no return TP after, blueprint box goes to PlayerModels
+    return SpamPurchase(mainPart, npcArg, item.Name)
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │              BLUEPRINT — OPEN BOX FROM PLAYERMODELS             │
+-- └─────────────────────────────────────────────────────────────────┘
+local BOX_OPEN_TIMEOUT = 10
+
+local function OpenBlueprintBox(boxItemName)
+    local PlayerModels = workspace:FindFirstChild("PlayerModels")
+    if not PlayerModels then return false end
+
+    local deadline = tick() + BOX_OPEN_TIMEOUT
+
+    while tick() < deadline do
+        for _, model in ipairs(PlayerModels:GetChildren()) do
+            -- Box models are named "Box Purchased by <PlayerName>"
+            if model:IsA("Model") and model.Name:find("Box Purchased by") then
+                local nameVal = model:FindFirstChild("PurchasedBoxItemName")
+                if nameVal and nameVal.Value == boxItemName then
+                    local char = Player.Character
+                    local head = char and char:FindFirstChild("Head")
+                    if head then
+                        Interact:FireServer(model, "Open box", head.CFrame)
+                        task.wait(0.5) -- let the box open before moving on
+                        return true
+                    end
+                end
+            end
+        end
+        task.wait(0.2)
+    end
+
+    warn("[Blueprints] Timed out waiting for box:", boxItemName)
+    return false
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │                   PURCHASE ALL BLUEPRINTS                       │
+-- └─────────────────────────────────────────────────────────────────┘
+local _isBuyingBlueprints = false
+
+local function RunBlueprintLoop(ShopItems, onDone)
+    _isBuyingBlueprints = true
+
+    FetchNPCIDs()
+
+    -- Capture return position before moving anywhere
+    local char     = Player.Character
+    local root     = char and char:FindFirstChild("HumanoidRootPart")
+    local returnCF = root and root.CFrame
+
+    -- Collect all blueprint items from the item list
+    local blueprints = {}
+    for _, item in ipairs(ShopItems) do
+        if item.Name:find("Blueprint") then
+            table.insert(blueprints, item)
+        end
+    end
+
+    if #blueprints == 0 then
+        warn("[Blueprints] No blueprint items found in item list.")
+        _isBuyingBlueprints = false
+        if onDone then onDone() end
+        return
+    end
+
+    print("[Blueprints] Found " .. #blueprints .. " blueprints to purchase.")
+
+    for _, item in ipairs(blueprints) do
+        if not _isBuyingBlueprints then break end
+
+        -- Find the shop box for this blueprint
+        local parts = ResolveItemParts(item, 1)
+        if #parts == 0 then
+            warn("[Blueprints] No stock found for:", item.Name, "— skipping.")
+            continue
+        end
+
+        local mainPart = parts[1]
+        if not mainPart or not mainPart.Parent then
+            warn("[Blueprints] mainPart gone for:", item.Name, "— skipping.")
+            continue
+        end
+
+        -- Skip if player already owns this blueprint
+        local blueprintsFolder = Player:FindFirstChild("PlayerBlueprints")
+            and Player.PlayerBlueprints:FindFirstChild("Blueprints")
+        if blueprintsFolder and blueprintsFolder:FindFirstChild(item.BoxItemName) then
+            print("[Blueprints] Already owned, skipping:", item.Name)
+            continue
+        end
+
+        -- Check funds before attempting purchase
+        local funds = FetchFunds()
+        if funds == nil or funds < item.Price then
+            warn("[Blueprints] Not enough funds for:", item.Name, "(need $" .. item.Price .. ")")
+            continue
+        end
+
+        print("[Blueprints] Purchasing:", item.Name)
+        local purchased = PurchaseBlueprintPart(mainPart, item)
+
+        if purchased then
+            print("[Blueprints] Purchased! Opening box for:", item.Name)
+            -- Use BoxItemName if available, fallback to Name
+            local boxName = item.BoxItemName or item.Name
+            OpenBlueprintBox(boxName)
+        else
+            warn("[Blueprints] Failed to purchase:", item.Name)
+        end
+
+        task.wait(0.2)
+    end
+
+    -- TP player back to where they were
+    local returnChar = Player.Character
+    local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
+    if returnRoot and returnCF then
+        returnRoot.CFrame = returnCF
+    end
+
+    print("[Blueprints] All done!")
+    _isBuyingBlueprints = false
+    if onDone then onDone() end
+end
+
+-- ┌─────────────────────────────────────────────────────────────────┐
 -- │                         MODULE INIT                             │
 -- └─────────────────────────────────────────────────────────────────┘
 function ShopModule.Init(Tab, lot, GetImageFunc)
@@ -647,8 +802,10 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     end)
 
     for _, item in pairs(ShopItems) do
-        local img = GetImage("", item.Image)
-        Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
+        pcall(function()
+            local img = GetImage("", item.Image)
+            Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
+        end)
     end
 
     Tab:CreateSlider("Quantity", 1, 100, 1, function(val)
@@ -700,11 +857,366 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
     UpdateDisplay()
     ShopModule.UpdateDisplay = UpdateDisplay
 
+    -- ┌──────────────────────────────────────────────────────────────┐
+    -- │                        SPECIAL SECTION                       │
+    -- └──────────────────────────────────────────────────────────────┘
     Tab:CreateSection("Special")
 
     Tab:CreateAction("Power of Ease ($10,009,000)", "Buy", function()
         task.spawn(PurchasePowerOfEase)
     end, false)
+
+    -- ── NEW: Purchase All Blueprints ─────────────────────────────────
+
+    -- Collect blueprint items from the loaded list
+    local BlueprintItems = {}
+    for _, item in ipairs(ShopItems) do
+        if item.Name:find("Blueprint") then
+            table.insert(BlueprintItems, item)
+        end
+    end
+
+    local function CheckAllBlueprintsOwned()
+        if #BlueprintItems == 0 then
+            print("[Blueprints] BlueprintItems is empty — returning false")
+            return false
+        end
+        local playerBP = Player:FindFirstChild("PlayerBlueprints")
+        if not playerBP then
+            print("[Blueprints] No PlayerBlueprints folder found — returning false")
+            return false
+        end
+        local blueprintsFolder = playerBP:FindFirstChild("Blueprints")
+        if not blueprintsFolder then
+            print("[Blueprints] No Blueprints subfolder found — returning false")
+            return false
+        end
+        local owned, total = 0, #BlueprintItems
+        for _, item in ipairs(BlueprintItems) do
+            if blueprintsFolder:FindFirstChild(item.BoxItemName) then
+                owned += 1
+            end
+        end
+        print(("[Blueprints] Owned %d / %d"):format(owned, total))
+        return owned >= total
+    end
+
+    local BlueprintBtn
+
+    local function GetTotalBlueprintCost()
+        local blueprintsFolder = Player:FindFirstChild("PlayerBlueprints")
+            and Player.PlayerBlueprints:FindFirstChild("Blueprints")
+        local total = 0
+        for _, item in ipairs(BlueprintItems) do
+            local owned = blueprintsFolder and blueprintsFolder:FindFirstChild(item.BoxItemName)
+            if not owned then
+                total += item.Price
+            end
+        end
+        return total
+    end
+
+    local function UpdateBlueprintBtnState()
+        if not BlueprintBtn then return end
+        if _isBuyingBlueprints then return end -- don't override Stop state
+        local allOwned = CheckAllBlueprintsOwned()
+        BlueprintBtn:SetDisabled(allOwned)
+        if allOwned then
+            BlueprintBtn:SetText("All Owned")
+        else
+            local total = GetTotalBlueprintCost()
+            BlueprintBtn:SetText("$" .. tostring(total))
+        end
+    end
+
+    BlueprintBtn = Tab:CreateAction("Purchase All Blueprints", "Buy", function()
+
+        -- Toggle stop if already running
+        if _isBuyingBlueprints then
+            _isBuyingBlueprints = false
+            UpdateBlueprintBtnState()
+            return
+        end
+
+        BlueprintBtn:SetText("Stop")
+
+        task.spawn(function()
+            RunBlueprintLoop(ShopItems, function()
+                UpdateBlueprintBtnState()
+            end)
+        end)
+
+    end, false)
+
+    -- Initial state check on load
+    UpdateBlueprintBtnState()
+
+    -- ── NEW: Purchase Rukiry Axe ──────────────────────────────────────
+    local RUKIRY_ITEMS = {
+        {
+            BoxItemName = "CanOfWorms",
+            GoalCF      = CFrame.new(317.3, 46.0, 1918.1),
+        },
+        {
+            BoxItemName = "BagOfSand",
+            GoalCF      = CFrame.new(319.5, 46.0, 1914.9),
+        },
+        {
+            BoxItemName = "LightBulb",
+            GoalCF      = CFrame.new(322.1, 46.1, 1916.4),
+        },
+    }
+    local RUKIRY_PLAYER_CF = CFrame.new(320.6, 45.8, 1919.2)
+
+    local RukiryBtn
+    local _isBuyingRukiry = false
+
+    local function PurchaseRukiryItem(mainPart, item, goalCF)
+        local storeName = item.Store
+        local config    = StoreConfigs[storeName]
+        if not config then return false end
+
+        -- TP item to store drop zone
+        local success = _LOT.TeleportMany({ { target = mainPart, goalCF = config.ItemDropCF } })
+        if _LOT.IsBusy() then _LOT.WaitForBatch() end
+        if not success then return false end
+
+        -- TP player to store counter
+        local char = Player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return false end
+        root.CFrame = config.PlayerBuyCF
+        task.wait(0.1)
+
+        local npcArg = GetNPCArgForStore(storeName)
+        if not npcArg or not npcArg.ID then return false end
+
+        local purchased = SpamPurchase(mainPart, npcArg, item.Name)
+
+        if purchased then
+            task.wait(0.05)
+
+            -- Snapshot existing models in PlayerModels before opening
+            local PlayerModels = workspace:FindFirstChild("PlayerModels")
+            local existingModels = {}
+            if PlayerModels then
+                for _, m in ipairs(PlayerModels:GetChildren()) do
+                    existingModels[m] = true
+                end
+            end
+
+            -- Open the box
+            local boxModel = mainPart and mainPart.Parent
+            if boxModel and boxModel:IsA("Model") then
+                local char = Player.Character
+                local head = char and char:FindFirstChild("Head")
+                if head then
+                    Interact:FireServer(boxModel, "Open box", head.CFrame)
+                end
+            end
+
+            -- Wait for the spawned item to appear (it's a new model in PlayerModels)
+            local spawnedPart = nil
+            local deadline = tick() + 5
+            while tick() < deadline do
+                task.wait(0.1)
+                if PlayerModels then
+                    for _, m in ipairs(PlayerModels:GetChildren()) do
+                        if not existingModels[m] and m:IsA("Model") then
+                            -- Match by ItemName value == BoxItemName
+                            local itemNameVal = m:FindFirstChild("ItemName")
+                            if not (itemNameVal and itemNameVal.Value == item.BoxItemName) then
+                                continue
+                            end
+                            -- Confirm ownership via Owner.OwnerString
+                            local ownerFolder = m:FindFirstChild("Owner")
+                            local ownerString = ownerFolder and ownerFolder:FindFirstChild("OwnerString")
+                            if not (ownerString and ownerString.Value == Player.Name) then
+                                continue
+                            end
+                            local foundMain = m:FindFirstChild("Main")
+                            if foundMain then
+                                spawnedPart = foundMain
+                                break
+                            end
+                        end
+                    end
+                end
+                if spawnedPart then break end
+            end
+
+            -- TP the newly spawned item to the goal position
+            if spawnedPart and spawnedPart.Parent then
+                _LOT.TeleportMany({ { target = spawnedPart, goalCF = goalCF } })
+                if _LOT.IsBusy() then _LOT.WaitForBatch() end
+            else
+                warn("[Rukiry] Could not find spawned item after box open")
+            end
+        end
+
+        return purchased
+    end
+
+local function RunRukiryLoop()
+        _isBuyingRukiry = true
+        FetchNPCIDs()
+
+        local returnChar = Player.Character
+        local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
+        local rukiryReturnCF = returnRoot and returnRoot.CFrame
+
+        for _, rukiryItem in ipairs(RUKIRY_ITEMS) do
+            if not _isBuyingRukiry then break end
+
+            -- Find matching item in ShopItems
+            local itemDef = nil
+            for _, shopItem in ipairs(ShopItems) do
+                if shopItem.BoxItemName == rukiryItem.BoxItemName then
+                    itemDef = shopItem
+                    break
+                end
+            end
+
+            if not itemDef then
+                warn("[Rukiry] Item not found in list:", rukiryItem.BoxItemName)
+                continue
+            end
+
+            -- Check funds
+            local funds = FetchFunds()
+            if funds == nil or funds < itemDef.Price then
+                warn("[Rukiry] Not enough funds for:", itemDef.Name, "(need $" .. itemDef.Price .. ")")
+                continue
+            end
+
+            -- Find part in world
+            local parts = ResolveItemParts(itemDef, 1)
+            if #parts == 0 then
+                warn("[Rukiry] No stock found for:", itemDef.Name)
+                continue
+            end
+
+            local mainPart = parts[1]
+            if not mainPart or not mainPart.Parent then
+                warn("[Rukiry] mainPart gone for:", itemDef.Name)
+                continue
+            end
+
+            print("[Rukiry] Purchasing:", itemDef.Name)
+            local purchased = PurchaseRukiryItem(mainPart, itemDef, rukiryItem.GoalCF)
+
+            if purchased then
+                print("[Rukiry] Placed:", itemDef.Name)
+            else
+                warn("[Rukiry] Failed:", itemDef.Name)
+            end
+
+            task.wait(0.2)
+        end
+
+        -- TP player to final position
+        local returnChar = Player.Character
+        local returnRoot = returnChar and returnChar:FindFirstChild("HumanoidRootPart")
+        if returnRoot then
+            returnRoot.CFrame = RUKIRY_PLAYER_CF
+        end
+
+        -- Wait for the Rukiry axe to spawn then pick it up
+        print("[Rukiry] Waiting for axe to spawn...")
+        local axeModel = nil
+        local axeDeadline = tick() + 20
+        while tick() < axeDeadline do
+            task.wait(0.2)
+            local PlayerModels = workspace:FindFirstChild("PlayerModels")
+            if not PlayerModels then continue end
+
+            local char = Player.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+
+            for _, m in ipairs(PlayerModels:GetChildren()) do
+                if not (m:IsA("Model") and m.Name == "Model") then continue end
+
+                -- Check ToolName == "Rukiryaxe"
+                local toolName = m:FindFirstChild("ToolName")
+                if not (toolName and toolName.Value == "Rukiryaxe") then continue end
+
+                -- Check Owner.OwnerString is blank
+                local ownerFolder = m:FindFirstChild("Owner")
+                local ownerString = ownerFolder and ownerFolder:FindFirstChild("OwnerString")
+                if not (ownerString and ownerString.Value == "") then continue end
+
+                -- Check Owner.LastInteraction == 0
+                local lastInteraction = ownerFolder and ownerFolder:FindFirstChild("LastInteraction")
+                if not (lastInteraction and lastInteraction.Value == 0) then continue end
+
+                -- Check within 50 studs of player
+                if root then
+                    local handle = m:FindFirstChild("Handle") or m.PrimaryPart
+                    if handle then
+                        local dist = (handle.Position - root.Position).Magnitude
+                        if dist > 50 then continue end
+                    end
+                end
+
+                axeModel = m
+                break
+            end
+
+            if axeModel then break end
+        end
+
+        if axeModel then
+            local handle = axeModel:FindFirstChild("Handle") or axeModel.PrimaryPart
+            if handle then
+                print("[Rukiry] Found axe, teleporting down 1 stud...")
+                _LOT.TeleportMany({ { target = handle, goalCF = handle.CFrame * CFrame.new(0, -1, 0) } })
+                if _LOT.IsBusy() then _LOT.WaitForBatch() end
+                task.wait(0.1)
+                print("[Rukiry] Picking up axe...")
+                
+                Interact:FireServer(axeModel, "Pick up tool", handle.CFrame)
+                print("[Rukiry] Axe picked up!")
+                task.wait(0.1)
+                local retChar = Player.Character
+                local retRoot = retChar and retChar:FindFirstChild("HumanoidRootPart")
+                if retRoot and rukiryReturnCF then
+                    retRoot.CFrame = rukiryReturnCF
+                    print("[Rukiry] Returned to original position.")
+                end
+            else
+                warn("[Rukiry] Axe found but no Handle/PrimaryPart")
+            end
+        else
+            warn("[Rukiry] Axe did not spawn within timeout")
+        end
+
+        print("[Rukiry] Done!")
+        _isBuyingRukiry = false
+        RukiryBtn:SetText("$7,400")
+    end
+
+    RukiryBtn = Tab:CreateAction("Purchase Rukiry Axe", "$7,400", function()
+        if _isBuyingRukiry then
+            _isBuyingRukiry = false
+            RukiryBtn:SetText("$7,400")
+            return
+        end
+
+        RukiryBtn:SetText("Stop")
+        task.spawn(RunRukiryLoop)
+    end, false)
+
+    -- Watch for blueprints being added OR removed (e.g. slot swap clears the folder)
+    local bpFolder = Player:FindFirstChild("PlayerBlueprints")
+        and Player.PlayerBlueprints:FindFirstChild("Blueprints")
+    if bpFolder then
+        bpFolder.ChildAdded:Connect(function()
+            UpdateBlueprintBtnState()
+        end)
+        bpFolder.ChildRemoved:Connect(function()
+            UpdateBlueprintBtnState()
+        end)
+    end
 end
 
 return ShopModule
