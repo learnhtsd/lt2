@@ -311,6 +311,20 @@ local function FireCutAtHeight(section, tool, axeName, treeClass, height)
     local idObj = section:FindFirstChild("ID")
     if not idObj then return end
 
+    -- CutEvent can live on the section itself, its parent, or the model root
+    local cutEvent = section:FindFirstChild("CutEvent")
+                  or section.Parent:FindFirstChild("CutEvent")
+                  or (section.Parent.Parent and section.Parent.Parent:FindFirstChild("CutEvent"))
+
+    if not cutEvent then
+        warn("[TreeModule] CutEvent not found for section:", section:GetFullName())
+        -- Print all children of parent to help debug
+        for _, c in ipairs(section.Parent:GetChildren()) do
+            print("  parent child:", c.Name, c.ClassName)
+        end
+        return
+    end
+
     local damage = GetDamage(axeName, treeClass)
     local args = {
         sectionId    = idObj.Value,
@@ -324,7 +338,7 @@ local function FireCutAtHeight(section, tool, axeName, treeClass, height)
 
     for _ = 1, Settings.FiresPerSection do
         if not section.Parent then break end
-        RemoteProxy:FireServer(section.Parent.CutEvent, args)
+        RemoteProxy:FireServer(cutEvent, args)
         task.wait(Settings.FireDelay)
     end
 end
@@ -638,6 +652,11 @@ local function FireCutSection(section, tool, axeName, treeClass)
     local idObj = section:FindFirstChild("ID")
     if not idObj then return end
 
+    local cutEvent = section:FindFirstChild("CutEvent")
+                  or section.Parent:FindFirstChild("CutEvent")
+                  or (section.Parent.Parent and section.Parent.Parent:FindFirstChild("CutEvent"))
+    if not cutEvent then return end
+
     local damage = GetDamage(axeName, treeClass)
     local height = section.Size.Y * CutHeightFrac(section.Size.Y)
 
@@ -653,7 +672,7 @@ local function FireCutSection(section, tool, axeName, treeClass)
 
     for _ = 1, Settings.FiresPerSection do
         if not section.Parent then break end
-        RemoteProxy:FireServer(section.Parent.CutEvent, args)
+        RemoteProxy:FireServer(cutEvent, args)
         task.wait(Settings.FireDelay)
     end
 end
