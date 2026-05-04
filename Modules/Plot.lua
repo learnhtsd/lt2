@@ -23,6 +23,7 @@ function Plot.Init(Tab, Library)
             selectedSlotToLoad = tonumber(value)
         end)
     end
+    
     Tab:CreateAction("Load Selected Slot", "Load", function()
         local RequestLoadRemote = loadSaveRequests and loadSaveRequests:FindFirstChild("RequestLoad")
         if RequestLoadRemote then
@@ -30,6 +31,7 @@ function Plot.Init(Tab, Library)
             if Library and Library.Notify then Library:Notify("SUCCESS", "Loading slot " .. selectedSlotToLoad, 5) end
         end
     end)
+    
     Tab:CreateAction("Save Slot", "Save", function()
         local currentSlot = LocalPlayer:FindFirstChild("CurrentSaveSlot")
         if loadSaveRequests and currentSlot and currentSlot.Value ~= -1 then
@@ -41,12 +43,56 @@ function Plot.Init(Tab, Library)
             end
         end
     end)
-    Tab:CreateAction("Claim Free Land", "Claim", function()
-        local properties = Workspace:FindFirstChild("Properties")
-        if not properties or not propertyPurchasing then return end
+
+    -- Forward declare buttons for the update function
+    local claimBtn
+    local expandBtn
+    local propertiesFolder = Workspace:FindFirstChild("Properties")
+
+    -- ==========================================
+    -- BUTTON STATE UPDATER
+    -- ==========================================
+    local function UpdateLandButtons()
+        if not propertiesFolder then return end
+        
+        local hasLand = false
+        local landPieceCount = 0
+        
+        -- Search for the player's property
+        for _, plot in pairs(propertiesFolder:GetChildren()) do
+            local owner = plot:FindFirstChild("Owner")
+            if owner and owner.Value == LocalPlayer then
+                hasLand = true
+                -- Count how many physical square pieces the property has
+                -- (LT2 Properties contain the squares as BaseParts)
+                for _, child in pairs(plot:GetChildren()) do
+                    if child:IsA("BasePart") then
+                        landPieceCount = landPieceCount + 1
+                    end
+                end
+                break 
+            end
+        end
+        
+        -- Update the buttons based on current state
+        if claimBtn then 
+            claimBtn:SetDisabled(hasLand) 
+        end
+        
+        if expandBtn then 
+            -- Disable if they have no land to expand, OR if they've hit the 25 piece cap
+            expandBtn:SetDisabled(not hasLand or landPieceCount >= 25) 
+        end
+    end
+
+    -- ==========================================
+    -- LAND ACTIONS
+    -- ==========================================
+    claimBtn = Tab:CreateAction("Claim Free Land", "Claim", function()
+        if not propertiesFolder or not propertyPurchasing then return end
         local claimRemote = propertyPurchasing:FindFirstChild("ClientPurchasedProperty")
         
-        for _, plot in pairs(properties:GetChildren()) do
+        for _, plot in pairs(propertiesFolder:GetChildren()) do
             local owner = plot:FindFirstChild("Owner")
             local origin = plot:FindFirstChild("OriginSquare")
             if owner and origin and owner.Value == nil then
@@ -58,13 +104,13 @@ function Plot.Init(Tab, Library)
             end
         end
     end)
-    Tab:CreateAction("Max Land (Full Expand)", "Expand", function()
-        local properties = Workspace:FindFirstChild("Properties")
-        if not properties or not propertyPurchasing then return end
+    
+    expandBtn = Tab:CreateAction("Max Land (Full Expand)", "Expand", function()
+        if not propertiesFolder or not propertyPurchasing then return end
         local expandRemote = propertyPurchasing:FindFirstChild("ClientExpandedProperty")
         
         local playerPlot = nil
-        for _, plot in pairs(properties:GetChildren()) do
+        for _, plot in pairs(propertiesFolder:GetChildren()) do
             if plot.Owner.Value == LocalPlayer then playerPlot = plot break end
         end
 
@@ -86,7 +132,8 @@ function Plot.Init(Tab, Library)
             if Library and Library.Notify then Library:Notify("SUCCESS", "Plot fully expanded!", 3) end
         end
     end)
-    Tab:CreateAction("Whipe Plot", "Wipe", function()
+    
+    Tab:CreateAction("Wipe Plot", "Wipe", function()
         local playerModels = Workspace:FindFirstChild("PlayerModels")
         local destroyRemote = interaction and interaction:FindFirstChild("DestroyStructure")
     
@@ -141,6 +188,40 @@ function Plot.Init(Tab, Library)
             Library:Notify("SUCCESS", "Wiped " .. count .. " object(s).", 4)
         end
     end)
+
+    -- ==========================================
+    -- DYNAMIC EVENT LISTENERS
+    -- ==========================================
+    if propertiesFolder then
+        -- Watch for new things added to any plot (like new squares or owners)
+        propertiesFolder.DescendantAdded:Connect(function(descendant)
+            -- If a new Owner value is created, listen for when it changes
+            if descendant.Name == "Owner" and descendant:IsA("ObjectValue") then
+                descendant.Changed:Connect(function()
+                    task.defer(UpdateLandButtons)
+                end)
+            end
+            task.defer(UpdateLandButtons)
+        end)
+        
+        -- Watch for things removed (like when a plot resets/unclaims)
+        propertiesFolder.DescendantRemoving:Connect(function()
+            task.defer(UpdateLandButtons)
+        end)
+        
+        -- Hook onto all the existing Owner values currently in the game
+        for _, plot in pairs(propertiesFolder:GetChildren()) do
+            local owner = plot:FindFirstChild("Owner")
+            if owner and owner:IsA("ObjectValue") then
+                owner.Changed:Connect(function()
+                    task.defer(UpdateLandButtons)
+                end)
+            end
+        end
+        
+        -- Run the check immediately on load
+        UpdateLandButtons()
+    end
 end
 
 return Plot
