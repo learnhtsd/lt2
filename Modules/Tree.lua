@@ -603,77 +603,132 @@ local function ChopLogsIntoSections(onComplete)
         return
     end
 
+    -- Snapshot current LogModels so we can detect new ones after each cut
+    local function SnapshotModels()
+        local snap = {}
+        for _, m in ipairs(logModels:GetChildren()) do snap[m] = true end
+        return snap
+    end
+
+    -- Count WoodSections in a model
+    local function SectionCount(model)
+        local count = 0
+        for _, desc in ipairs(model:GetDescendants()) do
+            if desc:IsA("BasePart") and desc.Name == "WoodSection" then
+                count += 1
+            end
+        end
+        return count
+    end
+
+    -- Build connection count for each WoodSection in a model
+    local function BuildConnectionMap(model)
+        local map = {}
+        for _, desc in ipairs(model:GetDescendants()) do
+            if (desc:IsA("Weld") or desc:IsA("ManualWeld")) and desc.Name == "Tree Weld" then
+                local p0, p1 = desc.Part0, desc.Part1
+                if p0 and p1 and p0.Name == "WoodSection" and p1.Name == "WoodSection" then
+                    map[p0] = (map[p0] or 0) + 1
+                    map[p1] = (map[p1] or 0) + 1
+                end
+            end
+        end
+        return map
+    end
+
+    -- Find the stump section (connected to InnerWood)
+    local function FindStump(model)
+        local iw = model:FindFirstChild("InnerWood", true)
+        if not iw then return nil end
+        for _, desc in ipairs(model:GetDescendants()) do
+            if (desc:IsA("Weld") or desc:IsA("ManualWeld")) then
+                local p0, p1 = desc.Part0, desc.Part1
+                if p0 == iw and p1 and p1.Name == "WoodSection" then return p1 end
+                if p1 == iw and p0 and p0.Name == "WoodSection" then return p0 end
+            end
+        end
+        return nil
+    end
+
+    -- Find the Tree Weld connecting a tip to its parent section
+    local function FindTipWeld(model, tip)
+        for _, desc in ipairs(model:GetDescendants()) do
+            if (desc:IsA("Weld") or desc:IsA("ManualWeld")) and desc.Name == "Tree Weld" then
+                local p0, p1 = desc.Part0, desc.Part1
+                if p0 == tip and p1 and p1.Name == "WoodSection" then return desc, p1 end
+                if p1 == tip and p0 and p0.Name == "WoodSection" then return desc, p0 end
+            end
+        end
+        return nil
+    end
+
     task.spawn(function()
-        for _, model in ipairs(ownedModels) do
+        -- Queue of models to process
+        local queue = {}
+        for _, m in ipairs(ownedModels) do
+            table.insert(queue, m)
+        end
+
+        while #queue > 0 do
+            local model = table.remove(queue, 1)
             if not model or not model.Parent then continue end
 
             local tc        = model:FindFirstChild("TreeClass")
             local treeClass = tc and tc.Value or "Generic"
+            local stump     = FindStump(model)
 
-            -- Build adjacency count so we can skip dead-end tip sections
-            local connectionCount = {}
-            for _, desc in ipairs(model:GetDescendants()) do
-                if (desc:IsA("Weld") or desc:IsA("ManualWeld"))
-                and desc.Name == "Tree Weld" then
-                    local p0, p1 = desc.Part0, desc.Part1
-                    if p0 and p1
-                    and p0.Name == "WoodSection"
-                    and p1.Name == "WoodSection" then
-                        connectionCount[p0] = (connectionCount[p0] or 0) + 1
-                        connectionCount[p1] = (connectionCount[p1] or 0) + 1
+            -- Keep cutting tips until only 1 section remains
+            while model and model.Parent and SectionCount(model) > 1 do
+                local connMap = BuildConnectionMap(model)
+
+                -- Find a tip: section with exactly 1 connection that is NOT the stump
+                local tip = nil
+                for section, count in pairs(connMap) do
+                    if count == 1 and section ~= stump and section.Parent then
+                        tip = section
+                        break
                     end
                 end
-            end
 
-            local joints = {}
-            for _, desc in ipairs(model:GetDescendants()) do
-                if (desc:IsA("Weld") or desc:IsA("ManualWeld"))
-                and desc.Name == "Tree Weld" then
-                    local p0, p1 = desc.Part0, desc.Part1
-                    if p0 and p1
-                    and p0.Name == "WoodSection"
-                    and p1.Name == "WoodSection"
-                    and p0:FindFirstChild("ID") then
-                        -- Skip if p1 is a dead-end tip (only one connection = nothing beyond it)
-                        if (connectionCount[p1] or 0) <= 1 then continue end
-
-                        local jointWorldPos = (p0.CFrame * desc.C0).Position
-                        local localY        = (p0.CFrame:Inverse() * CFrame.new(jointWorldPos)).Position.Y
-                        local heightFromBot = math.clamp(
-                            localY + p0.Size.Y / 2,
-                            0.05,
-                            p0.Size.Y - 0.05
-                        )
-                        table.insert(joints, {
-                            section       = p0,
-                            jointWorldPos = jointWorldPos,
-                            height        = heightFromBot,
-                        })
-                    end
+                if not tip then
+                    -- No non-stump tips found — only stump remains connected
+                    break
                 end
-            end
 
-            if #joints == 0 then
-                warn("[TreeModule] No joints found in:", model.Name)
-                continue
-            end
+                local weld, parent = FindTipWeld(model, tip)
+                if not weld or not parent then break end
 
-            print(("[TreeModule] Cutting %d joints in %s"):format(#joints, model.Name))
+                -- Use the parent section for the cut (it has the connection toward stump)
+                local cutSection = parent:FindFirstChild("ID") and parent or tip
+                local jointWorldPos = (weld.Part0.CFrame * weld.C0).Position
+                local localY        = (cutSection.CFrame:Inverse() * CFrame.new(jointWorldPos)).Position.Y
+                local height        = math.clamp(localY + cutSection.Size.Y / 2, 0.05, cutSection.Size.Y - 0.05)
 
-            for _, joint in ipairs(joints) do
-                if not joint.section or not joint.section.Parent then continue end
-
+                -- TP player beside the joint
                 local char = player.Character
                 local hrp  = char and char:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    local sideOffset = joint.section.CFrame.RightVector * 4
-                    hrp.CFrame = CFrame.new(joint.jointWorldPos + sideOffset)
+                    hrp.CFrame = CFrame.new(jointWorldPos + cutSection.CFrame.RightVector * 4)
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                     task.wait(Settings.SyncDelay)
                 end
 
-                FireCutAtHeight(joint.section, tool, axeName, treeClass, joint.height)
-                task.wait(Settings.SweepDelay)
+                -- Snapshot before cut so we can detect new models
+                local before = SnapshotModels()
+
+                FireCutAtHeight(cutSection, tool, axeName, treeClass, height)
+
+                -- Wait for server to process the cut and potentially spawn a new model
+                task.wait(0.5)
+
+                -- Collect any new owned models that appeared after the cut
+                for _, m in ipairs(logModels:GetChildren()) do
+                    if not before[m] and m:IsA("Model") and IsOwnedByLocalPlayer(m) then
+                        if SectionCount(m) > 1 then
+                            table.insert(queue, m)
+                        end
+                    end
+                end
             end
         end
 
