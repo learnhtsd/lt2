@@ -56,6 +56,36 @@ local function GetDamage(axeName, treeClass)
     return fn and fn(treeClass) or 1.0
 end
 
+-- Ordered best → worst by typical damage output.
+-- Context-dependent axes (Fire, End Times, Gingerbread, Bird) are slotted
+-- by their *base* (non-boosted) damage so they still rank above weaker axes.
+local AxePriority = {
+    "The Many Axe",          -- 10.2
+    "Amber Axe",             -- 3.39
+    "Bird Axe",              -- 1.65 base  (3.9 vs CaveCrawler / 2.5 vs Volcano)
+    "Johiro",                -- 1.80
+    "Rukiryaxe",             -- 1.68
+    "Silver Axe",            -- 1.60
+    "End Times Axe",         -- 1.58 base  (1e7 vs LoneCave)
+    "Alpha Axe of Testing",  -- 1.50
+    "Hardened Axe",          -- 1.45
+    "Beta Axe of Bosses",    -- 1.45
+    "Beesaxe",               -- 1.40
+    "Gingerbread Axe",       -- 1.20 base  (8.5 vs Walnut / 11 vs Koa)
+    "Fire Axe",              -- 0.60 base  (6.35 vs Volcano)
+    "Steel Axe",             -- 0.93
+    "CHICKEN AXE",           -- 0.90
+    "Plain Axe",             -- 0.55
+    "Basic Hatchet",         -- 0.20
+    "Candy Cane Axe",        -- 0   (novelty)
+}
+
+-- Quick rank lookup: lower number = higher priority
+local AxeRank = {}
+for rank, name in ipairs(AxePriority) do
+    AxeRank[name] = rank
+end
+
 -- ==========================================
 --             CORE SERVICES & VARS
 -- ==========================================
@@ -83,19 +113,36 @@ local function ReadAxeName(tool)
 end
 
 local function GetBackpackAxe()
+    local candidates = {}   -- { tool, axeName, rank }
+
+    local function TryAdd(tool)
+        -- Skip the blueprint tool and anything that isn't a real Tool
+        if not tool:IsA("Tool") then return end
+        if tool.Name == "BlueprintTool"  then return end
+
+        local axeName = ReadAxeName(tool)
+        if not axeName then return end
+
+        local rank = AxeRank[axeName] or (math.maxinteger or 2^53)
+        table.insert(candidates, { tool = tool, axeName = axeName, rank = rank })
+    end
+
+    -- Check the currently equipped tool first, then the backpack
     local char = player.Character
     if char then
         local equipped = char:FindFirstChildOfClass("Tool")
-        if equipped then
-            return equipped, ReadAxeName(equipped)
-        end
+        if equipped then TryAdd(equipped) end
     end
     for _, tool in ipairs(player.Backpack:GetChildren()) do
-        if tool:IsA("Tool") then
-            return tool, ReadAxeName(tool)
-        end
+        TryAdd(tool)
     end
-    return nil, nil
+
+    if #candidates == 0 then return nil, nil end
+
+    -- Pick the candidate with the lowest rank (= highest priority)
+    table.sort(candidates, function(a, b) return a.rank < b.rank end)
+    local best = candidates[1]
+    return best.tool, best.axeName
 end
 
 local function ScanForTreeTypes()
