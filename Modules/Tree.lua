@@ -397,7 +397,7 @@ end
 -- ==========================================
 --   PLANK SELLING
 -- ==========================================
-local PLANK_SELL_CF = CFrame.new(315.5, -2, 83)
+local PLANK_SELL_CF = CFrame.new(315, 0, 88)
 local _sellPlanksOn = false
 local _hoverOutline = nil
 local _hoverPlank   = nil
