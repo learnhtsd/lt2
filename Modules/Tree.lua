@@ -924,16 +924,9 @@ function TreeModule.Init(Tab, LOT)
             tpAllButton:SetText("Working...")
         end
 
-        local COLS = 5
-        RunLOTBatch(LOT, stumps, function(i, _)
-            local col = (i - 1) % COLS
-            local row = math.floor((i - 1) / COLS)
+        RunLOTBatch(LOT, stumps, function(_, _)
             return currentHRP
-                and (currentHRP.CFrame * CFrame.new(
-                    (col - math.floor(COLS / 2)) * 5,
-                    0,
-                    -Settings.LogDropDistance - row * 5
-                ))
+                and (currentHRP.CFrame * CFrame.new(0, 0, -Settings.LogDropDistance))
                 or CFrame.new(0, 0, 0)
         end, function()
             if type(tpAllButton) == "table" and tpAllButton.SetText then
