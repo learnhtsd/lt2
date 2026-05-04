@@ -122,11 +122,9 @@ local function GetBackpackAxe(treeClass)
         local axeName = ReadAxeName(tool)
         if not axeName then return end
 
-        -- If we know the target tree, rank by real damage output for it.
-        -- Otherwise fall back to the static priority list.
         local score = treeClass
             and GetDamage(axeName, treeClass)
-            or (1 / (AxeRank[axeName] or 2^53))   -- invert rank so higher = better
+            or (1 / (AxeRank[axeName] or 2^53))
 
         table.insert(candidates, { tool = tool, axeName = axeName, score = score })
     end
@@ -142,7 +140,6 @@ local function GetBackpackAxe(treeClass)
 
     if #candidates == 0 then return nil, nil end
 
-    -- Highest score wins
     table.sort(candidates, function(a, b) return a.score > b.score end)
 
     local best = candidates[1]
@@ -230,6 +227,17 @@ local function IsOwnedByLocalPlayer(model)
     return false
 end
 
+-- Returns the number of WoodSections inside a log model.
+local function CountWoodSections(model)
+    local count = 0
+    for _, desc in ipairs(model:GetDescendants()) do
+        if desc:IsA("BasePart") and desc.Name == "WoodSection" then
+            count += 1
+        end
+    end
+    return count
+end
+
 local function CollectNewStumps(treeClass)
     local results   = {}
     local logModels = Workspace:FindFirstChild("LogModels")
@@ -270,13 +278,32 @@ local function CollectAllOwnedStumps()
     return results
 end
 
+-- FIX 2: Only collect stumps from models that have been fully chopped into
+-- individual sections (exactly 1 WoodSection). Multi-section models are
+-- still trees and should be chopped first before selling.
+local function CollectSingleSectionStumps()
+    local results   = {}
+    local logModels = Workspace:FindFirstChild("LogModels")
+    if not logModels then return results end
+    for _, model in ipairs(logModels:GetChildren()) do
+        if not model:IsA("Model") then continue end
+        if not IsOwnedByLocalPlayer(model) then continue end
+        if CountWoodSections(model) ~= 1 then continue end   -- skip multi-section trees
+        local iw = model:FindFirstChild("InnerWood")
+        if iw and iw:IsA("BasePart") then
+            table.insert(results, iw)
+        end
+    end
+    if #results == 0 then
+        warn("[TreeModule] No single-section logs ready to sell. Chop logs into sections first.")
+    end
+    return results
+end
+
 -- Sells a single log model section by section, bottom to top.
--- Only teleports WoodSection parts — branches, leaves and other
--- model children are intentionally ignored.
 local function SellLogModelSectionBySection(model, LOT, sellPos, sectionIndex)
     sectionIndex = sectionIndex or 0
 
-    -- Gather and sort WoodSections bottom to top
     local sections = {}
     for _, part in ipairs(model:GetDescendants()) do
         if part:IsA("BasePart") and part.Name == "WoodSection" then
@@ -293,7 +320,6 @@ local function SellLogModelSectionBySection(model, LOT, sellPos, sectionIndex)
     for _, section in ipairs(sections) do
         if not section or not section.Parent then continue end
 
-        -- Destroy welds connecting this section to others so it becomes loose
         for _, desc in ipairs(model:GetDescendants()) do
             if desc:IsA("Weld") or desc:IsA("WeldConstraint") or desc:IsA("ManualWeld") then
                 if desc.Part0 == section or desc.Part1 == section then
@@ -302,9 +328,8 @@ local function SellLogModelSectionBySection(model, LOT, sellPos, sectionIndex)
             end
         end
 
-        task.wait(0.1) -- let server register the unweld
+        task.wait(0.1)
 
-        -- TP only this WoodSection to the sell zone
         sectionIndex += 1
         local cf = CFrame.new(sellPos.X + ((sectionIndex - 1) * 3), sellPos.Y, sellPos.Z)
         if LOT.IsBusy() then repeat task.wait(0.05) until not LOT.IsBusy() end
@@ -315,7 +340,6 @@ local function SellLogModelSectionBySection(model, LOT, sellPos, sectionIndex)
     return sectionIndex
 end
 
--- Iterates every owned log model and sells each section by section.
 local function SellAllOwnedTreesSectionBySection(LOT, sellPos, onComplete)
     task.spawn(function()
         local logModels = Workspace:FindFirstChild("LogModels")
@@ -348,7 +372,6 @@ local function SellAllOwnedTreesSectionBySection(LOT, sellPos, onComplete)
         if onComplete then onComplete() end
     end)
 end
-
 
 local function CleanupState()
     isChopping = false
@@ -587,7 +610,6 @@ local function FireCutSection(section, tool, axeName, treeClass)
     end
 end
 
--- Fires the cut remote at a specific height on a section (used for joint cuts)
 local function FireCutAtHeight(section, tool, axeName, treeClass, height)
     if not section or not section.Parent then return end
     local idObj = section:FindFirstChild("ID")
@@ -634,11 +656,11 @@ local function ChopLogsIntoSections(onComplete)
         return
     end
 
-    if not tool then
-        warn("[TreeModule] No axe in backpack.")
-        if onComplete then onComplete() end
-        return
-    end
+    -- FIX 1: Removed the premature `if not tool then` guard that existed here.
+    -- `tool` was never assigned at this point in the function scope, so it was
+    -- always nil and always caused an early return. The actual GetBackpackAxe()
+    -- call happens correctly inside the task.spawn loop below, per-model,
+    -- after treeClass is known.
 
     local ownedModels = {}
     for _, model in ipairs(logModels:GetChildren()) do
@@ -653,14 +675,12 @@ local function ChopLogsIntoSections(onComplete)
         return
     end
 
-    -- Snapshot current LogModels so we can detect new ones after each cut
     local function SnapshotModels()
         local snap = {}
         for _, m in ipairs(logModels:GetChildren()) do snap[m] = true end
         return snap
     end
 
-    -- Count WoodSections in a model
     local function SectionCount(model)
         local count = 0
         for _, desc in ipairs(model:GetDescendants()) do
@@ -671,7 +691,6 @@ local function ChopLogsIntoSections(onComplete)
         return count
     end
 
-    -- Build connection count for each WoodSection in a model
     local function BuildConnectionMap(model)
         local map = {}
         for _, desc in ipairs(model:GetDescendants()) do
@@ -686,7 +705,6 @@ local function ChopLogsIntoSections(onComplete)
         return map
     end
 
-    -- Find the stump section (connected to InnerWood)
     local function FindStump(model)
         local iw = model:FindFirstChild("InnerWood", true)
         if not iw then return nil end
@@ -700,7 +718,6 @@ local function ChopLogsIntoSections(onComplete)
         return nil
     end
 
-    -- Find the Tree Weld connecting a tip to its parent section
     local function FindTipWeld(model, tip)
         for _, desc in ipairs(model:GetDescendants()) do
             if (desc:IsA("Weld") or desc:IsA("ManualWeld")) and desc.Name == "Tree Weld" then
@@ -713,7 +730,6 @@ local function ChopLogsIntoSections(onComplete)
     end
 
     task.spawn(function()
-        -- Queue of models to process
         local queue = {}
         for _, m in ipairs(ownedModels) do
             table.insert(queue, m)
@@ -725,14 +741,17 @@ local function ChopLogsIntoSections(onComplete)
 
             local tc        = model:FindFirstChild("TreeClass")
             local treeClass = tc and tc.Value or "Generic"
-            local tool, axeName = GetBackpackAxe(treeClass)  -- move this INSIDE the while loop, after treeClass is known
+            local tool, axeName = GetBackpackAxe(treeClass)
             local stump     = FindStump(model)
 
-            -- Keep cutting tips until only 1 section remains
+            if not tool then
+                warn("[TreeModule] No axe found for model:", model.Name, "— skipping.")
+                continue
+            end
+
             while model and model.Parent and SectionCount(model) > 1 do
                 local connMap = BuildConnectionMap(model)
 
-                -- Find a tip: section with exactly 1 connection that is NOT the stump
                 local tip = nil
                 for section, count in pairs(connMap) do
                     if count == 1 and section ~= stump and section.Parent then
@@ -741,38 +760,30 @@ local function ChopLogsIntoSections(onComplete)
                     end
                 end
 
-                if not tip then
-                    -- No non-stump tips found — only stump remains connected
-                    break
-                end
+                if not tip then break end
 
                 local weld, parent = FindTipWeld(model, tip)
                 if not weld or not parent then break end
 
-                -- Use the parent section for the cut (it has the connection toward stump)
-                local cutSection = parent:FindFirstChild("ID") and parent or tip
+                local cutSection    = parent:FindFirstChild("ID") and parent or tip
                 local jointWorldPos = (weld.Part0.CFrame * weld.C0).Position
                 local localY        = (cutSection.CFrame:Inverse() * CFrame.new(jointWorldPos)).Position.Y
                 local height        = math.clamp(localY + cutSection.Size.Y / 2, 0.05, cutSection.Size.Y - 0.05)
 
-                -- TP player beside the joint
                 local char = player.Character
                 local hrp  = char and char:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     hrp.CFrame = CFrame.new(jointWorldPos + cutSection.CFrame.RightVector * 4)
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                    task.wait(0.1) -- minimal settle
+                    task.wait(0.1)
                 end
 
-                -- Snapshot before cut so we can detect new models
                 local before = SnapshotModels()
 
                 FireCutAtHeight(cutSection, tool, axeName, treeClass, height)
 
-                -- Brief wait for server to register the cut and spawn new model
                 task.wait(0.1)
 
-                -- Collect any new owned models that appeared after the cut
                 for _, m in ipairs(logModels:GetChildren()) do
                     if not before[m] and m:IsA("Model") and IsOwnedByLocalPlayer(m) then
                         if SectionCount(m) > 1 then
@@ -914,7 +925,6 @@ function TreeModule.Init(Tab, LOT)
 
     chopButton = Tab:CreateAction("Get Tree", "Start", function()
         if chopSessionActive then
-            -- Stop the session
             chopSessionActive = false
             isChopping = false
             if type(chopButton) == "table" and chopButton.SetText then
@@ -937,7 +947,6 @@ function TreeModule.Init(Tab, LOT)
                     return
                 end
                 remaining -= 1
-                -- isChopping is false here so StartChopping will proceed
                 StartChopping(selectedTree, LOT, function()
                     chopNext()
                 end)
@@ -986,11 +995,13 @@ function TreeModule.Init(Tab, LOT)
         end)
     end)
 
-    local sellButton = Tab:CreateAction("Sell All Logs/Trees", "Sell", function()
+    -- FIX 2: Uses CollectSingleSectionStumps() so only fully-chopped individual
+    -- logs are sold. Multi-section fallen trees are skipped — chop them first.
+    local sellButton = Tab:CreateAction("Sell All Logs", "Sell", function()
         if not LOT then warn("[TreeModule] LOT not available.") return end
         if LOT.IsBusy() then warn("[TreeModule] LOT busy.") return end
 
-        local stumps = CollectAllOwnedStumps()
+        local stumps = CollectSingleSectionStumps()
         if #stumps == 0 then return end
 
         if type(sellButton) == "table" and sellButton.SetText then
