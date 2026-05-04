@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.414"
+local Version = "v0.0.415"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -141,6 +141,7 @@ function Library:CreateWindow()
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name            = "DynxeLT2Hub"
     ScreenGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+    ScreenGui.IgnoreGuiInset  = true
     ScreenGui.Parent          = CoreGui
 
     -- TOOLTIP
@@ -1912,6 +1913,26 @@ function Library:CreateWindow()
     Window.Sidebar = Sidebar
     return Window
 end
+
+-- ============================================================
+-- WINDOW & TAB CREATION
+-- ============================================================
+local HubWindow = Library:CreateWindow()
+
+local HomeTab        = HubWindow:CreateTab("Home")
+local PlayerTab      = HubWindow:CreateTab("Player")
+local WorldTab       = HubWindow:CreateTab("World")
+local TeleportTab    = HubWindow:CreateTab("Teleport")
+local WoodTab        = HubWindow:CreateTab("Wood")
+local PlotTab        = HubWindow:CreateTab("Plot")
+local DuplicationTab = HubWindow:CreateTab("Duplicate")
+local ShopTab        = HubWindow:CreateTab("Shop")
+local VehicleTab     = HubWindow:CreateTab("Vehicle")
+local BuildTab       = HubWindow:CreateTab("Build")
+local ToolTab        = HubWindow:CreateTab("Tool")
+local ProtectionTab  = HubWindow:CreateTab("Protection")
+local HelpTab        = HubWindow:CreateTab("Help")
+local SettingsTab    = HubWindow:CreateTab("Settings")
 
 -- ============================================================
 -- LOAD SCREEN
