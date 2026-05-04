@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.413"
+local Version = "v0.0.414"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -1921,6 +1921,7 @@ LoadGui.Name           = "DynxeLT2LoadScreen"
 LoadGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 LoadGui.DisplayOrder   = 9999
 LoadGui.ResetOnSpawn   = false
+LoadGui.IgnoreGuiInset = true
 LoadGui.Parent         = CoreGui
 
 local Overlay = Instance.new("Frame")
@@ -2035,31 +2036,34 @@ local function LoadModule(ModuleName)
     warn("Failed to load module: " .. ModuleName)
 end
 
+-- Must be declared BEFORE the Modules table so closures can capture it
+local LooseObjectTeleportModule = nil
+
 local Modules = {
-    { name = "Logo",               run = function(m) if m and m.Init then m.Init(Version, Vector3.new(43.5, 18, 55.3), Vector3.new(0, -105, 0), 60, 20) end end },
-    { name = "Home",               run = function(m) if m and m.Init then m.Init(HomeTab, Library) end end },
-    { name = "PlayerMovement",     run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
-    { name = "Teleport",           run = function(m) if m and m.Init then m.Init(TeleportTab) end end },
-    { name = "World",              run = function(m) if m and m.Init then m.Init(WorldTab, Library) end end },
-    { name = "Settings",           run = function(m) if m and m.Init then m.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch}, Config) end end },
-    { name = "HardDragger",        run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
-    { name = "AntiFling",          run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "AntiVoid",           run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "AntiRagdoll",        run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "AntiAFK",            run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "AxeRecovery",        run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "LooseObjectTeleport",run = function(m)
+    { name = "Logo",                run = function(m) if m and m.Init then m.Init(Version, Vector3.new(43.5, 18, 55.3), Vector3.new(0, -105, 0), 60, 20) end end },
+    { name = "Home",                run = function(m) if m and m.Init then m.Init(HomeTab, Library) end end },
+    { name = "PlayerMovement",      run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
+    { name = "Teleport",            run = function(m) if m and m.Init then m.Init(TeleportTab) end end },
+    { name = "World",               run = function(m) if m and m.Init then m.Init(WorldTab, Library) end end },
+    { name = "Settings",            run = function(m) if m and m.Init then m.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch}, Config) end end },
+    { name = "HardDragger",         run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
+    { name = "AntiFling",           run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AntiVoid",            run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AntiRagdoll",         run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AntiAFK",             run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AxeRecovery",         run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "LooseObjectTeleport", run = function(m)
+        LooseObjectTeleportModule = m  -- assign before Init so later modules have it
         if m and m.Init then m.Init(ToolTab, Library) end
-        LooseObjectTeleportModule = m
     end },
-    { name = "TreeCam",            run = function(m) if m and m.Init then m.Init(WoodTab) end end },
-    { name = "Vehicle",            run = function(m) if m and m.Init then m.Init(VehicleTab) end end },
-    { name = "Plot",               run = function(m) if m and m.Init then m.Init(PlotTab, Library) end end },
-    { name = "Tree",               run = function(m) if m and m.Init then m.Init(WoodTab, LooseObjectTeleportModule) end end },
-    { name = "Help",               run = function(m) if m and m.Init then m.Init(HelpTab) end end },
-    { name = "Duplication",        run = function(m) if m and m.Init then m.Init(DuplicationTab) end end },
-    { name = "Build",              run = function(m) if m and m.Init then m.Init(BuildTab, LooseObjectTeleportModule) end end },
-    { name = "Shop",               run = function(m) if m and m.Init then m.Init(ShopTab, LooseObjectTeleportModule) end end },
+    { name = "TreeCam",             run = function(m) if m and m.Init then m.Init(WoodTab) end end },
+    { name = "Vehicle",             run = function(m) if m and m.Init then m.Init(VehicleTab) end end },
+    { name = "Plot",                run = function(m) if m and m.Init then m.Init(PlotTab, Library) end end },
+    { name = "Tree",                run = function(m) if m and m.Init then m.Init(WoodTab, LooseObjectTeleportModule) end end },
+    { name = "Help",                run = function(m) if m and m.Init then m.Init(HelpTab) end end },
+    { name = "Duplication",         run = function(m) if m and m.Init then m.Init(DuplicationTab) end end },
+    { name = "Build",               run = function(m) if m and m.Init then m.Init(BuildTab, LooseObjectTeleportModule) end end },
+    { name = "Shop",                run = function(m) if m and m.Init then m.Init(ShopTab, LooseObjectTeleportModule) end end },
 }
 
 local Theme = loadstring(game:HttpGet(
@@ -2069,10 +2073,12 @@ local Theme = loadstring(game:HttpGet(
 local total = #Modules
 for i, entry in ipairs(Modules) do
     SetProgress(i - 1, total, entry.name)
-    local m = LoadModule(entry.name)
-    entry.run(m)
-    Library:Notify("Loaded", entry.name, 1.5)
-    task.wait(0.05) -- tiny breath so the bar visibly advances
+    local ok, err = pcall(function()
+        local m = LoadModule(entry.name)
+        entry.run(m)
+    end)
+    if not ok then warn("[Loader] " .. entry.name .. " failed: " .. tostring(err)) end
+    task.wait(0.05)
 end
 
 SetProgress(total, total, nil)
