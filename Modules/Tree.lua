@@ -376,10 +376,10 @@ local function ChopLogsIntoSections(onComplete)
                     and p1.Name == "WoodSection"
                     and p0:FindFirstChild("ID") then
                         -- World position of the joint using Part0's C0 offset
-                        local jointWorldPos = p0.CFrame * desc.C0
+                        local jointWorldPos = (p0.CFrame * desc.C0).Position
 
                         -- Height of the joint from the BOTTOM of Part0
-                        local localY        = (p0.CFrame:Inverse() * jointWorldPos).Y
+                        local localY        = (p0.CFrame:Inverse() * CFrame.new(jointWorldPos)).Position.Y
                         local heightFromBot = math.clamp(
                             localY + p0.Size.Y / 2,
                             0.05,
