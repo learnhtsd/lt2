@@ -16,7 +16,7 @@ local Settings = {
     LogDropDistance = 6,
 
     -- [ Sell Location ]
-    SellPosition    = Vector3.new(315, 0, 88),
+    SellPosition    = Vector3.new(315, -1, 95),
 }
 
 -- ==========================================
@@ -829,7 +829,6 @@ local function StartChopping(treeClass, LOT, onComplete)
         print("[TreeModule] Tree is down. Returning player.")
 
         CleanupState()
-        WaitForLogsToSettle(treeClass)
 
         local stumps     = CollectNewStumps(treeClass)
         local currentHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
