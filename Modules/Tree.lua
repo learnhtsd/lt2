@@ -378,6 +378,8 @@ local function ChopLogsIntoSections(onComplete)
         if onComplete then onComplete() end
     end)
 end
+
+local function CleanupState()
     isChopping = false
 
     local char = player.Character
