@@ -16,7 +16,7 @@ local Settings = {
     LogDropDistance = 6,
 
     -- [ Sell Location ]
-    SellPosition    = Vector3.new(315, -1, 90),
+    SellPosition    = Vector3.new(315, -1, 95),
 }
 
 -- ==========================================
@@ -852,6 +852,7 @@ function TreeModule.Init(Tab, LOT)
     local selectedTree = treeTypes[1] or "Error"
     local chopQuantity = 1
     local chopButton
+    local chopSessionActive = false
 
     Tab:CreateDropdown("Target Tree Type", treeTypes, selectedTree, function(sel)
         selectedTree = sel
@@ -862,33 +863,36 @@ function TreeModule.Init(Tab, LOT)
     end)
 
     chopButton = Tab:CreateAction("Get Tree", "Start", function()
-        if isChopping then
+        if chopSessionActive then
+            -- Stop the session
+            chopSessionActive = false
             isChopping = false
             if type(chopButton) == "table" and chopButton.SetText then
                 chopButton:SetText("Start")
             end
         else
             if selectedTree == "None Found" then return end
+            chopSessionActive = true
             if type(chopButton) == "table" and chopButton.SetText then
                 chopButton:SetText("Stop")
             end
 
             local remaining = chopQuantity
             local function chopNext()
-                if remaining <= 0 or not isChopping then
+                if not chopSessionActive or remaining <= 0 then
+                    chopSessionActive = false
                     if type(chopButton) == "table" and chopButton.SetText then
                         chopButton:SetText("Start")
                     end
-                    isChopping = false
                     return
                 end
                 remaining -= 1
+                -- isChopping is false here so StartChopping will proceed
                 StartChopping(selectedTree, LOT, function()
                     chopNext()
                 end)
             end
 
-            isChopping = true
             chopNext()
         end
     end)
