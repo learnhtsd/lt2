@@ -16,7 +16,7 @@ local Settings = {
     LogDropDistance = 6,
 
     -- [ Sell Location ]
-    SellPosition    = Vector3.new(315, -1, 90),
+    SellPosition    = Vector3.new(315, 0, 88),
 }
 
 -- ==========================================
