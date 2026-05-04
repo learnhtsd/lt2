@@ -16,7 +16,7 @@ local Settings = {
     LogDropDistance = 6,
 
     -- [ Sell Location ]
-    SellPosition    = Vector3.new(315, 0, 85),315, 0.5, 83
+    SellPosition    = Vector3.new(315, -1, 95),
 }
 
 -- ==========================================
@@ -220,8 +220,8 @@ local function CollectAllOwnedStumps()
 end
 
 -- Sells a single log model section by section, bottom to top.
--- For each WoodSection: finds all parts welded directly to it,
--- destroys only those welds, then TPs the loose parts to the sell zone.
+-- Only teleports WoodSection parts — branches, leaves and other
+-- model children are intentionally ignored.
 local function SellLogModelSectionBySection(model, LOT, sellPos, sectionIndex)
     sectionIndex = sectionIndex or 0
 
@@ -235,57 +235,30 @@ local function SellLogModelSectionBySection(model, LOT, sellPos, sectionIndex)
     table.sort(sections, function(a, b) return a.Position.Y < b.Position.Y end)
 
     if #sections == 0 then
-        -- No WoodSections — just TP whatever BaseParts are left
-        for _, part in ipairs(model:GetDescendants()) do
-            if part:IsA("BasePart") and not part.Anchored then
-                sectionIndex += 1
-                local cf = CFrame.new(sellPos.X + ((sectionIndex - 1) * 3), sellPos.Y, sellPos.Z)
-                if LOT.IsBusy() then repeat task.wait(0.05) until not LOT.IsBusy() end
-                LOT.TeleportObjectTo(part, cf)
-            end
-        end
+        warn("[TreeModule] No WoodSections found in model:", model.Name)
         return sectionIndex
     end
 
     for _, section in ipairs(sections) do
         if not section or not section.Parent then continue end
 
-        -- Find every part welded directly to this section
-        local connectedParts = { section }
-        local weldsToDestroy = {}
-
+        -- Destroy welds connecting this section to others so it becomes loose
         for _, desc in ipairs(model:GetDescendants()) do
             if desc:IsA("Weld") or desc:IsA("WeldConstraint") or desc:IsA("ManualWeld") then
-                local p0 = desc:IsA("WeldConstraint") and desc.Part0 or (desc:IsA("Weld") or desc:IsA("ManualWeld")) and desc.Part0
-                local p1 = desc:IsA("WeldConstraint") and desc.Part1 or (desc:IsA("Weld") or desc:IsA("ManualWeld")) and desc.Part1
-
-                if p0 == section or p1 == section then
-                    table.insert(weldsToDestroy, desc)
-                    local other = p0 == section and p1 or p0
-                    -- Only grab non-WoodSection parts as part of this section's batch
-                    if other and other:IsA("BasePart") and other.Name ~= "WoodSection" then
-                        table.insert(connectedParts, other)
-                    end
+                if desc.Part0 == section or desc.Part1 == section then
+                    pcall(function() desc:Destroy() end)
                 end
             end
         end
 
-        -- Destroy the welds so parts are loose server-side
-        for _, weld in ipairs(weldsToDestroy) do
-            pcall(function() weld:Destroy() end)
-        end
-
         task.wait(0.1) -- let server register the unweld
 
-        -- TP each loose part to the sell zone
-        for _, part in ipairs(connectedParts) do
-            if not part or not part.Parent then continue end
-            sectionIndex += 1
-            local cf = CFrame.new(sellPos.X + ((sectionIndex - 1) * 3), sellPos.Y, sellPos.Z)
-            if LOT.IsBusy() then repeat task.wait(0.05) until not LOT.IsBusy() end
-            LOT.TeleportObjectTo(part, cf)
-            repeat task.wait(0.05) until not LOT.IsBusy()
-        end
+        -- TP only this WoodSection to the sell zone
+        sectionIndex += 1
+        local cf = CFrame.new(sellPos.X + ((sectionIndex - 1) * 3), sellPos.Y, sellPos.Z)
+        if LOT.IsBusy() then repeat task.wait(0.05) until not LOT.IsBusy() end
+        LOT.TeleportObjectTo(section, cf)
+        repeat task.wait(0.05) until not LOT.IsBusy()
     end
 
     return sectionIndex
@@ -325,7 +298,86 @@ local function SellAllOwnedTreesSectionBySection(LOT, sellPos, onComplete)
     end)
 end
 
-local function CleanupState()
+-- ==========================================
+--   CHOP LOGS INTO INDIVIDUAL SECTIONS
+-- ==========================================
+-- Cuts each WoodSection in every owned log model at its lowest
+-- point (nearest the joint) to separate it cleanly. Works top
+-- to bottom so upper sections detach first without disturbing
+-- the sections below.
+local function ChopLogsIntoSections(onComplete)
+    local logModels = Workspace:FindFirstChild("LogModels")
+    if not logModels then
+        warn("[TreeModule] No LogModels folder.")
+        if onComplete then onComplete() end
+        return
+    end
+
+    local tool, axeName = GetBackpackAxe()
+    if not tool then
+        warn("[TreeModule] No axe in backpack.")
+        if onComplete then onComplete() end
+        return
+    end
+
+    local ownedModels = {}
+    for _, model in ipairs(logModels:GetChildren()) do
+        if model:IsA("Model") and IsOwnedByLocalPlayer(model) then
+            table.insert(ownedModels, model)
+        end
+    end
+
+    if #ownedModels == 0 then
+        warn("[TreeModule] No owned log models to chop.")
+        if onComplete then onComplete() end
+        return
+    end
+
+    task.spawn(function()
+        for _, model in ipairs(ownedModels) do
+            if not model or not model.Parent then continue end
+
+            local tc        = model:FindFirstChild("TreeClass")
+            local treeClass = tc and tc.Value or "Generic"
+
+            -- Collect WoodSections sorted TOP to BOTTOM so upper sections
+            -- detach first, keeping the lower sections stable
+            local sections = {}
+            for _, part in ipairs(model:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name == "WoodSection"
+                and part:FindFirstChild("ID") then
+                    table.insert(sections, part)
+                end
+            end
+            table.sort(sections, function(a, b)
+                return a.Position.Y > b.Position.Y  -- top first
+            end)
+
+            if #sections == 0 then continue end
+
+            print(("[TreeModule] Chopping %d sections in %s"):format(#sections, model.Name))
+
+            for _, section in ipairs(sections) do
+                if not section or not section.Parent then continue end
+
+                -- TP player right next to this section so the remote fires
+                local char = player.Character
+                local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.CFrame = CFrame.new(section.Position + Vector3.new(4, 0, 0))
+                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    task.wait(Settings.SyncDelay)
+                end
+
+                FireCutSection(section, tool, axeName, treeClass)
+                task.wait(Settings.SweepDelay)
+            end
+        end
+
+        print("[TreeModule] Done chopping logs into sections.")
+        if onComplete then onComplete() end
+    end)
+end
     isChopping = false
 
     local char = player.Character
@@ -696,6 +748,20 @@ function TreeModule.Init(Tab, LOT)
     end)
 
     Tab:CreateSection("Log Management")
+
+    local chopSectionsButton = Tab:CreateAction("Chop Logs Into Sections", "Chop", function()
+        if not LOT then warn("[TreeModule] LOT not available.") return end
+
+        if type(chopSectionsButton) == "table" and chopSectionsButton.SetText then
+            chopSectionsButton:SetText("Chopping...")
+        end
+
+        ChopLogsIntoSections(function()
+            if type(chopSectionsButton) == "table" and chopSectionsButton.SetText then
+                chopSectionsButton:SetText("Chop")
+            end
+        end)
+    end)
 
     local tpAllButton = Tab:CreateAction("Teleport All Logs To Me", "TP", function()
         if not LOT then warn("[TreeModule] LOT not available.") return end
