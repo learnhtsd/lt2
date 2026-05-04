@@ -22,7 +22,16 @@ else
 end
 end)
 
+function Spawn(ItemName, Position)
+   local Info = {}
+   Info.Name = ItemName.Value
+   Info.Type = ItemName.Name == "PurchasedBoxItemName" and ItemName or game.ReplicatedStorage.Purchasables.Structures.HardStructures.Sawmill2.Type
+   Info.OtherInfo = game.ReplicatedStorage.Purchasables.WireObjects.Wire.OtherInfo
+   local Points = {Position.p, Position.p}
+   game.ReplicatedStorage.PlaceStructure.ClientPlacedWire:FireServer(Info, Points)
+end
 
+--local interactPermission = require(game.ReplicatedStorage.Interaction.InteractionPermission)
 
 function fly()
 	for i,v in pairs(script:GetChildren()) do
