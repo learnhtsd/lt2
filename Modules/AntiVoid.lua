@@ -4,7 +4,7 @@ function AntiVoid.Init(Tab)
     local Players     = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
-    _G.AntiVoidEnabled = true
+    _G.AntiVoidEnabled = false
     local VOID_THRESHOLD  = -60
     local FALLBACK_POSITION = Vector3.new(257.4, 3.2, 57.7)
 
@@ -26,7 +26,7 @@ function AntiVoid.Init(Tab)
         return CFrame.new(FALLBACK_POSITION)
     end
 
-    Tab:CreateToggle("Anti-Void", true, function(state)
+    Tab:CreateToggle("Anti-Void", false, function(state)
         _G.AntiVoidEnabled = state
     end)
 
