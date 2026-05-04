@@ -4,7 +4,7 @@ local TreeModule = {}
 --             SYSTEM SETTINGS
 -- ==========================================
 local Settings = {
-    SyncDelay       = 0.25,
+    SyncDelay       = 0.1,
     ReadyDelay      = 0.1,
 
     -- [ Cut Settings ]
@@ -16,7 +16,7 @@ local Settings = {
     LogDropDistance = 6,
 
     -- [ Sell Location ]
-    SellPosition    = Vector3.new(315, -1, 95),
+    SellPosition    = Vector3.new(315, 0, 88),
 }
 
 -- ==========================================
@@ -719,7 +719,7 @@ local function ChopLogsIntoSections(onComplete)
                 FireCutAtHeight(cutSection, tool, axeName, treeClass, height)
 
                 -- Brief wait for server to register the cut and spawn new model
-                task.wait(0.2)
+                task.wait(0.1)
 
                 -- Collect any new owned models that appeared after the cut
                 for _, m in ipairs(logModels:GetChildren()) do
@@ -857,7 +857,7 @@ function TreeModule.Init(Tab, LOT)
         selectedTree = sel
     end)
 
-    Tab:CreateSlider("Quantity", 1, 10, 1, function(val)
+    Tab:CreateSlider("Quantity", 1, 25, 1, function(val)
         chopQuantity = val
     end)
 
