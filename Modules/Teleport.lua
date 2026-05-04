@@ -35,38 +35,38 @@ function TeleportModule.Init(Tab)
     -- ===========================
     
     local storeData = {
-        ["Fine Arts Shop"]     = Vector3.new(5207, -166, 719),
-        ["Links Logic"]        = Vector3.new(4607, 7, -795),
-        ["Bob's Shack"]        = Vector3.new(260, 8.4, -2542.0),
-        ["Fancy Furnishings"]  = Vector3.new(500, 3, -1720),
-        ["Boxed Cars"]         = Vector3.new(510, 3, -1465),
-        ["Land Store"]         = Vector3.new(257, 3, -99),
         ["Wood R Us"]          = Vector3.new(265, 3, 57),
+        ["Land Store"]         = Vector3.new(257, 3, -99),
+        ["Boxed Cars"]         = Vector3.new(510, 3, -1465),
+        ["Fancy Furnishings"]  = Vector3.new(500, 3, -1720),
+        ["Links Logic"]        = Vector3.new(4607, 7, -795),
+        ["Fine Arts Shop"]     = Vector3.new(5207, -166, 719),
+        ["Bob's Shack"]        = Vector3.new(260, 8.4, -2542.0),
     }
 
     local regionData = {
-        ["Lonecave"]    = Vector3.new(3581, -179, 430),
-        ["Palm Island 1"]     = Vector3.new(2000, -6, -1500),
-        ["Cave"]               = Vector3.new(3581.0, -179.5, 430.0),
-        ["Swamp"]              = Vector3.new(-1209, 132, -801),
-        ["SnowGlow Biome"]     = Vector3.new(-1087.3, -5.9, -946.2),
-        ["Snow Biome"]         = Vector3.new(890.0, 59.8, 1195.6),
-        ["Tiaga Peak"]  = Vector3.new(1448, 413, 3186),
-        ["Volcano"]     = Vector3.new(-1585, 622, 1140),
         ["Cherry Meadow"]      = Vector3.new(220.9, 59.8, 1305.8),
+        ["Volcano"]     = Vector3.new(-1585, 622, 1140),
+        ["Swamp"]              = Vector3.new(-1209, 132, -801),
+        ["Tiaga Peak"]  = Vector3.new(1448, 413, 3186),
+        ["Snow Biome"]         = Vector3.new(890.0, 59.8, 1195.6),
+        ["SnowGlow Biome"]     = Vector3.new(-1087.3, -5.9, -946.2),
+        ["Cave"]               = Vector3.new(3581.0, -179.5, 430.0),
+        ["Palm Island 1"]     = Vector3.new(2000, -6, -1500),
+        ["Lonecave"]    = Vector3.new(3581, -179, 430),
     }
 
     local otherData = {
-        ["Shrine of Sight"]    = Vector3.new(-1600.0, 195.4, 919.0),
-        ["Light House"]        = Vector3.new(1464.8, 355.2, 3257.2),
-        ["Green Box"]          = Vector3.new(-1668.1, 349.6, 1475.4),
-        ["Strange Man"]        = Vector3.new(1061.0, 16.8, 1131.0),
-        ["Bird Cave"]          = Vector3.new(4813.1, 17.7, -978.8),
-        ["The Den"]            = Vector3.new(323.0, 41.8, 1930.0),
-        ["The Cabin"]          = Vector3.new(1244.0, 63.6, 2306.0),
-        ["Safari"]             = Vector3.new(111.9, 11.0, -998.8),
-        ["Docks"]              = Vector3.new(1114.0, -1.2, -197.0),
         ["Bridge"]             = Vector3.new(112.3, 11.0, -782.4),
+        ["Docks"]              = Vector3.new(1114.0, -1.2, -197.0),
+        ["The Den"]            = Vector3.new(323.0, 41.8, 1930.0),
+        ["Safari"]             = Vector3.new(111.9, 11.0, -998.8),
+        ["The Cabin"]          = Vector3.new(1244.0, 63.6, 2306.0),
+        ["Bird Cave"]          = Vector3.new(4813.1, 17.7, -978.8),
+        ["Strange Man"]        = Vector3.new(1061.0, 16.8, 1131.0),
+        ["Green Box"]          = Vector3.new(-1668.1, 349.6, 1475.4),
+        ["Light House"]        = Vector3.new(1464.8, 355.2, 3257.2),
+        ["Shrine of Sight"]    = Vector3.new(-1600.0, 195.4, 919.0),
     }
 
     -- Helper to sort table keys alphabetically
