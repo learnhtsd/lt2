@@ -112,22 +112,25 @@ local function ReadAxeName(tool)
     return (tipChild and tipChild:IsA("StringValue")) and tipChild.Value or tool.ToolTip
 end
 
-local function GetBackpackAxe()
-    local candidates = {}   -- { tool, axeName, rank }
+local function GetBackpackAxe(treeClass)
+    local candidates = {}
 
     local function TryAdd(tool)
-        -- Skip the blueprint tool and anything that isn't a real Tool
         if not tool:IsA("Tool") then return end
-        if tool.Name == "BlueprintTool"  then return end
+        if tool.Name == "BlueprintTool" then return end
 
         local axeName = ReadAxeName(tool)
         if not axeName then return end
 
-        local rank = AxeRank[axeName] or (math.maxinteger or 2^53)
-        table.insert(candidates, { tool = tool, axeName = axeName, rank = rank })
+        -- If we know the target tree, rank by real damage output for it.
+        -- Otherwise fall back to the static priority list.
+        local score = treeClass
+            and GetDamage(axeName, treeClass)
+            or (1 / (AxeRank[axeName] or 2^53))   -- invert rank so higher = better
+
+        table.insert(candidates, { tool = tool, axeName = axeName, score = score })
     end
 
-    -- Check the currently equipped tool first, then the backpack
     local char = player.Character
     if char then
         local equipped = char:FindFirstChildOfClass("Tool")
@@ -139,8 +142,9 @@ local function GetBackpackAxe()
 
     if #candidates == 0 then return nil, nil end
 
-    -- Pick the candidate with the lowest rank (= highest priority)
-    table.sort(candidates, function(a, b) return a.rank < b.rank end)
+    -- Highest score wins
+    table.sort(candidates, function(a, b) return a.score > b.score end)
+
     local best = candidates[1]
     return best.tool, best.axeName
 end
@@ -630,7 +634,6 @@ local function ChopLogsIntoSections(onComplete)
         return
     end
 
-    local tool, axeName = GetBackpackAxe()
     if not tool then
         warn("[TreeModule] No axe in backpack.")
         if onComplete then onComplete() end
@@ -722,6 +725,7 @@ local function ChopLogsIntoSections(onComplete)
 
             local tc        = model:FindFirstChild("TreeClass")
             local treeClass = tc and tc.Value or "Generic"
+            local tool, axeName = GetBackpackAxe(treeClass)  -- move this INSIDE the while loop, after treeClass is known
             local stump     = FindStump(model)
 
             -- Keep cutting tips until only 1 section remains
@@ -821,7 +825,7 @@ local function StartChopping(treeClass, LOT, onComplete)
         return
     end
 
-    local tool, axeName = GetBackpackAxe()
+    local tool, axeName = GetBackpackAxe(treeClass)
     if not tool then
         warn("[TreeModule] No tool found in Backpack. Cannot chop.")
         if onComplete then onComplete() end
