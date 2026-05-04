@@ -9,6 +9,9 @@ function TeleportModule.Init(Tab)
     -- ===========================
     local selectedTarget = nil
     local localTag = LocalPlayer.DisplayName .. " (You)"
+    
+    -- Pre-declare the button variable so UI elements can see it
+    local tpBtn 
 
     -- ===========================
     -- HELPERS
@@ -33,7 +36,6 @@ function TeleportModule.Init(Tab)
     -- ===========================
     -- LOCATION DATA CATEGORIES
     -- ===========================
-    
     local storeData = {
         ["Wood R Us"]          = Vector3.new(265, 3, 57),
         ["Land Store"]         = Vector3.new(257, 3, -99),
@@ -46,14 +48,14 @@ function TeleportModule.Init(Tab)
 
     local regionData = {
         ["Cherry Meadow"]      = Vector3.new(220.9, 59.8, 1305.8),
-        ["Volcano"]     = Vector3.new(-1585, 622, 1140),
+        ["Volcano"]            = Vector3.new(-1585, 622, 1140),
         ["Swamp"]              = Vector3.new(-1209, 132, -801),
-        ["Tiaga Peak"]  = Vector3.new(1448, 413, 3186),
+        ["Tiaga Peak"]         = Vector3.new(1448, 413, 3186),
         ["Snow Biome"]         = Vector3.new(890.0, 59.8, 1195.6),
         ["SnowGlow Biome"]     = Vector3.new(-1087.3, -5.9, -946.2),
         ["Cave"]               = Vector3.new(3581.0, -179.5, 430.0),
-        ["Palm Island 1"]     = Vector3.new(2000, -6, -1500),
-        ["Lonecave"]    = Vector3.new(3581, -179, 430),
+        ["Palm Island 1"]      = Vector3.new(2000, -6, -1500),
+        ["Lonecave"]           = Vector3.new(3581, -179, 430),
     }
 
     local otherData = {
@@ -69,7 +71,6 @@ function TeleportModule.Init(Tab)
         ["Shrine of Sight"]    = Vector3.new(-1600.0, 195.4, 919.0),
     }
 
-    -- Helper to sort table keys alphabetically
     local function GetSortedKeys(DataTable)
         local keys = {}
         for k in pairs(DataTable) do table.insert(keys, k) end
@@ -102,10 +103,15 @@ function TeleportModule.Init(Tab)
     local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
         local isSelf = (val == localTag)
         selectedTarget = isSelf and nil or val
-        tpBtn:SetDisabled(isSelf)
+        
+        -- Now tpBtn is defined in the scope, so this won't error or be ignored
+        if tpBtn then
+            tpBtn:SetDisabled(isSelf)
+        end
     end)
     
-    local tpBtn = Tab:CreateAction("Go to Player", "TP", function()
+    -- Assign the action to the pre-declared variable
+    tpBtn = Tab:CreateAction("Go to Player", "TP", function()
         if selectedTarget then
             for _, p in pairs(Players:GetPlayers()) do
                 if p.DisplayName == selectedTarget and p.Character then
@@ -116,7 +122,7 @@ function TeleportModule.Init(Tab)
         end
     end)
 
-    local plotBtn = Tab:CreateAction("Go to Player's Plot", "TP", function()
+    Tab:CreateAction("Go to Player's Plot", "TP", function()
         local targetDisplay = selectedTarget or LocalPlayer.DisplayName
         local properties = workspace:FindFirstChild("Properties")
         if not properties then return end
@@ -134,6 +140,7 @@ function TeleportModule.Init(Tab)
         end
     end)
 
+    -- Set initial state
     tpBtn:SetDisabled(true)
 
     -- ===========================
@@ -142,11 +149,14 @@ function TeleportModule.Init(Tab)
     local function RefreshPlayerList()
         local list = GetPlayerList()
         playerDropdown:SetOptions(list)
+        
+        -- Check if the selected player left the game
         if selectedTarget then
             local stillPresent = false
             for _, name in ipairs(list) do
                 if name == selectedTarget then stillPresent = true; break end
             end
+            
             if not stillPresent then
                 selectedTarget = nil
                 tpBtn:SetDisabled(true)
