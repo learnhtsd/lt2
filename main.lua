@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.419"
+local Version = "v0.0.420"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -1921,18 +1921,19 @@ local HubWindow = Library:CreateWindow()
 
 local HomeTab        = HubWindow:CreateTab("Home")
 local PlayerTab      = HubWindow:CreateTab("Player")
+local PlotTab        = HubWindow:CreateTab("Plot")
 local WorldTab       = HubWindow:CreateTab("World")
 local TeleportTab    = HubWindow:CreateTab("Teleport")
 local WoodTab        = HubWindow:CreateTab("Wood")
-local PlotTab        = HubWindow:CreateTab("Plot")
-local DuplicationTab = HubWindow:CreateTab("Duplicate")
 local ShopTab        = HubWindow:CreateTab("Shop")
-local VehicleTab     = HubWindow:CreateTab("Vehicle")
-local BuildTab       = HubWindow:CreateTab("Build")
 local ToolTab        = HubWindow:CreateTab("Tool")
+local BuildTab       = HubWindow:CreateTab("Build")
+local DuplicationTab = HubWindow:CreateTab("Duplicate")
+local VehicleTab     = HubWindow:CreateTab("Vehicle")
+local SearchTab      = HubWindow:CreateTab("Search")
 local ProtectionTab  = HubWindow:CreateTab("Protection")
-local HelpTab        = HubWindow:CreateTab("Help")
 local SettingsTab    = HubWindow:CreateTab("Settings")
+local HelpTab        = HubWindow:CreateTab("Help")
 
 -- ============================================================
 -- LOAD SCREEN
