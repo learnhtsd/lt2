@@ -301,10 +301,34 @@ end
 -- ==========================================
 --   CHOP LOGS INTO INDIVIDUAL SECTIONS
 -- ==========================================
--- Cuts each WoodSection in every owned log model at its lowest
--- point (nearest the joint) to separate it cleanly. Works top
--- to bottom so upper sections detach first without disturbing
--- the sections below.
+-- Fires the cut remote at the JOINT between each pair of connected
+-- WoodSections. Uses the weld's C0 offset to find the exact world
+-- position and height of the joint, then TPs the player beside it
+-- using the section's own CFrame so orientation doesn't matter.
+
+local function FireCutAtHeight(section, tool, axeName, treeClass, height)
+    if not section or not section.Parent then return end
+    local idObj = section:FindFirstChild("ID")
+    if not idObj then return end
+
+    local damage = GetDamage(axeName, treeClass)
+    local args = {
+        sectionId    = idObj.Value,
+        faceVector   = Vector3.new(0, 0, -1),
+        height       = height,
+        hitPoints    = damage,
+        cooldown     = 0,
+        cuttingClass = "Axe",
+        tool         = tool,
+    }
+
+    for _ = 1, Settings.FiresPerSection do
+        if not section.Parent then break end
+        RemoteProxy:FireServer(section.Parent.CutEvent, args)
+        task.wait(Settings.FireDelay)
+    end
+end
+
 local function ChopLogsIntoSections(onComplete)
     local logModels = Workspace:FindFirstChild("LogModels")
     if not logModels then
@@ -340,36 +364,59 @@ local function ChopLogsIntoSections(onComplete)
             local tc        = model:FindFirstChild("TreeClass")
             local treeClass = tc and tc.Value or "Generic"
 
-            -- Collect WoodSections sorted TOP to BOTTOM so upper sections
-            -- detach first, keeping the lower sections stable
-            local sections = {}
-            for _, part in ipairs(model:GetDescendants()) do
-                if part:IsA("BasePart") and part.Name == "WoodSection"
-                and part:FindFirstChild("ID") then
-                    table.insert(sections, part)
+            -- Find every Tree Weld joint between two WoodSections.
+            -- Each weld represents one cut point we need to fire on.
+            local joints = {}
+            for _, desc in ipairs(model:GetDescendants()) do
+                if (desc:IsA("Weld") or desc:IsA("ManualWeld"))
+                and desc.Name == "Tree Weld" then
+                    local p0, p1 = desc.Part0, desc.Part1
+                    if p0 and p1
+                    and p0.Name == "WoodSection"
+                    and p1.Name == "WoodSection"
+                    and p0:FindFirstChild("ID") then
+                        -- World position of the joint using Part0's C0 offset
+                        local jointWorldPos = p0.CFrame * desc.C0
+
+                        -- Height of the joint from the BOTTOM of Part0
+                        local localY        = (p0.CFrame:Inverse() * jointWorldPos).Y
+                        local heightFromBot = math.clamp(
+                            localY + p0.Size.Y / 2,
+                            0.05,
+                            p0.Size.Y - 0.05
+                        )
+
+                        table.insert(joints, {
+                            section       = p0,
+                            jointWorldPos = jointWorldPos,
+                            height        = heightFromBot,
+                        })
+                    end
                 end
             end
-            table.sort(sections, function(a, b)
-                return a.Position.Y > b.Position.Y  -- top first
-            end)
 
-            if #sections == 0 then continue end
+            if #joints == 0 then
+                warn("[TreeModule] No joints found in:", model.Name)
+                continue
+            end
 
-            print(("[TreeModule] Chopping %d sections in %s"):format(#sections, model.Name))
+            print(("[TreeModule] Cutting %d joints in %s"):format(#joints, model.Name))
 
-            for _, section in ipairs(sections) do
-                if not section or not section.Parent then continue end
+            for _, joint in ipairs(joints) do
+                if not joint.section or not joint.section.Parent then continue end
 
-                -- TP player right next to this section so the remote fires
+                -- TP player to the SIDE of the joint using the section's
+                -- own right vector so it works regardless of orientation
                 local char = player.Character
                 local hrp  = char and char:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    hrp.CFrame = CFrame.new(section.Position + Vector3.new(4, 0, 0))
+                    local sideOffset = joint.section.CFrame.RightVector * 4
+                    hrp.CFrame = CFrame.new(joint.jointWorldPos + sideOffset)
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                     task.wait(Settings.SyncDelay)
                 end
 
-                FireCutSection(section, tool, axeName, treeClass)
+                FireCutAtHeight(joint.section, tool, axeName, treeClass, joint.height)
                 task.wait(Settings.SweepDelay)
             end
         end
