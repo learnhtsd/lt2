@@ -219,38 +219,110 @@ local function CollectAllOwnedStumps()
     return results
 end
 
--- Destroys all welds inside every owned log model so each wood section
--- becomes a separate loose part, then returns all those BaseParts.
-local function UnweldAndCollectAllOwnedParts()
-    local results   = {}
-    local logModels = Workspace:FindFirstChild("LogModels")
-    if not logModels then return results end
+-- Sells a single log model section by section, bottom to top.
+-- For each WoodSection: finds all parts welded directly to it,
+-- destroys only those welds, then TPs the loose parts to the sell zone.
+local function SellLogModelSectionBySection(model, LOT, sellPos, sectionIndex)
+    sectionIndex = sectionIndex or 0
 
-    for _, model in ipairs(logModels:GetChildren()) do
-        if not model:IsA("Model") then continue end
-        if not IsOwnedByLocalPlayer(model) then continue end
+    -- Gather and sort WoodSections bottom to top
+    local sections = {}
+    for _, part in ipairs(model:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name == "WoodSection" then
+            table.insert(sections, part)
+        end
+    end
+    table.sort(sections, function(a, b) return a.Position.Y < b.Position.Y end)
 
-        -- Destroy every weld in the model so parts fall apart individually
+    if #sections == 0 then
+        -- No WoodSections — just TP whatever BaseParts are left
+        for _, part in ipairs(model:GetDescendants()) do
+            if part:IsA("BasePart") and not part.Anchored then
+                sectionIndex += 1
+                local cf = CFrame.new(sellPos.X + ((sectionIndex - 1) * 3), sellPos.Y, sellPos.Z)
+                if LOT.IsBusy() then repeat task.wait(0.05) until not LOT.IsBusy() end
+                LOT.TeleportObjectTo(part, cf)
+            end
+        end
+        return sectionIndex
+    end
+
+    for _, section in ipairs(sections) do
+        if not section or not section.Parent then continue end
+
+        -- Find every part welded directly to this section
+        local connectedParts = { section }
+        local weldsToDestroy = {}
+
         for _, desc in ipairs(model:GetDescendants()) do
             if desc:IsA("Weld") or desc:IsA("WeldConstraint") or desc:IsA("ManualWeld") then
-                pcall(function() desc:Destroy() end)
+                local p0 = desc:IsA("WeldConstraint") and desc.Part0 or (desc:IsA("Weld") or desc:IsA("ManualWeld")) and desc.Part0
+                local p1 = desc:IsA("WeldConstraint") and desc.Part1 or (desc:IsA("Weld") or desc:IsA("ManualWeld")) and desc.Part1
+
+                if p0 == section or p1 == section then
+                    table.insert(weldsToDestroy, desc)
+                    local other = p0 == section and p1 or p0
+                    -- Only grab non-WoodSection parts as part of this section's batch
+                    if other and other:IsA("BasePart") and other.Name ~= "WoodSection" then
+                        table.insert(connectedParts, other)
+                    end
+                end
             end
         end
 
-        -- Collect every unanchored BasePart as a separate sell target
-        for _, desc in ipairs(model:GetDescendants()) do
-            if desc:IsA("BasePart") and not desc.Anchored then
-                table.insert(results, desc)
-            end
+        -- Destroy the welds so parts are loose server-side
+        for _, weld in ipairs(weldsToDestroy) do
+            pcall(function() weld:Destroy() end)
+        end
+
+        task.wait(0.1) -- let server register the unweld
+
+        -- TP each loose part to the sell zone
+        for _, part in ipairs(connectedParts) do
+            if not part or not part.Parent then continue end
+            sectionIndex += 1
+            local cf = CFrame.new(sellPos.X + ((sectionIndex - 1) * 3), sellPos.Y, sellPos.Z)
+            if LOT.IsBusy() then repeat task.wait(0.05) until not LOT.IsBusy() end
+            LOT.TeleportObjectTo(part, cf)
+            repeat task.wait(0.05) until not LOT.IsBusy()
         end
     end
 
-    if #results == 0 then
-        warn("[TreeModule] No owned parts found to sell.")
-    else
-        print(("[TreeModule] Unwelded and collected %d parts for selling."):format(#results))
-    end
-    return results
+    return sectionIndex
+end
+
+-- Iterates every owned log model and sells each section by section.
+local function SellAllOwnedTreesSectionBySection(LOT, sellPos, onComplete)
+    task.spawn(function()
+        local logModels = Workspace:FindFirstChild("LogModels")
+        if not logModels then
+            if onComplete then onComplete() end
+            return
+        end
+
+        local ownedModels = {}
+        for _, model in ipairs(logModels:GetChildren()) do
+            if model:IsA("Model") and IsOwnedByLocalPlayer(model) then
+                table.insert(ownedModels, model)
+            end
+        end
+
+        if #ownedModels == 0 then
+            warn("[TreeModule] No owned log models found.")
+            if onComplete then onComplete() end
+            return
+        end
+
+        print(("[TreeModule] Selling %d log model(s) section by section."):format(#ownedModels))
+
+        local globalIndex = 0
+        for _, model in ipairs(ownedModels) do
+            if not model or not model.Parent then continue end
+            globalIndex = SellLogModelSectionBySection(model, LOT, sellPos, globalIndex)
+        end
+
+        if onComplete then onComplete() end
+    end)
 end
 
 local function CleanupState()
@@ -656,28 +728,10 @@ function TreeModule.Init(Tab, LOT)
             sellButton:SetText("Selling...")
         end
 
-        task.spawn(function()
-            -- Unweld every owned log model so all sections are loose,
-            -- then TP each part individually to the sell zone.
-            local parts = UnweldAndCollectAllOwnedParts()
-            if #parts == 0 then
-                if type(sellButton) == "table" and sellButton.SetText then
-                    sellButton:SetText("Sell")
-                end
-                return
+        SellAllOwnedTreesSectionBySection(LOT, Settings.SellPosition, function()
+            if type(sellButton) == "table" and sellButton.SetText then
+                sellButton:SetText("Sell")
             end
-
-            -- Small settle so physics registers the removed welds
-            task.wait(0.2)
-
-            local sellPos = Settings.SellPosition
-            RunLOTBatch(LOT, parts, function(i, _)
-                return CFrame.new(sellPos.X + ((i - 1) * 3), sellPos.Y, sellPos.Z)
-            end, function()
-                if type(sellButton) == "table" and sellButton.SetText then
-                    sellButton:SetText("Sell")
-                end
-            end)
         end)
     end)
 
