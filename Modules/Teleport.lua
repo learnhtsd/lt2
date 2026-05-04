@@ -31,52 +31,80 @@ function TeleportModule.Init(Tab)
     end
 
     -- ===========================
-    -- WORLD LOCATIONS (POIs)
+    -- LOCATION DATA CATEGORIES
     -- ===========================
-    local poiData = {
-        ["Wood R Us"]        = Vector3.new(265, 3, 57),
-        ["Land Store"]       = Vector3.new(257, 3, -99),
-        ["Boxed Cars"]       = Vector3.new(510, 3, -1465),
-        ["Fancy Furnishings"]= Vector3.new(500, 3, -1720),
-        ["Fine Arts Shop"]   = Vector3.new(5207, -166, 719),
-        ["Links Logic"]      = Vector3.new(4607, 7, -795),
-        ["Volcano"]          = Vector3.new(-1585, 622, 1140),
-        ["Tiaga Peak"]       = Vector3.new(1448, 413, 3186),
-        ["Swamp"]            = Vector3.new(-1209, 132, -801),
-        ["Palm Island #1"]   = Vector3.new(2000, -6, -1500),
-        ["Lonecave"]         = Vector3.new(3581, -179, 430),
-        ["The Den"]          = Vector3.new(323.0, 41.8, 1930.0),
-        ["Light House"]      = Vector3.new(1464.8, 355.2, 3257.2),
-        ["Safari"]           = Vector3.new(111.9, 11.0, -998.8),
-        ["Bridge"]           = Vector3.new(112.3, 11.0, -782.4),
-        ["Bob's Shack"]      = Vector3.new(260.0, 8.4, -2542.0),
-        ["The Cabin"]        = Vector3.new(1244.0, 63.6, 2306.0),
-        ["SnowGlow Biome"]   = Vector3.new(-1087.3, -5.9, -946.2),
-        ["Cave"]             = Vector3.new(3581.0, -179.5, 430.0),
-        ["Shrine of Sight"]  = Vector3.new(-1600.0, 195.4, 919.0),
-        ["Docks"]            = Vector3.new(1114.0, -1.2, -197.0),
-        ["Strange Man"]      = Vector3.new(1061.0, 16.8, 1131.0),
-        ["Snow Biome"]       = Vector3.new(890.0, 59.8, 1195.6),
-        ["Green Box"]        = Vector3.new(-1668.1, 349.6, 1475.4),
-        ["Cherry Meadow"]    = Vector3.new(220.9, 59.8, 1305.8),
-        ["Bird Cave"]        = Vector3.new(4813.1, 17.7, -978.8),
+    
+    local storeData = {
+        ["Fine Arts Shop"]     = Vector3.new(5207, -166, 719),
+        ["Links Logic"]        = Vector3.new(4607, 7, -795),
+        ["Bob's Shack"]        = Vector3.new(260, 8.4, -2542.0),
+        ["Fancy Furnishings"]  = Vector3.new(500, 3, -1720),
+        ["Boxed Cars"]         = Vector3.new(510, 3, -1465),
+        ["Land Store"]         = Vector3.new(257, 3, -99),
+        ["Wood R Us"]          = Vector3.new(265, 3, 57),
     }
 
-    local poiNames = {}
-    for name in pairs(poiData) do table.insert(poiNames, name) end
-    table.sort(poiNames)
+    local regionData = {
+        ["Lonecave"]    = Vector3.new(3581, -179, 430),
+        ["Palm Island 1"]     = Vector3.new(2000, -6, -1500),
+        ["Cave"]               = Vector3.new(3581.0, -179.5, 430.0),
+        ["Swamp"]              = Vector3.new(-1209, 132, -801),
+        ["SnowGlow Biome"]     = Vector3.new(-1087.3, -5.9, -946.2),
+        ["Snow Biome"]         = Vector3.new(890.0, 59.8, 1195.6),
+        ["Tiaga Peak"]  = Vector3.new(1448, 413, 3186),
+        ["Volcano"]     = Vector3.new(-1585, 622, 1140),
+        ["Cherry Meadow"]      = Vector3.new(220.9, 59.8, 1305.8),
+    }
 
-    Tab:CreateSection("Point of Interest")
+    local otherData = {
+        ["Shrine of Sight"]    = Vector3.new(-1600.0, 195.4, 919.0),
+        ["Light House"]        = Vector3.new(1464.8, 355.2, 3257.2),
+        ["Green Box"]          = Vector3.new(-1668.1, 349.6, 1475.4),
+        ["Strange Man"]        = Vector3.new(1061.0, 16.8, 1131.0),
+        ["Bird Cave"]          = Vector3.new(4813.1, 17.7, -978.8),
+        ["The Den"]            = Vector3.new(323.0, 41.8, 1930.0),
+        ["The Cabin"]          = Vector3.new(1244.0, 63.6, 2306.0),
+        ["Safari"]             = Vector3.new(111.9, 11.0, -998.8),
+        ["Docks"]              = Vector3.new(1114.0, -1.2, -197.0),
+        ["Bridge"]             = Vector3.new(112.3, 11.0, -782.4),
+    }
 
-    Tab:CreateDropdown("Select Location", poiNames, "Select...", function(val)
-        Teleport(poiData[val])
+    -- Helper to sort table keys alphabetically
+    local function GetSortedKeys(DataTable)
+        local keys = {}
+        for k in pairs(DataTable) do table.insert(keys, k) end
+        table.sort(keys)
+        return keys
+    end
+
+    -- ===========================
+    -- UI: WORLD TELEPORTS
+    -- ===========================
+    Tab:CreateSection("World Teleports")
+
+    Tab:CreateDropdown("Stores", GetSortedKeys(storeData), "Select Store...", function(val)
+        Teleport(storeData[val])
+    end)
+
+    Tab:CreateDropdown("Tree Regions", GetSortedKeys(regionData), "Select Region...", function(val)
+        Teleport(regionData[val])
+    end)
+
+    Tab:CreateDropdown("Other POIs", GetSortedKeys(otherData), "Select Location...", function(val)
+        Teleport(otherData[val])
     end)
 
     -- ===========================
-    -- PLAYER & PLOT SECTION
+    -- UI: PLAYER & PLOT SECTION
     -- ===========================
-    Tab:CreateSection("Player & Plot Teleports")
-
+    Tab:CreateSection("Player & Plot")
+    
+    local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
+        local isSelf = (val == localTag)
+        selectedTarget = isSelf and nil or val
+        tpBtn:SetDisabled(isSelf)
+    end)
+    
     local tpBtn = Tab:CreateAction("Go to Player", "TP", function()
         if selectedTarget then
             for _, p in pairs(Players:GetPlayers()) do
@@ -88,8 +116,7 @@ function TeleportModule.Init(Tab)
         end
     end)
 
-    local plotBtn = Tab:CreateAction("Go to Player's Plot", "PLOT", function()
-        -- Use selectedTarget if set, otherwise fall back to the local player
+    local plotBtn = Tab:CreateAction("Go to Player's Plot", "TP", function()
         local targetDisplay = selectedTarget or LocalPlayer.DisplayName
         local properties = workspace:FindFirstChild("Properties")
         if not properties then return end
@@ -107,15 +134,7 @@ function TeleportModule.Init(Tab)
         end
     end)
 
-    -- TP to self is pointless; plot button stays enabled so you can go to your own plot
     tpBtn:SetDisabled(true)
-
-    local playerDropdown = Tab:CreateDropdown("Select Player", GetPlayerList(), "Select...", function(val)
-        local isSelf = (val == localTag)
-        selectedTarget = isSelf and nil or val
-        tpBtn:SetDisabled(isSelf)
-        -- plotBtn is never disabled — works for self and others alike
-    end)
 
     -- ===========================
     -- PLAYER LIST REFRESH
