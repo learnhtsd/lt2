@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.412"
+local Version = "v0.0.413"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -1914,25 +1914,116 @@ function Library:CreateWindow()
 end
 
 -- ============================================================
--- SCRIPT EXECUTION
+-- LOAD SCREEN
 -- ============================================================
-local HubWindow = Library:CreateWindow()
+local LoadGui = Instance.new("ScreenGui")
+LoadGui.Name           = "DynxeLT2LoadScreen"
+LoadGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+LoadGui.DisplayOrder   = 9999
+LoadGui.ResetOnSpawn   = false
+LoadGui.Parent         = CoreGui
 
-local HomeTab        = HubWindow:CreateTab("Home")
-local PlayerTab      = HubWindow:CreateTab("Player")
-local WorldTab       = HubWindow:CreateTab("World")
-local TeleportTab    = HubWindow:CreateTab("Teleport")
-local WoodTab        = HubWindow:CreateTab("Wood")
-local PlotTab        = HubWindow:CreateTab("Plot")
-local DuplicationTab = HubWindow:CreateTab("Duplicate")
-local ShopTab        = HubWindow:CreateTab("Shop")
-local VehicleTab     = HubWindow:CreateTab("Vehicle")
-local BuildTab       = HubWindow:CreateTab("Build")
-local ToolTab        = HubWindow:CreateTab("Tool")
-local ProtectionTab  = HubWindow:CreateTab("Protection")
-local HelpTab        = HubWindow:CreateTab("Help")
-local SettingsTab    = HubWindow:CreateTab("Settings")
+local Overlay = Instance.new("Frame")
+Overlay.Size             = UDim2.new(1, 0, 1, 0)
+Overlay.BackgroundColor3 = Color3.fromRGB(8, 10, 22)
+Overlay.BackgroundTransparency = 0.12
+Overlay.BorderSizePixel  = 0
+Overlay.Parent           = LoadGui
 
+-- Subtle blue vignette gradient
+local Vignette = Instance.new("UIGradient", Overlay)
+Vignette.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(10, 20, 60)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(8,  10, 22)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(10, 20, 60)),
+})
+Vignette.Rotation = 45
+
+-- Center container
+local Center = Instance.new("Frame")
+Center.Size                   = UDim2.new(0, 320, 0, 100)
+Center.AnchorPoint            = Vector2.new(0.5, 0.5)
+Center.Position               = UDim2.new(0.5, 0, 0.5, 0)
+Center.BackgroundTransparency = 1
+Center.Parent                 = Overlay
+
+-- "Loading: ModuleName" label (above title)
+local LoadingLabel = Instance.new("TextLabel")
+LoadingLabel.Size               = UDim2.new(1, 0, 0, 20)
+LoadingLabel.Position           = UDim2.new(0, 0, 0, 0)
+LoadingLabel.BackgroundTransparency = 1
+LoadingLabel.Text               = "Initializing..."
+LoadingLabel.TextColor3         = Color3.fromRGB(100, 140, 255)
+LoadingLabel.Font               = Enum.Font.Gotham
+LoadingLabel.TextSize           = 13
+LoadingLabel.TextXAlignment     = Enum.TextXAlignment.Center
+LoadingLabel.Parent             = Center
+
+-- Title label
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size               = UDim2.new(1, 0, 0, 36)
+TitleLabel.Position           = UDim2.new(0, 0, 0, 24)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text               = "<b>Dynxe</b> <font color=\"#4a78ff\">LT2</font> <font color=\"#444466\">" .. Version .. "</font>"
+TitleLabel.RichText           = true
+TitleLabel.TextColor3         = Color3.fromRGB(220, 220, 230)
+TitleLabel.Font               = Enum.Font.GothamMedium
+TitleLabel.TextSize           = 22
+TitleLabel.TextXAlignment     = Enum.TextXAlignment.Center
+TitleLabel.Parent             = Center
+
+-- Progress bar track
+local BarTrack = Instance.new("Frame")
+BarTrack.Size             = UDim2.new(1, 0, 0, 4)
+BarTrack.Position         = UDim2.new(0, 0, 0, 72)
+BarTrack.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+BarTrack.BorderSizePixel  = 0
+BarTrack.Parent           = Center
+Instance.new("UICorner", BarTrack).CornerRadius = UDim.new(1, 0)
+
+local BarFill = Instance.new("Frame")
+BarFill.Size             = UDim2.new(0, 0, 1, 0)
+BarFill.BackgroundColor3 = Color3.fromRGB(74, 120, 255)
+BarFill.BorderSizePixel  = 0
+BarFill.Parent           = BarTrack
+Instance.new("UICorner", BarFill).CornerRadius = UDim.new(1, 0)
+
+-- Percent label under bar
+local PctLabel = Instance.new("TextLabel")
+PctLabel.Size               = UDim2.new(1, 0, 0, 16)
+PctLabel.Position           = UDim2.new(0, 0, 0, 82)
+PctLabel.BackgroundTransparency = 1
+PctLabel.Text               = "0%"
+PctLabel.TextColor3         = Color3.fromRGB(70, 90, 140)
+PctLabel.Font               = Enum.Font.Gotham
+PctLabel.TextSize           = 11
+PctLabel.TextXAlignment     = Enum.TextXAlignment.Center
+PctLabel.Parent             = Center
+
+local function SetProgress(current, total, moduleName)
+    local pct = current / total
+    TweenService:Create(BarFill, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {
+        Size = UDim2.new(pct, 0, 1, 0)
+    }):Play()
+    PctLabel.Text    = math.floor(pct * 100) .. "%"
+    LoadingLabel.Text = moduleName and ("Loading  " .. moduleName) or "Done"
+end
+
+local function DismissLoadScreen()
+    TweenService:Create(Overlay, TweenInfo.new(0.6, Enum.EasingStyle.Quart), {
+        BackgroundTransparency = 1
+    }):Play()
+    TweenService:Create(TitleLabel,   TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(LoadingLabel, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(PctLabel,     TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(BarFill,      TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(BarTrack,     TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+    task.delay(0.7, function() LoadGui:Destroy() end)
+end
+
+-- ============================================================
+-- MODULE LOADING
+-- ============================================================
 local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s",
         User, Repo, Branch, ModuleName, tick())
@@ -1944,108 +2035,47 @@ local function LoadModule(ModuleName)
     warn("Failed to load module: " .. ModuleName)
 end
 
+local Modules = {
+    { name = "Logo",               run = function(m) if m and m.Init then m.Init(Version, Vector3.new(43.5, 18, 55.3), Vector3.new(0, -105, 0), 60, 20) end end },
+    { name = "Home",               run = function(m) if m and m.Init then m.Init(HomeTab, Library) end end },
+    { name = "PlayerMovement",     run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
+    { name = "Teleport",           run = function(m) if m and m.Init then m.Init(TeleportTab) end end },
+    { name = "World",              run = function(m) if m and m.Init then m.Init(WorldTab, Library) end end },
+    { name = "Settings",           run = function(m) if m and m.Init then m.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch}, Config) end end },
+    { name = "HardDragger",        run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
+    { name = "AntiFling",          run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AntiVoid",           run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AntiRagdoll",        run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AntiAFK",            run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AxeRecovery",        run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "LooseObjectTeleport",run = function(m)
+        if m and m.Init then m.Init(ToolTab, Library) end
+        LooseObjectTeleportModule = m
+    end },
+    { name = "TreeCam",            run = function(m) if m and m.Init then m.Init(WoodTab) end end },
+    { name = "Vehicle",            run = function(m) if m and m.Init then m.Init(VehicleTab) end end },
+    { name = "Plot",               run = function(m) if m and m.Init then m.Init(PlotTab, Library) end end },
+    { name = "Tree",               run = function(m) if m and m.Init then m.Init(WoodTab, LooseObjectTeleportModule) end end },
+    { name = "Help",               run = function(m) if m and m.Init then m.Init(HelpTab) end end },
+    { name = "Duplication",        run = function(m) if m and m.Init then m.Init(DuplicationTab) end end },
+    { name = "Build",              run = function(m) if m and m.Init then m.Init(BuildTab, LooseObjectTeleportModule) end end },
+    { name = "Shop",               run = function(m) if m and m.Init then m.Init(ShopTab, LooseObjectTeleportModule) end end },
+}
+
 local Theme = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
 ))()
 
-local LogoModule = LoadModule("Logo")
-if LogoModule and LogoModule.Init then
-    LogoModule.Init(Version, Vector3.new(43.5, 18, 55.3), Vector3.new(0, -105, 0), 60, 20)
+local total = #Modules
+for i, entry in ipairs(Modules) do
+    SetProgress(i - 1, total, entry.name)
+    local m = LoadModule(entry.name)
+    entry.run(m)
+    Library:Notify("Loaded", entry.name, 1.5)
+    task.wait(0.05) -- tiny breath so the bar visibly advances
 end
-Library:Notify("Loaded", "Brand", 2)
 
-local HomeModule = LoadModule("Home")
-if HomeModule and HomeModule.Init then HomeModule.Init(HomeTab, Library) end
-Library:Notify("Loaded", "Home", 2)
-
-local MovementModule = LoadModule("PlayerMovement")
-if MovementModule and MovementModule.Init then MovementModule.Init(PlayerTab) end
-Library:Notify("Loaded", "Player Movement", 2)
-
---local FlashlightModule = LoadModule("FlashLight")
---if FlashlightModule and FlashlightModule.Init then FlashlightModule.Init(PlayerTab) end
---Library:Notify("Loaded", "Flashlight", 2)
-
-local TeleportModule = LoadModule("Teleport")
-if TeleportModule and TeleportModule.Init then TeleportModule.Init(TeleportTab) end
-Library:Notify("Loaded", "Teleport", 2)
-
---local GhostModule = LoadModule("GhostSuite")
---if GhostModule and GhostModule.Init then GhostModule.Init(BuildTab) end
---Library:Notify("Loaded", "Ghost Suite", 2)
-
-local WorldModule = LoadModule("World")
-if WorldModule and WorldModule.Init then WorldModule.Init(WorldTab, Library) end
-Library:Notify("Loaded", "World", 2)
-
-local SettingsModule = LoadModule("Settings")
-if SettingsModule and SettingsModule.Init then
-    SettingsModule.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch}, Config)
-end
-Library:Notify("Loaded", "Settings", 2)
-
-local HardDraggerModule = LoadModule("HardDragger")
-if HardDraggerModule and HardDraggerModule.Init then HardDraggerModule.Init(PlayerTab) end
-Library:Notify("Loaded", "Hard Dragger", 2)
-
-local AntiFlingModule = LoadModule("AntiFling")
-if AntiFlingModule and AntiFlingModule.Init then AntiFlingModule.Init(ProtectionTab) end
-Library:Notify("Loaded", "Anti-Fling", 2)
-
-local AntiVoidModule = LoadModule("AntiVoid")
-if AntiVoidModule and AntiVoidModule.Init then AntiVoidModule.Init(ProtectionTab) end
-Library:Notify("Loaded", "Anti-Void", 2)
-
-local AntiRagdollModule = LoadModule("AntiRagdoll")
-if AntiRagdollModule and AntiRagdollModule.Init then AntiRagdollModule.Init(ProtectionTab) end
-Library:Notify("Loaded", "Anti-Ragdoll", 2)
-
-local AntiAFKModule = LoadModule("AntiAFK")
-if AntiAFKModule and AntiAFKModule.Init then AntiAFKModule.Init(ProtectionTab) end
-Library:Notify("Loaded", "Anti-AFK", 2)
-
-local AxeRecoveryModule = LoadModule("AxeRecovery")
-if AxeRecoveryModule and AxeRecoveryModule.Init then AxeRecoveryModule.Init(ProtectionTab) end
-Library:Notify("Loaded", "Axe Recovery", 2)
-
-local LooseObjectTeleportModule = LoadModule("LooseObjectTeleport")
-if LooseObjectTeleportModule and LooseObjectTeleportModule.Init then LooseObjectTeleportModule.Init(ToolTab, Library) end
-Library:Notify("Loaded", "Loose Object Teleport", 2)
-
---local PlayPositionNotifyModule = LoadModule("PlayPositionNotify")
---if PlayPositionNotifyModule and PlayPositionNotifyModule.Init then PlayPositionNotifyModule.Init(ToolTab, Library) end
---Library:Notify("Loaded", "Play Position Notify", 2)
-
-local TreeCamModule = LoadModule("TreeCam")
-if TreeCamModule and TreeCamModule.Init then TreeCamModule.Init(WoodTab) end
-Library:Notify("Loaded", "Tree Cam", 2)
-
-local VehicleModule = LoadModule("Vehicle")
-if VehicleModule and VehicleModule.Init then VehicleModule.Init(VehicleTab) end
-Library:Notify("Loaded", "Vehicle", 2)
-
-local PlotModule = LoadModule("Plot")
-if PlotModule and PlotModule.Init then PlotModule.Init(PlotTab, Library) end
-Library:Notify("Loaded", "Plot", 2)
-
-local TreeModule = LoadModule("Tree")
-if TreeModule and TreeModule.Init then TreeModule.Init(WoodTab, LooseObjectTeleportModule) end
-Library:Notify("Loaded", "Tree", 2)
-
-local HelpModule = LoadModule("Help")
-if HelpModule and HelpModule.Init then HelpModule.Init(HelpTab) end
-Library:Notify("Loaded", "Help", 2)
-
-local Duplicationodule = LoadModule("Duplication")
-if Duplicationodule and Duplicationodule.Init then Duplicationodule.Init(DuplicationTab) end
-Library:Notify("Loaded", "Duplication", 2)
-
-local BuildModule = LoadModule("Build")
-if BuildModule and BuildModule.Init then BuildModule.Init(BuildTab, LooseObjectTeleportModule) end
-Library:Notify("Loaded", "Build", 2)
-
-local ShopScript = LoadModule("Shop")
-if ShopScript and ShopScript.Init then ShopScript.Init(ShopTab, LooseObjectTeleportModule) end
-Library:Notify("Loaded", "Shop", 2)
-
+SetProgress(total, total, nil)
+task.wait(0.4)
+DismissLoadScreen()
 Library:Notify("Dynxe LT2", "All modules loaded!", 5)
