@@ -610,6 +610,21 @@ local function ChopLogsIntoSections(onComplete)
             local tc        = model:FindFirstChild("TreeClass")
             local treeClass = tc and tc.Value or "Generic"
 
+            -- Build adjacency count so we can skip dead-end tip sections
+            local connectionCount = {}
+            for _, desc in ipairs(model:GetDescendants()) do
+                if (desc:IsA("Weld") or desc:IsA("ManualWeld"))
+                and desc.Name == "Tree Weld" then
+                    local p0, p1 = desc.Part0, desc.Part1
+                    if p0 and p1
+                    and p0.Name == "WoodSection"
+                    and p1.Name == "WoodSection" then
+                        connectionCount[p0] = (connectionCount[p0] or 0) + 1
+                        connectionCount[p1] = (connectionCount[p1] or 0) + 1
+                    end
+                end
+            end
+
             local joints = {}
             for _, desc in ipairs(model:GetDescendants()) do
                 if (desc:IsA("Weld") or desc:IsA("ManualWeld"))
@@ -619,6 +634,9 @@ local function ChopLogsIntoSections(onComplete)
                     and p0.Name == "WoodSection"
                     and p1.Name == "WoodSection"
                     and p0:FindFirstChild("ID") then
+                        -- Skip if p1 is a dead-end tip (only one connection = nothing beyond it)
+                        if (connectionCount[p1] or 0) <= 1 then continue end
+
                         local jointWorldPos = (p0.CFrame * desc.C0).Position
                         local localY        = (p0.CFrame:Inverse() * CFrame.new(jointWorldPos)).Position.Y
                         local heightFromBot = math.clamp(
