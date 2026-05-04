@@ -926,8 +926,8 @@ function TreeModule.Init(Tab, LOT)
         end
 
         local sellPos = Settings.SellPosition
-        RunLOTBatch(LOT, stumps, function(i, _)
-            return CFrame.new(sellPos.X + ((i - 1) * 5), sellPos.Y, sellPos.Z)
+        RunLOTBatch(LOT, stumps, function(_, _)
+            return CFrame.new(sellPos.X, sellPos.Y, sellPos.Z)
         end, function()
             if type(sellButton) == "table" and sellButton.SetText then
                 sellButton:SetText("Sell")
