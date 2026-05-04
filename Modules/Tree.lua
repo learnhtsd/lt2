@@ -958,7 +958,7 @@ function TreeModule.Init(Tab, LOT)
 
     Tab:CreateSection("Log Management")
 
-    local chopSectionsButton = Tab:CreateAction("Chop Logs Into Sections", "Chop", function()
+    local chopSectionsButton = Tab:CreateAction("Chop All Trees", "Start", function()
         if not LOT then warn("[TreeModule] LOT not available.") return end
 
         if type(chopSectionsButton) == "table" and chopSectionsButton.SetText then
@@ -967,7 +967,7 @@ function TreeModule.Init(Tab, LOT)
 
         ChopLogsIntoSections(function()
             if type(chopSectionsButton) == "table" and chopSectionsButton.SetText then
-                chopSectionsButton:SetText("Chop")
+                chopSectionsButton:SetText("Start")
             end
         end)
     end)
