@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.410"
+local Version = "v0.0.411"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -470,12 +470,14 @@ function Library:CreateWindow()
                 CurrentTab.TweenOut:Play()
                 CurrentTab.Btn.TabIconText.TextColor3 = T.TextSecondary
                 local prev = CurrentTab.Btn:FindFirstChild("TabIcon")
-                if prev then prev.ImageColor3 = T.TextSecondary end
+                if prev then
+                    TweenService:Create(prev, TweenInfo.new(0.3), {ImageColor3 = T.TextSecondary}):Play()
+                end
                 CurrentTab.Page.Visible = false
             end
             TweenIn:Play()
-            FallbackText.TextColor3 = T.TextWhite
-            TabIcon.ImageColor3     = T.TextWhite
+            FallbackText.TextColor3 = T.Accent
+            TweenService:Create(TabIcon, TweenInfo.new(0.3), {ImageColor3 = T.Accent}):Play()
             TabPage.Visible         = true
             ActiveTabLabel.Text     = TabName:upper()
             CurrentTab = {Btn = TabBtn, TweenOut = TweenOut, Page = TabPage}
