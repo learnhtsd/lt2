@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.411"
+local Version = "v0.0.412"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -1076,17 +1076,11 @@ function Library:CreateWindow()
             return AttachTooltip(TitleLabel, Element)
         end
 
-        -- ── INFO BOX (v2) ─────────────────────────────────────────────
-        -- Looks like CreateAction (flat Surface card, rounded corners, depth stroke).
-        -- No button. Accepts unlimited text entries via :AddText(), each fully
-        -- configurable. Card height is automatic — grows with content.
-        -- Also exposes :AddDivider() and :AddSpacer() for layout control.
-        -- ──────────────────────────────────────────────────────────────
+-- ── INFO BOX (v2) ─────────────────────────────────────────────
         function Tab:CreateInfoBox()
             local InfoBox    = {}
             local layoutOrder = 0
         
-            -- ── Outer card (matches Action button style exactly) ──────
             local Card = Instance.new("Frame")
             Card.Name             = "InfoBox"
             Card.Size             = UDim2.new(1, 0, 0, 0)
@@ -1098,7 +1092,6 @@ function Library:CreateWindow()
             Instance.new("UICorner", Card).CornerRadius = UDim.new(0, 6)
             AddDepthStroke(Card)
         
-            -- ── Inner layout container with shared padding ────────────
             local Inner = Instance.new("Frame")
             Inner.Name                = "Inner"
             Inner.Size                = UDim2.new(1, 0, 0, 0)
@@ -1116,42 +1109,45 @@ function Library:CreateWindow()
             InnerLayout.SortOrder     = Enum.SortOrder.LayoutOrder
             InnerLayout.FillDirection = Enum.FillDirection.Vertical
             InnerLayout.Padding       = UDim.new(0, ES(3))
-        
+
             -- ─────────────────────────────────────────────────────────
             -- :AddText(content, opts)
             --
-            -- Appends a TextLabel to the card. Returns a Handle with
-            -- setter methods so you can update any property at runtime.
-            --
             -- opts fields (all optional):
-            --   Font        Enum.Font              Gotham
-            --   Size        number (pt)            12
-            --   Color       Color3                 T.TextPrimary
-            --   XAlignment  Enum.TextXAlignment    Left
-            --   YAlignment  Enum.TextYAlignment    Center
-            --   Rotation    number (degrees)       0
-            --   Wrap        boolean                true
-            --   RichText    boolean                false
-            --   Bold        boolean                false   (shortcut; overrides Font)
-            --   Italic      boolean                false   (wraps text in <i> via RichText)
-            --   Opacity     number 0–1             1       (TextTransparency)
+            --   Font         Enum.Font                Gotham
+            --   Size         number (pt)              12
+            --   Color        Color3                   T.TextPrimary
+            --   XAlignment   Enum.TextXAlignment      Left
+            --   YAlignment   Enum.TextYAlignment      Center
+            --   Truncate     Enum.TextTruncate        None
+            --   Wrap         boolean                  true  (set false when using Truncate)
+            --   RichText     boolean                  false
+            --   Bold         boolean                  false
+            --   Italic       boolean                  false
+            --   Opacity      number 0–1               1
+            --   Rotation     number (degrees)         0
             --   PaddingTop / PaddingBottom / PaddingLeft / PaddingRight
-            --               number (pts)           —       per-element extra spacing
+            --                number (pts)             —
             -- ─────────────────────────────────────────────────────────
             function InfoBox:AddText(content, opts)
                 opts = opts or {}
                 layoutOrder = layoutOrder + 1
         
-                -- Resolve font: Bold shortcut overrides Font field
                 local resolvedFont = opts.Font or Enum.Font.Gotham
                 if opts.Bold then resolvedFont = Enum.Font.GothamBold end
         
-                -- Resolve content: Italic shortcut wraps in RichText tag
                 local resolvedContent = tostring(content or "")
                 local useRichText     = opts.RichText or false
                 if opts.Italic then
                     resolvedContent = "<i>" .. resolvedContent .. "</i>"
                     useRichText     = true
+                end
+
+                -- Truncate and Wrap conflict — auto-disable wrap when truncating
+                local useTruncate = opts.Truncate or Enum.TextTruncate.None
+                local useWrap     = (opts.Wrap ~= false)
+                if useTruncate ~= Enum.TextTruncate.None then
+                    useWrap = false
                 end
         
                 local Label = Instance.new("TextLabel")
@@ -1166,13 +1162,13 @@ function Library:CreateWindow()
                 Label.TextColor3          = opts.Color or T.TextPrimary
                 Label.TextXAlignment      = opts.XAlignment or Enum.TextXAlignment.Left
                 Label.TextYAlignment      = opts.YAlignment or Enum.TextYAlignment.Center
-                Label.TextWrapped         = (opts.Wrap ~= false)
+                Label.TextWrapped         = useWrap
+                Label.TextTruncate        = useTruncate
                 Label.RichText            = useRichText
                 Label.Rotation            = opts.Rotation or 0
                 Label.TextTransparency    = opts.Opacity ~= nil and (1 - opts.Opacity) or 0
                 Label.Parent              = Inner
         
-                -- Per-element extra padding (applied via UIPadding on the label itself)
                 if opts.PaddingTop or opts.PaddingBottom or opts.PaddingLeft or opts.PaddingRight then
                     local Pad = Instance.new("UIPadding", Label)
                     Pad.PaddingTop    = UDim.new(0, ES(opts.PaddingTop    or 0))
@@ -1181,62 +1177,69 @@ function Library:CreateWindow()
                     Pad.PaddingRight  = UDim.new(0, ES(opts.PaddingRight  or 0))
                 end
         
-                -- ── Handle — every property settable at runtime ───────
                 local Handle = {}
         
-                -- Text content
                 function Handle:Set(text)
                     local str = tostring(text)
                     if opts.Italic then str = "<i>" .. str .. "</i>" end
                     Label.Text = str
                 end
         
-                -- Colour
                 function Handle:SetColor(color)
                     Label.TextColor3 = color
                 end
         
-                -- Font size (runs through FS() scale helper)
                 function Handle:SetSize(pts)
                     Label.TextSize = FS(pts)
                 end
         
-                -- Font family
                 function Handle:SetFont(font)
                     Label.Font = font
                 end
         
-                -- Rotation in degrees
                 function Handle:SetRotation(degrees)
                     Label.Rotation = degrees
                 end
         
-                -- Opacity: 1 = fully visible, 0 = invisible
                 function Handle:SetOpacity(value)
                     Label.TextTransparency = 1 - math.clamp(value, 0, 1)
                 end
         
-                -- Horizontal text alignment
                 function Handle:SetXAlignment(alignment)
                     Label.TextXAlignment = alignment
                 end
         
-                -- Vertical text alignment
                 function Handle:SetYAlignment(alignment)
                     Label.TextYAlignment = alignment
                 end
+
+                -- Truncate mode. When setting a non-None mode, wrap is
+                -- automatically disabled since the two conflict in Roblox.
+                function Handle:SetTruncate(mode)
+                    Label.TextTruncate = mode
+                    if mode ~= Enum.TextTruncate.None then
+                        Label.TextWrapped = false
+                    end
+                end
         
-                -- Text wrapping
                 function Handle:SetWrap(state)
                     Label.TextWrapped = state
                 end
         
-                -- RichText on/off
                 function Handle:SetRichText(state)
                     Label.RichText = state
                 end
+
+                -- Set padding on this specific label at runtime
+                function Handle:SetPadding(top, bottom, left, right)
+                    local pad = Label:FindFirstChildOfClass("UIPadding")
+                    if not pad then pad = Instance.new("UIPadding", Label) end
+                    pad.PaddingTop    = UDim.new(0, ES(top    or 0))
+                    pad.PaddingBottom = UDim.new(0, ES(bottom or 0))
+                    pad.PaddingLeft   = UDim.new(0, ES(left   or 0))
+                    pad.PaddingRight  = UDim.new(0, ES(right  or 0))
+                end
         
-                -- Tween any numeric or Color3 property smoothly
                 function Handle:Tween(props, duration, style, direction)
                     TweenService:Create(
                         Label,
@@ -1249,12 +1252,10 @@ function Library:CreateWindow()
                     ):Play()
                 end
         
-                -- Visibility
                 function Handle:SetVisible(state)
                     Label.Visible = state
                 end
         
-                -- Remove this text element from the card entirely
                 function Handle:Destroy()
                     Label:Destroy()
                 end
@@ -1262,13 +1263,6 @@ function Library:CreateWindow()
                 return Handle
             end
         
-            -- ─────────────────────────────────────────────────────────
-            -- :AddDivider(color, thickness)
-            --
-            -- Inserts a horizontal rule between text entries.
-            --   color      Color3    T.Stroke
-            --   thickness  number    1  (pixels)
-            -- ─────────────────────────────────────────────────────────
             function InfoBox:AddDivider(color, thickness)
                 layoutOrder = layoutOrder + 1
                 local Line = Instance.new("Frame")
@@ -1279,26 +1273,15 @@ function Library:CreateWindow()
                 Line.Parent             = Inner
             end
         
-            -- ─────────────────────────────────────────────────────────
-            -- :AddSpacer(height)
-            --
-            -- Inserts invisible vertical space (in scaled points).
-            --   height  number  4
-            -- ─────────────────────────────────────────────────────────
             function InfoBox:AddSpacer(height)
                 layoutOrder = layoutOrder + 1
                 local Gap = Instance.new("Frame")
-                Gap.LayoutOrder           = layoutOrder
-                Gap.Size                  = UDim2.new(1, 0, 0, ES(height or 4))
+                Gap.LayoutOrder            = layoutOrder
+                Gap.Size                   = UDim2.new(1, 0, 0, ES(height or 4))
                 Gap.BackgroundTransparency = 1
-                Gap.Parent                = Inner
+                Gap.Parent                 = Inner
             end
         
-            -- ─────────────────────────────────────────────────────────
-            -- :SetPadding(top, bottom, left, right)
-            --
-            -- Override the card's inner edge padding (scaled points).
-            -- ─────────────────────────────────────────────────────────
             function InfoBox:SetPadding(top, bottom, left, right)
                 InnerPad.PaddingTop    = UDim.new(0, ES(top    or 6))
                 InnerPad.PaddingBottom = UDim.new(0, ES(bottom or 6))
@@ -1306,30 +1289,14 @@ function Library:CreateWindow()
                 InnerPad.PaddingRight  = UDim.new(0, ES(right  or 10))
             end
         
-            -- ─────────────────────────────────────────────────────────
-            -- :SetSpacing(pts)
-            --
-            -- Override the gap between stacked text entries.
-            --   pts  number  3
-            -- ─────────────────────────────────────────────────────────
             function InfoBox:SetSpacing(pts)
                 InnerLayout.Padding = UDim.new(0, ES(pts))
             end
         
-            -- ─────────────────────────────────────────────────────────
-            -- :SetBackground(color)
-            --
-            -- Change the card's background colour at runtime.
-            -- ─────────────────────────────────────────────────────────
             function InfoBox:SetBackground(color)
                 Card.BackgroundColor3 = color
             end
         
-            -- ─────────────────────────────────────────────────────────
-            -- :SetStroke(color, thickness)
-            --
-            -- Change the card's border colour and thickness.
-            -- ─────────────────────────────────────────────────────────
             function InfoBox:SetStroke(color, thickness)
                 local stroke = Card:FindFirstChildOfClass("UIStroke")
                 if stroke then
