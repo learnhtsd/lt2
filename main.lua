@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.418"
+local Version = "v0.0.419"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -1961,15 +1961,22 @@ Vignette.Color = ColorSequence.new({
 })
 Vignette.Rotation = 45
 
--- Center container
+-- Layout (top → bottom):
+--   Y=0   LoadingLabel  (h=20)  "Loading ModuleName..."
+--   Y=24  TitleLabel    (h=36)  "Dynxe LT2 vX.X"
+--   Y=63  HintLabel     (h=14)  "This might take a second :)"
+--   Y=82  BarTrack      (h=4)
+--   Y=90  PctLabel      (h=16)  "0%"
+--   total height = 106
+
 local Center = Instance.new("Frame")
-Center.Size                   = UDim2.new(0, 320, 0, 100)
+Center.Size                   = UDim2.new(0, 320, 0, 106)
 Center.AnchorPoint            = Vector2.new(0.5, 0.5)
 Center.Position               = UDim2.new(0.5, 0, 0.5, 0)
 Center.BackgroundTransparency = 1
 Center.Parent                 = Overlay
 
--- "Loading: ModuleName" label (above title)
+-- "Loading: ModuleName" label
 local LoadingLabel = Instance.new("TextLabel")
 LoadingLabel.Size               = UDim2.new(1, 0, 0, 20)
 LoadingLabel.Position           = UDim2.new(0, 0, 0, 0)
@@ -1994,10 +2001,22 @@ TitleLabel.TextSize           = 22
 TitleLabel.TextXAlignment     = Enum.TextXAlignment.Center
 TitleLabel.Parent             = Center
 
+-- Hint label — sits just above the progress bar
+local HintLabel = Instance.new("TextLabel")
+HintLabel.Size               = UDim2.new(1, 0, 0, 14)
+HintLabel.Position           = UDim2.new(0, 0, 0, 63)
+HintLabel.BackgroundTransparency = 1
+HintLabel.Text               = "This might take a second :)"
+HintLabel.TextColor3         = Color3.fromRGB(80, 100, 160)
+HintLabel.Font               = Enum.Font.Gotham
+HintLabel.TextSize           = 11
+HintLabel.TextXAlignment     = Enum.TextXAlignment.Center
+HintLabel.Parent             = Center
+
 -- Progress bar track
 local BarTrack = Instance.new("Frame")
 BarTrack.Size             = UDim2.new(1, 0, 0, 4)
-BarTrack.Position         = UDim2.new(0, 0, 0, 72)
+BarTrack.Position         = UDim2.new(0, 0, 0, 82)
 BarTrack.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
 BarTrack.BorderSizePixel  = 0
 BarTrack.Parent           = Center
@@ -2013,7 +2032,7 @@ Instance.new("UICorner", BarFill).CornerRadius = UDim.new(1, 0)
 -- Percent label under bar
 local PctLabel = Instance.new("TextLabel")
 PctLabel.Size               = UDim2.new(1, 0, 0, 16)
-PctLabel.Position           = UDim2.new(0, 0, 0, 82)
+PctLabel.Position           = UDim2.new(0, 0, 0, 90)
 PctLabel.BackgroundTransparency = 1
 PctLabel.Text               = "0%"
 PctLabel.TextColor3         = Color3.fromRGB(70, 90, 140)
@@ -2027,7 +2046,7 @@ local function SetProgress(current, total, moduleName)
     TweenService:Create(BarFill, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {
         Size = UDim2.new(pct, 0, 1, 0)
     }):Play()
-    PctLabel.Text    = math.floor(pct * 100) .. "%"
+    PctLabel.Text     = math.floor(pct * 100) .. "%"
     LoadingLabel.Text = moduleName and ("Loading  " .. moduleName) or "Done"
 end
 
@@ -2037,6 +2056,7 @@ local function DismissLoadScreen()
     }):Play()
     TweenService:Create(TitleLabel,   TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(LoadingLabel, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(HintLabel,    TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(PctLabel,     TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(BarFill,      TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
     TweenService:Create(BarTrack,     TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
@@ -2074,7 +2094,7 @@ local Modules = {
     { name = "AntiAFK",             run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
     { name = "AxeRecovery",         run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
     { name = "LooseObjectTeleport", run = function(m)
-        LooseObjectTeleportModule = m  -- assign before Init so later modules have it
+        LooseObjectTeleportModule = m
         if m and m.Init then m.Init(ToolTab, Library) end
     end },
     { name = "TreeCam",             run = function(m) if m and m.Init then m.Init(WoodTab) end end },
