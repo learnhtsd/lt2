@@ -137,6 +137,36 @@ end
 -- ┌─────────────────────────────────────────────────────────────────┐
 -- │                   NPC ARG — BY STORE NAME                       │
 -- └─────────────────────────────────────────────────────────────────┘
+local function EnsureNPCID(npcName)  -- ← add this whole block here
+    if NPCIDs[npcName] then return end
+
+    local npc = NPCs[npcName]
+    if not npc then return end
+    if not npc:FindFirstChild("Dialog") then
+        Instance.new("Dialog", npc)
+    end
+
+    pcall(function() SetChatting:InvokeServer(true) end)
+
+    local lastData = nil
+    local conn = PromptChat.OnClientEvent:Connect(function(_, chatData)
+        lastData = chatData
+    end)
+
+    PromptChat:FireServer(true, npc, npc.Dialog)
+    local t = tick()
+    repeat task.wait() until lastData or tick() - t > 5
+
+    conn:Disconnect()
+    pcall(function() SetChatting:InvokeServer(false) end)
+
+    if lastData then
+        NPCIDs[npcName] = lastData.ID
+    else
+        warn("[Shop] Failed to fetch ID for NPC:", npcName)
+    end
+end
+
 local function GetNPCArgForStore(storeName)
     local config = StoreConfigs[storeName]
     if not config then return nil end
@@ -148,6 +178,8 @@ local function GetNPCArgForStore(storeName)
     if not npc:FindFirstChild("Dialog") then
         Instance.new("Dialog", npc)
     end
+
+    EnsureNPCID(npcName)  -- ← re-fetch if missing, every time
 
     return {
         ID        = NPCIDs[npcName],
