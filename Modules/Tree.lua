@@ -4,7 +4,7 @@ local TreeModule = {}
 --             SYSTEM SETTINGS
 -- ==========================================
 local Settings = {
-    SyncDelay       = 0.1,
+    SyncDelay       = 0.25,
     ReadyDelay      = 0.1,
 
     -- [ Cut Settings ]
@@ -16,7 +16,7 @@ local Settings = {
     LogDropDistance = 6,
 
     -- [ Sell Location ]
-    SellPosition    = Vector3.new(315, -1, 91)
+    SellPosition    = Vector3.new(315, -1, 90),
 }
 
 -- ==========================================
@@ -719,7 +719,7 @@ local function ChopLogsIntoSections(onComplete)
                 FireCutAtHeight(cutSection, tool, axeName, treeClass, height)
 
                 -- Brief wait for server to register the cut and spawn new model
-                task.wait(0.1)
+                task.wait(0.2)
 
                 -- Collect any new owned models that appeared after the cut
                 for _, m in ipairs(logModels:GetChildren()) do
@@ -850,10 +850,15 @@ function TreeModule.Init(Tab, LOT)
 
     local treeTypes    = ScanForTreeTypes()
     local selectedTree = treeTypes[1] or "Error"
+    local chopQuantity = 1
     local chopButton
 
     Tab:CreateDropdown("Target Tree Type", treeTypes, selectedTree, function(sel)
         selectedTree = sel
+    end)
+
+    Tab:CreateSlider("Quantity", 1, 10, 1, function(val)
+        chopQuantity = val
     end)
 
     chopButton = Tab:CreateAction("Get Tree", "Start", function()
@@ -867,11 +872,24 @@ function TreeModule.Init(Tab, LOT)
             if type(chopButton) == "table" and chopButton.SetText then
                 chopButton:SetText("Stop")
             end
-            StartChopping(selectedTree, LOT, function()
-                if type(chopButton) == "table" and chopButton.SetText then
-                    chopButton:SetText("Start")
+
+            local remaining = chopQuantity
+            local function chopNext()
+                if remaining <= 0 or not isChopping then
+                    if type(chopButton) == "table" and chopButton.SetText then
+                        chopButton:SetText("Start")
+                    end
+                    isChopping = false
+                    return
                 end
-            end)
+                remaining -= 1
+                StartChopping(selectedTree, LOT, function()
+                    chopNext()
+                end)
+            end
+
+            isChopping = true
+            chopNext()
         end
     end)
 
