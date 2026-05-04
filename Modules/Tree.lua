@@ -4,7 +4,7 @@ local TreeModule = {}
 --             SYSTEM SETTINGS
 -- ==========================================
 local Settings = {
-    SyncDelay       = 0.25,
+    SyncDelay       = 0.1,
     ReadyDelay      = 0.1,
 
     -- [ Cut Settings ]
@@ -710,7 +710,7 @@ local function ChopLogsIntoSections(onComplete)
                 if hrp then
                     hrp.CFrame = CFrame.new(jointWorldPos + cutSection.CFrame.RightVector * 4)
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                    task.wait(Settings.SyncDelay)
+                    task.wait(0.1) -- minimal settle
                 end
 
                 -- Snapshot before cut so we can detect new models
@@ -718,8 +718,8 @@ local function ChopLogsIntoSections(onComplete)
 
                 FireCutAtHeight(cutSection, tool, axeName, treeClass, height)
 
-                -- Wait for server to process the cut and potentially spawn a new model
-                task.wait(0.5)
+                -- Brief wait for server to register the cut and spawn new model
+                task.wait(0.1)
 
                 -- Collect any new owned models that appeared after the cut
                 for _, m in ipairs(logModels:GetChildren()) do
@@ -918,11 +918,17 @@ function TreeModule.Init(Tab, LOT)
         if not LOT then warn("[TreeModule] LOT not available.") return end
         if LOT.IsBusy() then warn("[TreeModule] LOT busy.") return end
 
+        local stumps = CollectAllOwnedStumps()
+        if #stumps == 0 then return end
+
         if type(sellButton) == "table" and sellButton.SetText then
             sellButton:SetText("Selling...")
         end
 
-        SellAllOwnedTreesSectionBySection(LOT, Settings.SellPosition, function()
+        local sellPos = Settings.SellPosition
+        RunLOTBatch(LOT, stumps, function(i, _)
+            return CFrame.new(sellPos.X + ((i - 1) * 5), sellPos.Y, sellPos.Z)
+        end, function()
             if type(sellButton) == "table" and sellButton.SetText then
                 sellButton:SetText("Sell")
             end
