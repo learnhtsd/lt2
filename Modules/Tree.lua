@@ -306,43 +306,6 @@ end
 -- position and height of the joint, then TPs the player beside it
 -- using the section's own CFrame so orientation doesn't matter.
 
-local function FireCutAtHeight(section, tool, axeName, treeClass, height)
-    if not section or not section.Parent then return end
-    local idObj = section:FindFirstChild("ID")
-    if not idObj then return end
-
-    -- CutEvent can live on the section itself, its parent, or the model root
-    local cutEvent = section:FindFirstChild("CutEvent")
-                  or section.Parent:FindFirstChild("CutEvent")
-                  or (section.Parent.Parent and section.Parent.Parent:FindFirstChild("CutEvent"))
-
-    if not cutEvent then
-        warn("[TreeModule] CutEvent not found for section:", section:GetFullName())
-        -- Print all children of parent to help debug
-        for _, c in ipairs(section.Parent:GetChildren()) do
-            print("  parent child:", c.Name, c.ClassName)
-        end
-        return
-    end
-
-    local damage = GetDamage(axeName, treeClass)
-    local args = {
-        sectionId    = idObj.Value,
-        faceVector   = Vector3.new(0, 0, -1),
-        height       = height,
-        hitPoints    = damage,
-        cooldown     = 0,
-        cuttingClass = "Axe",
-        tool         = tool,
-    }
-
-    for _ = 1, Settings.FiresPerSection do
-        if not section.Parent then break end
-        RemoteProxy:FireServer(cutEvent, args)
-        task.wait(Settings.FireDelay)
-    end
-end
-
 local function ChopLogsIntoSections(onComplete)
     local logModels = Workspace:FindFirstChild("LogModels")
     if not logModels then
@@ -660,6 +623,42 @@ local function FireCutSection(section, tool, axeName, treeClass)
     local damage = GetDamage(axeName, treeClass)
     local height = section.Size.Y * CutHeightFrac(section.Size.Y)
 
+    local args = {
+        sectionId    = idObj.Value,
+        faceVector   = Vector3.new(0, 0, -1),
+        height       = height,
+        hitPoints    = damage,
+        cooldown     = 0,
+        cuttingClass = "Axe",
+        tool         = tool,
+    }
+
+    for _ = 1, Settings.FiresPerSection do
+        if not section.Parent then break end
+        RemoteProxy:FireServer(cutEvent, args)
+        task.wait(Settings.FireDelay)
+    end
+end
+
+-- Fires the cut remote at a specific height on a section (used for joint cuts)
+local function FireCutAtHeight(section, tool, axeName, treeClass, height)
+    if not section or not section.Parent then return end
+    local idObj = section:FindFirstChild("ID")
+    if not idObj then return end
+
+    local cutEvent = section:FindFirstChild("CutEvent")
+                  or section.Parent:FindFirstChild("CutEvent")
+                  or (section.Parent.Parent and section.Parent.Parent:FindFirstChild("CutEvent"))
+
+    if not cutEvent then
+        warn("[TreeModule] CutEvent not found for section:", section:GetFullName())
+        for _, c in ipairs(section.Parent:GetChildren()) do
+            print("  parent child:", c.Name, c.ClassName)
+        end
+        return
+    end
+
+    local damage = GetDamage(axeName, treeClass)
     local args = {
         sectionId    = idObj.Value,
         faceVector   = Vector3.new(0, 0, -1),
