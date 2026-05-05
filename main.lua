@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.432"
+local Version = "v0.0.433"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -1999,10 +1999,9 @@ Overlay.Size                 = UDim2.new(1, 0, 1, 0)
 Overlay.BackgroundColor3     = Color3.fromRGB(8, 10, 22)
 Overlay.BackgroundTransparency = 0.12
 Overlay.BorderSizePixel      = 0
-Overlay.Active               = true -- PREVENTS CLICKING THROUGH TO GAME
+Overlay.Active               = true 
 Overlay.Parent               = LoadGui
 
--- Bind Freeze Action (Disables Character & Camera)
 ContextActionService:BindAction(
     FREEZE_ACTION_NAME,
     function() return Enum.ContextActionResult.Sink end,
@@ -2010,7 +2009,6 @@ ContextActionService:BindAction(
     unpack(Enum.PlayerActions:GetEnumItems())
 )
 
--- Subtle blue vignette gradient
 local Vignette = Instance.new("UIGradient", Overlay)
 Vignette.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0,   Color3.fromRGB(10, 20, 60)),
@@ -2020,13 +2018,12 @@ Vignette.Color = ColorSequence.new({
 Vignette.Rotation = 45
 
 local Center = Instance.new("Frame")
-Center.Size                   = UDim2.new(0, 320, 0, 106)
+Center.Size                   = UDim2.new(0, 320, 0, 140) -- Adjusted for extra label
 Center.AnchorPoint            = Vector2.new(0.5, 0.5)
 Center.Position               = UDim2.new(0.5, 0, 0.5, 0)
 Center.BackgroundTransparency = 1
 Center.Parent                 = Overlay
 
--- "Loading: ModuleName" label
 local LoadingLabel = Instance.new("TextLabel")
 LoadingLabel.Size               = UDim2.new(1, 0, 0, 20)
 LoadingLabel.Position           = UDim2.new(0, 0, 0, 0)
@@ -2038,7 +2035,6 @@ LoadingLabel.TextSize           = 13
 LoadingLabel.TextXAlignment      = Enum.TextXAlignment.Center
 LoadingLabel.Parent             = Center
 
--- Title label
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Size               = UDim2.new(1, 0, 0, 36)
 TitleLabel.Position           = UDim2.new(0, 0, 0, 24)
@@ -2051,19 +2047,6 @@ TitleLabel.TextSize           = 22
 TitleLabel.TextXAlignment      = Enum.TextXAlignment.Center
 TitleLabel.Parent             = Center
 
--- Hint label
-local HintLabel = Instance.new("TextLabel")
-HintLabel.Size               = UDim2.new(1, 0, 0, 14)
-HintLabel.Position           = UDim2.new(0, 0, 0, 63)
-HintLabel.BackgroundTransparency = 1
-HintLabel.Text               = "This might take a second :)"
-HintLabel.TextColor3         = Color3.fromRGB(80, 100, 160)
-HintLabel.Font               = Enum.Font.Gotham
-HintLabel.TextSize           = 11
-HintLabel.TextXAlignment      = Enum.TextXAlignment.Center
-HintLabel.Parent             = Center
-
--- Progress bar track
 local BarTrack = Instance.new("Frame")
 BarTrack.Size             = UDim2.new(1, 0, 0, 4)
 BarTrack.Position         = UDim2.new(0, 0, 0, 82)
@@ -2079,7 +2062,6 @@ BarFill.BorderSizePixel  = 0
 BarFill.Parent           = BarTrack
 Instance.new("UICorner", BarFill).CornerRadius = UDim.new(1, 0)
 
--- Percent label under bar
 local PctLabel = Instance.new("TextLabel")
 PctLabel.Size                = UDim2.new(1, 0, 0, 16)
 PctLabel.Position            = UDim2.new(0, 0, 0, 90)
@@ -2091,12 +2073,24 @@ PctLabel.TextSize            = 11
 PctLabel.TextXAlignment      = Enum.TextXAlignment.Center
 PctLabel.Parent              = Center
 
--- Footer Notice Label
+-- STUCK WARNING LABEL
+local WarningLabel = Instance.new("TextLabel")
+WarningLabel.Size                = UDim2.new(1, 0, 0, 16)
+WarningLabel.Position            = UDim2.new(0, 0, 0, 110)
+WarningLabel.BackgroundTransparency = 1
+WarningLabel.Text                = "MODULE IS STILL LOADING | DO NOT LEAVE"
+WarningLabel.TextColor3          = Color3.fromRGB(255, 100, 80)
+WarningLabel.Font                = Enum.Font.GothamBold
+WarningLabel.TextSize            = 10
+WarningLabel.Visible             = false
+WarningLabel.TextXAlignment      = Enum.TextXAlignment.Center
+WarningLabel.Parent              = Center
+
 local FooterLabel = Instance.new("TextLabel")
 FooterLabel.Size               = UDim2.new(1, 0, 0, 30)
 FooterLabel.Position           = UDim2.new(0, 0, 1, -40)
 FooterLabel.BackgroundTransparency = 1
-FooterLabel.Text               = "Specific modules may take longer due to heavier functionality. Especially if this is your first time loading Dynxe."
+FooterLabel.Text               = "Specific modules may take longer due to heavier functionality. Please be patient!"
 FooterLabel.TextColor3         = Color3.fromRGB(255, 255, 255)
 FooterLabel.Font               = Enum.Font.Gotham
 FooterLabel.TextSize           = 12
@@ -2109,20 +2103,17 @@ local function SetProgress(current, total, moduleName)
         Size = UDim2.new(pct, 0, 1, 0)
     }):Play()
     PctLabel.Text     = math.floor(pct * 100) .. "%"
-    LoadingLabel.Text = moduleName and ("Loading  " .. moduleName) or "Done"
+    LoadingLabel.Text = moduleName and ("Loading " .. moduleName) or "Done"
+    WarningLabel.Visible = false -- Reset warning on progress update
 end
 
 local function DismissLoadScreen()
-    -- RESTORE CONTROLS
     ContextActionService:UnbindAction(FREEZE_ACTION_NAME)
-
-    TweenService:Create(Overlay, TweenInfo.new(0.6, Enum.EasingStyle.Quart), {
-        BackgroundTransparency = 1
-    }):Play()
+    TweenService:Create(Overlay, TweenInfo.new(0.6), {BackgroundTransparency = 1}):Play()
     TweenService:Create(TitleLabel,   TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(LoadingLabel, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
-    TweenService:Create(HintLabel,    TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(PctLabel,      TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(WarningLabel,  TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(FooterLabel,   TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(BarFill,      TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
     TweenService:Create(BarTrack,     TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
@@ -2140,11 +2131,10 @@ local function LoadModule(ModuleName)
         local func = loadstring(code)
         if func then return func() end
     end
-    warn("Failed to load module: " .. ModuleName)
+    return nil
 end
 
 local LooseObjectTeleportModule = nil
-
 local Modules = {
     { name = "Logo",                run = function(m) if m and m.Init then m.Init(Version, Vector3.new(43.5, 18, 55.3), Vector3.new(0, -105, 0), 60, 20) end end },
     { name = "Home",                run = function(m) if m and m.Init then m.Init(HomeTab, Library) end end },
@@ -2172,17 +2162,28 @@ local Modules = {
     { name = "Shop",                 run = function(m) if m and m.Init then m.Init(ShopTab, LooseObjectTeleportModule) end end },
 }
 
-local Theme = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
-))()
+local Theme = loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"))()
 
 local total = #Modules
 for i, entry in ipairs(Modules) do
     SetProgress(i - 1, total, entry.name)
+    
+    -- Start a timer to check for stuck modules
+    local moduleFinished = false
+    task.delay(5, function()
+        if not moduleFinished then
+            WarningLabel.Visible = true
+        end
+    end)
+
     local ok, err = pcall(function()
         local m = LoadModule(entry.name)
         entry.run(m)
     end)
+    
+    moduleFinished = true -- Module finished, prevent/hide warning
+    WarningLabel.Visible = false
+
     if not ok then warn("[Loader] " .. entry.name .. " failed: " .. tostring(err)) end
     task.wait(0.05)
 end
