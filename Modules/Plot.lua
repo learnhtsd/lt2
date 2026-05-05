@@ -1,4 +1,3 @@
--- Plot.lua
 local Plot = {}
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,6 +17,7 @@ function Plot.Init(Tab, Library)
     -- SAVE & LOAD MANAGEMENT
     -- ==========================================
     Tab:CreateSection("Management")
+    
     local selectedSlotToLoad = 1
     if Tab.CreateDropdown then
         Tab:CreateDropdown("Select Slot to Load", {"1", "2", "3", "4", "5", "6"}, "1", function(value)
@@ -28,20 +28,40 @@ function Plot.Init(Tab, Library)
     Tab:CreateAction("Load Selected Slot", "Load", function()
         local RequestLoadRemote = loadSaveRequests and loadSaveRequests:FindFirstChild("RequestLoad")
         if RequestLoadRemote then
+            if Library and Library.Notify then Library:Notify("LOADING", "Requesting slot " .. selectedSlotToLoad .. "...", 3) end
             RequestLoadRemote:InvokeServer(selectedSlotToLoad)
-            if Library and Library.Notify then Library:Notify("SUCCESS", "Loading slot " .. selectedSlotToLoad, 5) end
+        else
+            if Library and Library.Notify then Library:Notify("ERROR", "Load remote not found.", 5) end
         end
     end)
 
     Tab:CreateAction("Save Slot", "Save", function()
         local currentSlot = LocalPlayer:FindFirstChild("CurrentSaveSlot")
-        if loadSaveRequests and currentSlot and currentSlot.Value ~= -1 then
-            local RequestSaveRemote = loadSaveRequests:FindFirstChild("RequestSave")
-            if RequestSaveRemote then
-                if Library and Library.Notify then Library:Notify("SAVING", "Forcing save...", 3) end
-                local success = RequestSaveRemote:InvokeServer(currentSlot.Value)
-                if success and Library and Library.Notify then Library:Notify("SUCCESS", "Slot saved!", 5) end
+        
+        -- LT2 Logic: Slot must be between 1-6. -1 or 0 usually means no slot is active.
+        if not currentSlot or currentSlot.Value <= 0 then
+            if Library and Library.Notify then 
+                Library:Notify("ERROR", "No active slot detected. Load a slot first!", 5) 
             end
+            return
+        end
+
+        local RequestSaveRemote = loadSaveRequests and loadSaveRequests:FindFirstChild("RequestSave")
+        if RequestSaveRemote then
+            if Library and Library.Notify then Library:Notify("SAVING", "Forcing save for slot " .. currentSlot.Value .. "...", 3) end
+            
+            -- We pcall this because InvokeServer can error if the server rejects the request immediately
+            local success, result = pcall(function()
+                return RequestSaveRemote:InvokeServer(currentSlot.Value)
+            end)
+
+            if success then
+                if Library and Library.Notify then Library:Notify("SUCCESS", "Save request sent!", 5) end
+            else
+                if Library and Library.Notify then Library:Notify("ERROR", "Save failed: " .. tostring(result), 5) end
+            end
+        else
+            if Library and Library.Notify then Library:Notify("ERROR", "Save remote not found.", 5) end
         end
     end)
 
@@ -53,8 +73,6 @@ function Plot.Init(Tab, Library)
 
     -- ==========================================
     -- SOLD SIGN FINDER
-    -- Owner.OwnerString == LocalPlayer.Name
-    -- Settings.PropertySoldSign == true
     -- ==========================================
     local function FindOwnedSoldSign()
         if not playerModels then return nil end
@@ -100,11 +118,7 @@ function Plot.Init(Tab, Library)
     end
 
     -- ==========================================
-    -- LAND ACTIONS
-    -- ==========================================
-
-    -- ==========================================
-    -- SOLD SIGN SECTION
+    -- PROPERTY MANAGEMENT ACTIONS
     -- ==========================================
     Tab:CreateSection("Property Management")
 
@@ -165,9 +179,6 @@ function Plot.Init(Tab, Library)
         task.delay(0.5, UpdateSoldSignButton)
     end)
 
-    UpdateSoldSignButton()
-    task.delay(2, UpdateSoldSignButton)
-
     Tab:CreateAction("Wipe Plot", "Wipe", function()
         local destroyRemote = interaction and interaction:FindFirstChild("DestroyStructure")
         if not playerModels or not destroyRemote then
@@ -186,75 +197,33 @@ function Plot.Init(Tab, Library)
             if Library and Library.Notify then Library:Notify("WIPE", "Nothing found to clear.", 3) end
             return
         end
+        
         if Library and Library.Notify then
-            Library:Notify("WIPE", "Clearing " .. #toDestroy .. " object(s)…", math.ceil(#toDestroy * 0.1))
+            Library:Notify("WIPE", "Clearing " .. #toDestroy .. " object(s)...", 4)
         end
-        local count = 0
+
         for _, entry in ipairs(toDestroy) do
-            if not entry.model.Parent then continue end
-            local timeout = 5
-            local elapsed = 0
-            while entry.model.Parent ~= nil and elapsed < timeout do
-                pcall(destroyRemote.FireServer, destroyRemote, entry.model)
-                task.wait(0.05)
-                elapsed += 0.05
-            end
-            if entry.model.Parent == nil then
-                count += 1
-            else
-                warn(("[Wipe] Timed out on '%s'."):format(entry.model.Name))
-            end
+            pcall(function() destroyRemote:FireServer(entry.model) end)
         end
-        if Library and Library.Notify then Library:Notify("SUCCESS", "Wiped " .. count .. " object(s).", 4) end
+        
+        if Library and Library.Notify then Library:Notify("SUCCESS", "Wipe complete.", 4) end
     end)
     
     -- ==========================================
-    -- SIGN WATCHERS
+    -- EVENT LISTENERS
     -- ==========================================
     if playerModels then
-        playerModels.ChildAdded:Connect(function(child)
-            task.defer(function()
-                if not child.Parent then return end
-                local settings = child:FindFirstChild("Settings")
-                             or child:WaitForChild("Settings", 3)
-                if settings and settings:FindFirstChild("PropertySoldSign") then
-                    task.wait(0.2)
-                    UpdateSoldSignButton()
-                end
-            end)
-        end)
-        playerModels.ChildRemoved:Connect(function()
-            task.defer(UpdateSoldSignButton)
-        end)
-        playerModels.DescendantAdded:Connect(function(desc)
-            if desc.Name == "PropertySoldSign" then task.defer(UpdateSoldSignButton) end
-        end)
-        playerModels.DescendantRemoving:Connect(function(desc)
-            if desc.Name == "PropertySoldSign" then task.defer(UpdateSoldSignButton) end
-        end)
+        playerModels.ChildAdded:Connect(function() task.delay(0.5, UpdateSoldSignButton) end)
+        playerModels.ChildRemoved:Connect(function() task.delay(0.5, UpdateSoldSignButton) end)
     end
 
-    -- ==========================================
-    -- DYNAMIC LAND EVENT LISTENERS
-    -- ==========================================
     if propertiesFolder then
-        propertiesFolder.DescendantAdded:Connect(function(descendant)
-            if descendant.Name == "Owner" and descendant:IsA("ObjectValue") then
-                descendant.Changed:Connect(function() task.defer(UpdateLandButtons) end)
-            end
-            task.defer(UpdateLandButtons)
-        end)
-        propertiesFolder.DescendantRemoving:Connect(function()
-            task.defer(UpdateLandButtons)
-        end)
-        for _, plot in pairs(propertiesFolder:GetChildren()) do
-            local owner = plot:FindFirstChild("Owner")
-            if owner and owner:IsA("ObjectValue") then
-                owner.Changed:Connect(function() task.defer(UpdateLandButtons) end)
-            end
-        end
+        propertiesFolder.DescendantAdded:Connect(function() task.defer(UpdateLandButtons) end)
+        propertiesFolder.DescendantRemoving:Connect(function() task.defer(UpdateLandButtons) end)
         UpdateLandButtons()
     end
+    
+    UpdateSoldSignButton()
 end
 
 return Plot
