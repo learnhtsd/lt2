@@ -15,13 +15,12 @@ function Plot.Init(Tab, Library)
     local placeStructure = ReplicatedStorage:FindFirstChild("PlaceStructure")
     local placedStructureRemote = placeStructure and placeStructure:FindFirstChild("ClientPlacedStructure")
 
-    -- ── Sold Sign target position — fill this in ───────────────
-    local SOLD_SIGN_GOAL_CF = CFrame.new(315, 0, 88) -- <<< REPLACE with your target position
+    local SOLD_SIGN_GOAL_CF = CFrame.new(315, 0, 88)
 
     -- ==========================================
     -- SAVE & LOAD MANAGEMENT
     -- ==========================================
-    Tab:CreateSection("Save & Load Controls")
+    Tab:CreateSection("Management")
     local selectedSlotToLoad = 1
     if Tab.CreateDropdown then
         Tab:CreateDropdown("Select Slot to Load", {"1", "2", "3", "4", "5", "6"}, "1", function(value)
@@ -29,7 +28,7 @@ function Plot.Init(Tab, Library)
         end)
     end
     
-    Tab:CreateAction("Load Slot", "Load", function()
+    Tab:CreateAction("Load Selected Slot", "Load", function()
         local RequestLoadRemote = loadSaveRequests and loadSaveRequests:FindFirstChild("RequestLoad")
         if RequestLoadRemote then
             RequestLoadRemote:InvokeServer(selectedSlotToLoad)
@@ -58,32 +57,33 @@ function Plot.Init(Tab, Library)
     -- ==========================================
     -- SOLD SIGN FINDER
     -- Requires:
-    --   1. Owner.Value == LocalPlayer
-    --   2. ItemName.Value == "PropertySoldSign"
-    --   3. Owner has a LastInteraction child (confirms the sign has been sold to)
+    --   1. Owner.OwnerString.Value == LocalPlayer.Name
+    --   2. Settings.PropertySoldSign.Value == true
     -- ==========================================
     local function FindOwnedSoldSign()
         if not playerModels then return nil end
         for _, model in ipairs(playerModels:GetChildren()) do
             if not model:IsA("Model") then continue end
 
+            -- Check OwnerString matches local player name
             local owner = model:FindFirstChild("Owner")
             if not owner then continue end
-            if owner.Value ~= LocalPlayer and owner.Value ~= LocalPlayer.Name then continue end
+            local ownerString = owner:FindFirstChild("OwnerString")
+            if not ownerString or ownerString.Value ~= LocalPlayer.Name then continue end
 
-            -- Must have LastInteraction on the Owner object — sign has been bought
-            if not owner:FindFirstChild("LastInteraction") then continue end
+            -- Check Settings.PropertySoldSign == true
+            local settings = model:FindFirstChild("Settings")
+            if not settings then continue end
+            local soldFlag = settings:FindFirstChild("PropertySoldSign")
+            if not soldFlag or soldFlag.Value ~= true then continue end
 
-            local iname = model:FindFirstChild("ItemName")
-            if iname and iname.Value == "PropertySoldSign" then
-                return model
-            end
+            return model
         end
         return nil
     end
 
     -- ==========================================
-    -- BUTTON STATE UPDATER
+    -- BUTTON STATE UPDATERS
     -- ==========================================
     local function UpdateLandButtons()
         if not propertiesFolder then return end
@@ -112,10 +112,8 @@ function Plot.Init(Tab, Library)
     end
 
     -- ==========================================
-    -- SOLD SIGN SECTION
+    -- LAND ACTIONS
     -- ==========================================
-    Tab:CreateSection("Property Management")
-
     claimBtn = Tab:CreateAction("Claim Free Land", "Claim", function()
         if not propertiesFolder or not propertyPurchasing then return end
         local claimRemote = propertyPurchasing:FindFirstChild("ClientPurchasedProperty")
@@ -156,30 +154,7 @@ function Plot.Init(Tab, Library)
             if Library and Library.Notify then Library:Notify("SUCCESS", "Plot fully expanded!", 3) end
         end
     end)
-
-    soldSignBtn = Tab:CreateAction("Sell Sold To Sign", "Sell", function()
-        if not placedStructureRemote then
-            if Library and Library.Notify then Library:Notify("ERROR", "Remote not found.", 3) end
-            return
-        end
-        local sign = FindOwnedSoldSign()
-        if not sign then
-            if Library and Library.Notify then Library:Notify("ERROR", "No valid PropertySoldSign found.", 3) end
-            UpdateSoldSignButton()
-            return
-        end
-        placedStructureRemote:FireServer(
-            "PropertySoldSign",
-            SOLD_SIGN_GOAL_CF,
-            LocalPlayer,
-            false,
-            sign,
-            true
-        )
-        if Library and Library.Notify then Library:Notify("SUCCESS", "Sold sign moved!", 3) end
-        task.delay(0.5, UpdateSoldSignButton)
-    end)
-
+    
     Tab:CreateAction("Wipe Plot", "Wipe", function()
         local destroyRemote = interaction and interaction:FindFirstChild("DestroyStructure")
         if not playerModels or not destroyRemote then
@@ -219,54 +194,61 @@ function Plot.Init(Tab, Library)
         end
         if Library and Library.Notify then Library:Notify("SUCCESS", "Wiped " .. count .. " object(s).", 4) end
     end)
-    
+
+    -- ==========================================
+    -- SOLD SIGN SECTION
+    -- ==========================================
+    Tab:CreateSection("Property Sign")
+
+    soldSignBtn = Tab:CreateAction("Sell Sold To Sign", "Move", function()
+        if not placedStructureRemote then
+            if Library and Library.Notify then Library:Notify("ERROR", "Remote not found.", 3) end
+            return
+        end
+        local sign = FindOwnedSoldSign()
+        if not sign then
+            if Library and Library.Notify then Library:Notify("ERROR", "No valid PropertySoldSign found.", 3) end
+            UpdateSoldSignButton()
+            return
+        end
+        placedStructureRemote:FireServer("PropertySoldSign", SOLD_SIGN_GOAL_CF, LocalPlayer, false, sign, true)
+        if Library and Library.Notify then Library:Notify("SUCCESS", "Sold sign moved!", 3) end
+        task.delay(0.5, UpdateSoldSignButton)
+    end)
+
+    UpdateSoldSignButton()
+    task.delay(2, UpdateSoldSignButton)
+
     -- ==========================================
     -- SIGN WATCHERS
     -- ==========================================
     if playerModels then
-        -- Watch for new models — wait for ItemName to be set before checking,
-        -- since ChildAdded fires before descendants are fully replicated.
         playerModels.ChildAdded:Connect(function(child)
             task.defer(function()
                 if not child.Parent then return end
-                -- Wait up to 3s for ItemName to appear
-                local iname = child:FindFirstChild("ItemName")
-                            or child:WaitForChild("ItemName", 3)
-                if iname and iname.Value == "PropertySoldSign" then
-                    -- Also wait for Owner.LastInteraction to replicate if needed
-                    local owner = child:FindFirstChild("Owner")
-                    if owner then
-                        -- Give LastInteraction a moment to arrive
-                        task.wait(0.2)
-                    end
+                local settings = child:FindFirstChild("Settings")
+                            or child:WaitForChild("Settings", 3)
+                if settings and settings:FindFirstChild("PropertySoldSign") then
+                    task.wait(0.2)
                     UpdateSoldSignButton()
                 end
             end)
         end)
-
-        playerModels.ChildRemoved:Connect(function(child)
-            -- We can't read children of a removed model safely, just refresh
+        playerModels.ChildRemoved:Connect(function()
             task.defer(UpdateSoldSignButton)
         end)
-
-        -- Also watch for LastInteraction being added/removed on existing signs
-        -- so the button state tracks correctly without needing a reload
+        -- Watch for PropertySoldSign flag flipping to true on existing models
         playerModels.DescendantAdded:Connect(function(desc)
-            if desc.Name == "LastInteraction" then
+            if desc.Name == "PropertySoldSign" then
                 task.defer(UpdateSoldSignButton)
             end
         end)
         playerModels.DescendantRemoving:Connect(function(desc)
-            if desc.Name == "LastInteraction" then
+            if desc.Name == "PropertySoldSign" then
                 task.defer(UpdateSoldSignButton)
             end
         end)
     end
-
-    -- Initial check: run immediately, then again after a short delay
-    -- to catch signs that finish replicating after Init runs.
-    UpdateSoldSignButton()
-    task.delay(2, UpdateSoldSignButton)
 
     -- ==========================================
     -- DYNAMIC LAND EVENT LISTENERS
