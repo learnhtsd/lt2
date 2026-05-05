@@ -35,7 +35,7 @@ function Plot.Init(Tab, Library)
 
     Tab:CreateAction("Save Slot", "Save", function()
         local currentSlot = LocalPlayer:FindFirstChild("CurrentSaveSlot")
-        if loadSaveRequests and currentSlot and currentSlot.Value ~= -1 then
+        if loadSaveRequests and currentSlot and currentSlot.Value ~= 0 then
             local RequestSaveRemote = loadSaveRequests:FindFirstChild("RequestSave")
             if RequestSaveRemote then
                 if Library and Library.Notify then Library:Notify("SAVING", "Forcing save...", 3) end
