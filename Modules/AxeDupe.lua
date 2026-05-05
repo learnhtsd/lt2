@@ -93,8 +93,8 @@ function RespawnLoad.Init(Tab, Library)
     -- ================================================================
     --  UI
     -- ================================================================
-    Tab:CreateSection("Respawn & Reload")
-    Tab:CreateAction("Reload Current Slot", "Reload", function()
+    Tab:CreateSection("Axe Duplication")
+    Tab:CreateAction("Inventory Axes", "Dupe", function()
         task.spawn(ReloadCurrentSlot)
     end)
 end
