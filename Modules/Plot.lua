@@ -33,15 +33,50 @@ function Plot.Init(Tab, Library)
         end
     end)
 
-    Tab:CreateAction("Save Slot", "Save", function()
+    local saveCooldownActive = false
+    local saveBtn
+    
+    saveBtn = Tab:CreateAction("Save Slot", "Save", function()
+        if saveCooldownActive then return end
+        
         local currentSlot = LocalPlayer:FindFirstChild("CurrentSaveSlot")
-        if loadSaveRequests and currentSlot and currentSlot.Value ~= 0 then
-            local RequestSaveRemote = loadSaveRequests:FindFirstChild("RequestSave")
-            if RequestSaveRemote then
-                if Library and Library.Notify then Library:Notify("SAVING", "Forcing save...", 3) end
-                local success = RequestSaveRemote:InvokeServer(currentSlot.Value)
-                if success and Library and Library.Notify then Library:Notify("SUCCESS", "Slot saved!", 5) end
+        
+        if not currentSlot or currentSlot.Value <= 0 then
+            if Library and Library.Notify then 
+                Library:Notify("ERROR", "No active slot detected. Load a slot first!", 5) 
             end
+            return
+        end
+
+        local RequestSaveRemote = loadSaveRequests and loadSaveRequests:FindFirstChild("RequestSave")
+        if RequestSaveRemote then
+            if Library and Library.Notify then Library:Notify("SAVING", "Forcing save for slot " .. currentSlot.Value .. "...", 3) end
+            
+            local success, result = pcall(function()
+                return RequestSaveRemote:InvokeServer(currentSlot.Value)
+            end)
+
+            if success then
+                if Library and Library.Notify then Library:Notify("SUCCESS", "Save request sent!", 5) end
+                
+                -- Start Cooldown
+                saveCooldownActive = true
+                saveBtn:SetDisabled(true)
+                
+                task.spawn(function()
+                    for i = 60, 1, -1 do
+                        saveBtn:SetText("Wait (" .. i .. "s)")
+                        task.wait(1)
+                    end
+                    saveBtn:SetText("Save Slot")
+                    saveBtn:SetDisabled(false)
+                    saveCooldownActive = false
+                end)
+            else
+                if Library and Library.Notify then Library:Notify("ERROR", "Save failed: " .. tostring(result), 5) end
+            end
+        else
+            if Library and Library.Notify then Library:Notify("ERROR", "Save remote not found.", 5) end
         end
     end)
 
