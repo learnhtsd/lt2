@@ -65,7 +65,7 @@ function Plot.Init(Tab, Library)
                 
                 task.spawn(function()
                     for i = 60, 1, -1 do
-                        saveBtn:SetText("Wait (" .. i .. "s)")
+                        saveBtn:SetText("" .. i .. "s")
                         task.wait(1)
                     end
                     saveBtn:SetText("Save Slot")
