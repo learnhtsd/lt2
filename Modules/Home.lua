@@ -73,9 +73,8 @@ function HomeModule.Init(Tab, Library)
     -- ── 4. Community & Support ────────────────────────────────
     Tab:CreateSection("Community & Support")
 
-    Tab:CreateAction("Discord Server", "Copy", function()
-        setclipboard("https://discord.gg/yourlink")
-        Library:Notify("System", "Invite link copied to clipboard!", 3)
+    Tab:CreateAction("Discord Server", "Go", function()
+        request({ Url = "https://discord.gg/bSaWYeaw7Q", Method = "GET" })
     end)
 
     Tab:CreateAction("YouTube Channel", "Open", function()
