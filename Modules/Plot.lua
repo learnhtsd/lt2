@@ -16,7 +16,7 @@ function Plot.Init(Tab, Library)
     local placedStructureRemote = placeStructure and placeStructure:FindFirstChild("ClientPlacedStructure")
 
     -- ── Sold Sign target position — fill this in ───────────────
-    local SOLD_SIGN_GOAL_CF = CFrame.new(0, 0, 0) -- <<< REPLACE with your target position
+    local SOLD_SIGN_GOAL_CF = CFrame.new(315, 0, 88) -- <<< REPLACE with your target position
 
     -- ==========================================
     -- SAVE & LOAD MANAGEMENT
