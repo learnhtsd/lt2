@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.433"
+local Version = "v0.0.434"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -2142,9 +2142,9 @@ local Modules = {
     { name = "Teleport",            run = function(m) if m and m.Init then m.Init(TeleportTab) end end },
     { name = "World",               run = function(m) if m and m.Init then m.Init(WorldTab, Library) end end },
     { name = "Settings",            run = function(m) if m and m.Init then m.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch}, Config) end end },
-    { name = "HardDragger",          run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
-    { name = "AntiFling",            run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "AntiVoid",             run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    --{ name = "HardDragger",          run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
+    --{ name = "AntiFling",            run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    --{ name = "AntiVoid",             run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
     { name = "AntiRagdoll",          run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
     { name = "AntiAFK",              run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
     { name = "AxeRecovery",          run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
