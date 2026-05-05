@@ -149,7 +149,7 @@ function Plot.Init(Tab, Library)
         end
     end)
     
-    soldSignBtn = Tab:CreateAction("Delete 'Solt To' Sign", "Delete", function()
+    soldSignBtn = Tab:CreateAction("Delete 'Sold To' Sign", "Delete", function()
         if not destroyStructure then
             if Library and Library.Notify then Library:Notify("ERROR", "DestroyStructure remote not found.", 3) end
             return
