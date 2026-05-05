@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.429"
+local Version = "v0.0.430"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -44,12 +44,12 @@ end)
 
 local Config = {
     Window = { -- Menu Scale
-        Width  = 420,
-        Height = 540,
+        Width  = 410,
+        Height = 530,
         SidebarWidth = 40,
     },
     Elements = { -- UI Element Scale
-        Scale = 0.80,
+        Scale = 0.85,
     },
     Theme = { -- Theme Color Pallet
         Accent          = Color3.fromRGB(74,  120, 255),  -- blue highlights / active
@@ -1975,8 +1975,38 @@ local ProtectionTab  = HubWindow:CreateTab("Protection")
 local SettingsTab    = HubWindow:CreateTab("Settings")
 local HelpTab        = HubWindow:CreateTab("Help")
 
+-- Services
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local ContextActionService = game:GetService("ContextActionService")
+
+-- Configuration (Placeholders for your existing variables)
+local Version = "v1.0" -- Example version
+local User, Repo, Branch = "User", "Repo", "Main" 
+local FREEZE_ACTION = "DynxeLoadingLock"
+
 -- ============================================================
--- LOAD SCREEN
+-- CONTROL UTILITIES
+-- ============================================================
+
+-- Function to freeze/unfreeze character and camera
+local function SetControlsLocked(locked)
+    if locked then
+        -- Sink all movement, jumping, and camera inputs
+        ContextActionService:BindActionAtPriority(
+            FREEZE_ACTION,
+            function() return Enum.ContextActionResult.Sink end,
+            false,
+            Enum.ContextActionPriority.High.Value,
+            unpack(Enum.PlayerActions:GetEnumItems())
+        )
+    else
+        ContextActionService:UnbindAction(FREEZE_ACTION)
+    end
+end
+
+-- ============================================================
+-- LOAD SCREEN UI
 -- ============================================================
 local LoadGui = Instance.new("ScreenGui")
 LoadGui.Name           = "DynxeLT2LoadScreen"
@@ -1991,6 +2021,7 @@ Overlay.Size             = UDim2.new(1, 0, 1, 0)
 Overlay.BackgroundColor3 = Color3.fromRGB(8, 10, 22)
 Overlay.BackgroundTransparency = 0.12
 Overlay.BorderSizePixel  = 0
+Overlay.Active           = true -- CRITICAL: Blocks mouse clicks from passing through
 Overlay.Parent           = LoadGui
 
 -- Subtle blue vignette gradient
@@ -2002,14 +2033,6 @@ Vignette.Color = ColorSequence.new({
 })
 Vignette.Rotation = 45
 
--- Layout (top → bottom):
---   Y=0   LoadingLabel  (h=20)  "Loading ModuleName..."
---   Y=24  TitleLabel    (h=36)  "Dynxe LT2 vX.X"
---   Y=63  HintLabel     (h=14)  "This might take a second :)"
---   Y=82  BarTrack      (h=4)
---   Y=90  PctLabel      (h=16)  "0%"
---   total height = 106
-
 local Center = Instance.new("Frame")
 Center.Size                   = UDim2.new(0, 320, 0, 106)
 Center.AnchorPoint            = Vector2.new(0.5, 0.5)
@@ -2017,44 +2040,38 @@ Center.Position               = UDim2.new(0.5, 0, 0.5, 0)
 Center.BackgroundTransparency = 1
 Center.Parent                 = Overlay
 
--- "Loading: ModuleName" label
+-- UI Elements
 local LoadingLabel = Instance.new("TextLabel")
-LoadingLabel.Size               = UDim2.new(1, 0, 0, 20)
-LoadingLabel.Position           = UDim2.new(0, 0, 0, 0)
+LoadingLabel.Size                = UDim2.new(1, 0, 0, 20)
+LoadingLabel.Position            = UDim2.new(0, 0, 0, 0)
 LoadingLabel.BackgroundTransparency = 1
-LoadingLabel.Text               = "Initializing..."
-LoadingLabel.TextColor3         = Color3.fromRGB(100, 140, 255)
-LoadingLabel.Font               = Enum.Font.Gotham
-LoadingLabel.TextSize           = 13
-LoadingLabel.TextXAlignment     = Enum.TextXAlignment.Center
-LoadingLabel.Parent             = Center
+LoadingLabel.Text                = "Initializing..."
+LoadingLabel.TextColor3          = Color3.fromRGB(100, 140, 255)
+LoadingLabel.Font                = Enum.Font.Gotham
+LoadingLabel.TextSize            = 13
+LoadingLabel.Parent              = Center
 
--- Title label
 local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size               = UDim2.new(1, 0, 0, 36)
-TitleLabel.Position           = UDim2.new(0, 0, 0, 24)
+TitleLabel.Size                = UDim2.new(1, 0, 0, 36)
+TitleLabel.Position            = UDim2.new(0, 0, 0, 24)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text               = "<b>Dynxe</b> <font color=\"#4a78ff\">LT2</font> <font color=\"#444466\">" .. Version .. "</font>"
+TitleLabel.Text                = "<b>Dynxe</b> <font color=\"#4a78ff\">LT2</font> <font color=\"#444466\">" .. Version .. "</font>"
 TitleLabel.RichText           = true
-TitleLabel.TextColor3         = Color3.fromRGB(220, 220, 230)
-TitleLabel.Font               = Enum.Font.GothamMedium
-TitleLabel.TextSize           = 22
-TitleLabel.TextXAlignment     = Enum.TextXAlignment.Center
-TitleLabel.Parent             = Center
+TitleLabel.TextColor3          = Color3.fromRGB(220, 220, 230)
+TitleLabel.Font                = Enum.Font.GothamMedium
+TitleLabel.TextSize            = 22
+TitleLabel.Parent              = Center
 
--- Hint label — sits just above the progress bar
 local HintLabel = Instance.new("TextLabel")
-HintLabel.Size               = UDim2.new(1, 0, 0, 14)
-HintLabel.Position           = UDim2.new(0, 0, 0, 63)
+HintLabel.Size                = UDim2.new(1, 0, 0, 14)
+HintLabel.Position            = UDim2.new(0, 0, 0, 63)
 HintLabel.BackgroundTransparency = 1
-HintLabel.Text               = "This might take a second :)"
-HintLabel.TextColor3         = Color3.fromRGB(80, 100, 160)
-HintLabel.Font               = Enum.Font.Gotham
-HintLabel.TextSize           = 11
-HintLabel.TextXAlignment     = Enum.TextXAlignment.Center
-HintLabel.Parent             = Center
+HintLabel.Text                = "This might take a second :)"
+HintLabel.TextColor3          = Color3.fromRGB(80, 100, 160)
+HintLabel.Font                = Enum.Font.Gotham
+HintLabel.TextSize            = 11
+HintLabel.Parent              = Center
 
--- Progress bar track
 local BarTrack = Instance.new("Frame")
 BarTrack.Size             = UDim2.new(1, 0, 0, 4)
 BarTrack.Position         = UDim2.new(0, 0, 0, 82)
@@ -2070,17 +2087,19 @@ BarFill.BorderSizePixel  = 0
 BarFill.Parent           = BarTrack
 Instance.new("UICorner", BarFill).CornerRadius = UDim.new(1, 0)
 
--- Percent label under bar
 local PctLabel = Instance.new("TextLabel")
-PctLabel.Size               = UDim2.new(1, 0, 0, 16)
-PctLabel.Position           = UDim2.new(0, 0, 0, 90)
+PctLabel.Size                = UDim2.new(1, 0, 0, 16)
+PctLabel.Position            = UDim2.new(0, 0, 0, 90)
 PctLabel.BackgroundTransparency = 1
-PctLabel.Text               = "0%"
-PctLabel.TextColor3         = Color3.fromRGB(70, 90, 140)
-PctLabel.Font               = Enum.Font.Gotham
-PctLabel.TextSize           = 11
-PctLabel.TextXAlignment     = Enum.TextXAlignment.Center
-PctLabel.Parent             = Center
+PctLabel.Text                = "0%"
+PctLabel.TextColor3          = Color3.fromRGB(70, 90, 140)
+PctLabel.Font                = Enum.Font.Gotham
+PctLabel.TextSize            = 11
+PctLabel.Parent              = Center
+
+-- ============================================================
+-- LOGIC
+-- ============================================================
 
 local function SetProgress(current, total, moduleName)
     local pct = current / total
@@ -2092,21 +2111,25 @@ local function SetProgress(current, total, moduleName)
 end
 
 local function DismissLoadScreen()
+    -- Re-enable player movement and camera
+    SetControlsLocked(false)
+    
+    -- Fade out animations
     TweenService:Create(Overlay, TweenInfo.new(0.6, Enum.EasingStyle.Quart), {
         BackgroundTransparency = 1
     }):Play()
     TweenService:Create(TitleLabel,   TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(LoadingLabel, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(HintLabel,    TweenInfo.new(0.4), {TextTransparency = 1}):Play()
-    TweenService:Create(PctLabel,     TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(PctLabel,      TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(BarFill,      TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
     TweenService:Create(BarTrack,     TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
-    task.delay(0.7, function() LoadGui:Destroy() end)
+    
+    task.delay(0.7, function() 
+        LoadGui:Destroy() 
+    end)
 end
 
--- ============================================================
--- MODULE LOADING
--- ============================================================
 local function LoadModule(ModuleName)
     local URL = string.format("https://raw.githubusercontent.com/%s/%s/%s/Modules/%s.lua?t=%s",
         User, Repo, Branch, ModuleName, tick())
@@ -2118,7 +2141,10 @@ local function LoadModule(ModuleName)
     warn("Failed to load module: " .. ModuleName)
 end
 
--- Must be declared BEFORE the Modules table so closures can capture it
+-- ============================================================
+-- EXECUTION
+-- ============================================================
+
 local LooseObjectTeleportModule = nil
 
 local Modules = {
@@ -2126,38 +2152,37 @@ local Modules = {
     { name = "Home",                run = function(m) if m and m.Init then m.Init(HomeTab, Library) end end },
     { name = "PlayerMovement",      run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
     { name = "Teleport",            run = function(m) if m and m.Init then m.Init(TeleportTab) end end },
-    { name = "World",               run = function(m) if m and m.Init then m.Init(WorldTab, Library) end end },
+    { name = "World",                run = function(m) if m and m.Init then m.Init(WorldTab, Library) end end },
     { name = "Settings",            run = function(m) if m and m.Init then m.Init(SettingsTab, HubWindow, {User = User, Repo = Repo, Branch = Branch}, Config) end end },
-    { name = "HardDragger",         run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
-    { name = "AntiFling",           run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "HardDragger",          run = function(m) if m and m.Init then m.Init(PlayerTab) end end },
+    { name = "AntiFling",            run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
     { name = "AntiVoid",            run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "AntiRagdoll",         run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "AntiAFK",             run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "AxeRecovery",         run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AntiRagdoll",          run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AntiAFK",              run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
+    { name = "AxeRecovery",          run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
     { name = "LooseObjectTeleport", run = function(m)
         LooseObjectTeleportModule = m
         if m and m.Init then m.Init(ToolTab, Library) end
     end },
-    { name = "TreeCam",             run = function(m) if m and m.Init then m.Init(WoodTab) end end },
-    { name = "Vehicle",             run = function(m) if m and m.Init then m.Init(VehicleTab) end end },
+    { name = "TreeCam",              run = function(m) if m and m.Init then m.Init(WoodTab) end end },
+    { name = "Vehicle",              run = function(m) if m and m.Init then m.Init(VehicleTab) end end },
     { name = "Plot",                run = function(m) if m and m.Init then m.Init(PlotTab, Library) end end },
     { name = "Tree",                run = function(m) if m and m.Init then m.Init(WoodTab, LooseObjectTeleportModule) end end },
     { name = "Help",                run = function(m) if m and m.Init then m.Init(HelpTab) end end },
-    { name = "Duplication",         run = function(m) if m and m.Init then m.Init(DuplicationTab) end end },
-    { name = "Build",               run = function(m) if m and m.Init then m.Init(BuildTab, LooseObjectTeleportModule) end end },
+    { name = "Duplication",          run = function(m) if m and m.Init then m.Init(DuplicationTab) end end },
+    { name = "Build",                run = function(m) if m and m.Init then m.Init(BuildTab, LooseObjectTeleportModule) end end },
     { name = "Shop",                run = function(m) if m and m.Init then m.Init(ShopTab, LooseObjectTeleportModule) end end },
 }
 
-local Theme = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/learnhtsd/lt2/refs/heads/main/Theme.lua"
-))()
+-- Lock controls before starting the load loop
+SetControlsLocked(true)
 
 local total = #Modules
 for i, entry in ipairs(Modules) do
     SetProgress(i - 1, total, entry.name)
     local ok, err = pcall(function()
         local m = LoadModule(entry.name)
-        entry.run(m)
+        if m then entry.run(m) end
     end)
     if not ok then warn("[Loader] " .. entry.name .. " failed: " .. tostring(err)) end
     task.wait(0.05)
@@ -2165,5 +2190,10 @@ end
 
 SetProgress(total, total, nil)
 task.wait(0.4)
+
+-- Re-enables movement and cleans up UI
 DismissLoadScreen()
-Library:Notify("Dynxe LT2", "All modules loaded!", 5)
+
+if Library and Library.Notify then
+    Library:Notify("Dynxe LT2", "All modules loaded!", 5)
+end
