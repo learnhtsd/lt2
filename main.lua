@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.431"
+local Version = "v0.0.432"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -2091,6 +2091,18 @@ PctLabel.TextSize            = 11
 PctLabel.TextXAlignment      = Enum.TextXAlignment.Center
 PctLabel.Parent              = Center
 
+-- Footer Notice Label
+local FooterLabel = Instance.new("TextLabel")
+FooterLabel.Size               = UDim2.new(1, 0, 0, 30)
+FooterLabel.Position           = UDim2.new(0, 0, 1, -40)
+FooterLabel.BackgroundTransparency = 1
+FooterLabel.Text               = "Specific modules may take longer due to heavier functionality. Especially if this is your first time loading Dynxe."
+FooterLabel.TextColor3         = Color3.fromRGB(255, 255, 255)
+FooterLabel.Font               = Enum.Font.Gotham
+FooterLabel.TextSize           = 12
+FooterLabel.TextXAlignment      = Enum.TextXAlignment.Center
+FooterLabel.Parent             = Overlay
+
 local function SetProgress(current, total, moduleName)
     local pct = current / total
     TweenService:Create(BarFill, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {
@@ -2111,6 +2123,7 @@ local function DismissLoadScreen()
     TweenService:Create(LoadingLabel, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(HintLabel,    TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(PctLabel,      TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(FooterLabel,   TweenInfo.new(0.4), {TextTransparency = 1}):Play()
     TweenService:Create(BarFill,      TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
     TweenService:Create(BarTrack,     TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
     task.delay(0.7, function() LoadGui:Destroy() end)
