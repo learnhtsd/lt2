@@ -4,7 +4,7 @@ local TreeModule = {}
 --             SYSTEM SETTINGS
 -- ==========================================
 local Settings = {
-    SyncDelay       = 0.1,
+    SyncDelay       = 0.2,
     ReadyDelay      = 0.1,
 
     -- [ Cut Settings ]
