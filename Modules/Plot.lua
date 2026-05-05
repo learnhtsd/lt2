@@ -12,7 +12,12 @@ function Plot.Init(Tab, Library)
     local loadSaveRequests = ReplicatedStorage:FindFirstChild("LoadSaveRequests")
     local propertyPurchasing = ReplicatedStorage:FindFirstChild("PropertyPurchasing")
     local interaction = ReplicatedStorage:FindFirstChild("Interaction")
-    
+    local placeStructure = ReplicatedStorage:FindFirstChild("PlaceStructure")
+    local placedStructureRemote = placeStructure and placeStructure:FindFirstChild("ClientPlacedStructure")
+
+    -- ── Sold Sign position — fill this in ─────────────────────
+    local SOLD_SIGN_GOAL_CF = CFrame.new(315, 0, 88) -- <<< REPLACE with your target position
+
     -- ==========================================
     -- SAVE & LOAD MANAGEMENT
     -- ==========================================
@@ -47,7 +52,28 @@ function Plot.Init(Tab, Library)
     -- Forward declare buttons for the update function
     local claimBtn
     local expandBtn
+    local soldSignBtn
     local propertiesFolder = Workspace:FindFirstChild("Properties")
+    local playerModels     = Workspace:FindFirstChild("PlayerModels")
+
+    -- ==========================================
+    -- SOLD SIGN FINDER
+    -- ==========================================
+    local function FindOwnedSoldSign()
+        if not playerModels then return nil end
+        for _, model in ipairs(playerModels:GetChildren()) do
+            if not model:IsA("Model") then continue end
+            local owner  = model:FindFirstChild("Owner")
+            local iname  = model:FindFirstChild("ItemName")
+            if owner
+            and (owner.Value == LocalPlayer or owner.Value == LocalPlayer.Name)
+            and iname
+            and iname.Value == "PropertySoldSign" then
+                return model
+            end
+        end
+        return nil
+    end
 
     -- ==========================================
     -- BUTTON STATE UPDATER
@@ -58,13 +84,10 @@ function Plot.Init(Tab, Library)
         local hasLand = false
         local landPieceCount = 0
         
-        -- Search for the player's property
         for _, plot in pairs(propertiesFolder:GetChildren()) do
             local owner = plot:FindFirstChild("Owner")
             if owner and owner.Value == LocalPlayer then
                 hasLand = true
-                -- Count how many physical square pieces the property has
-                -- (LT2 Properties contain the squares as BaseParts)
                 for _, child in pairs(plot:GetChildren()) do
                     if child:IsA("BasePart") then
                         landPieceCount = landPieceCount + 1
@@ -74,14 +97,18 @@ function Plot.Init(Tab, Library)
             end
         end
         
-        -- Update the buttons based on current state
         if claimBtn then 
             claimBtn:SetDisabled(hasLand) 
         end
         
         if expandBtn then 
-            -- Disable if they have no land to expand, OR if they've hit the 25 piece cap
             expandBtn:SetDisabled(not hasLand or landPieceCount >= 25) 
+        end
+    end
+
+    local function UpdateSoldSignButton()
+        if soldSignBtn then
+            soldSignBtn:SetDisabled(FindOwnedSoldSign() == nil)
         end
     end
 
@@ -134,7 +161,6 @@ function Plot.Init(Tab, Library)
     end)
     
     Tab:CreateAction("Wipe Plot", "Wipe", function()
-        local playerModels = Workspace:FindFirstChild("PlayerModels")
         local destroyRemote = interaction and interaction:FindFirstChild("DestroyStructure")
     
         if not playerModels or not destroyRemote then
@@ -142,7 +168,6 @@ function Plot.Init(Tab, Library)
             return
         end
     
-        -- Snapshot the list up front so destroyed models don't affect iteration
         local toDestroy = {}
         for _, model in pairs(playerModels:GetChildren()) do
             local owner = model:FindFirstChild("Owner")
@@ -164,11 +189,8 @@ function Plot.Init(Tab, Library)
         end
 
         local count = 0
-
         for _, entry in ipairs(toDestroy) do
             if not entry.model.Parent then continue end
-
-            -- Keep firing the remote until the server removes the model or we time out
             local timeout = 5
             local elapsed = 0
             while entry.model.Parent ~= nil and elapsed < timeout do
@@ -176,7 +198,6 @@ function Plot.Init(Tab, Library)
                 task.wait(0.05)
                 elapsed = elapsed + 0.05
             end
-
             if entry.model.Parent == nil then
                 count = count + 1
             else
@@ -190,12 +211,65 @@ function Plot.Init(Tab, Library)
     end)
 
     -- ==========================================
+    -- SOLD SIGN SECTION
+    -- ==========================================
+    Tab:CreateSection("Property Sign")
+
+    soldSignBtn = Tab:CreateAction("Sell Sold To Sign", "Move", function()
+        if not placedStructureRemote then
+            if Library and Library.Notify then Library:Notify("ERROR", "Remote not found.", 3) end
+            return
+        end
+
+        local sign = FindOwnedSoldSign()
+        if not sign then
+            if Library and Library.Notify then Library:Notify("ERROR", "No owned PropertySoldSign found.", 3) end
+            UpdateSoldSignButton()
+            return
+        end
+
+        -- Fire the same remote & argument order as the mover script:
+        -- FireServer(itemName, goalCF, Player, woodClass, model, not woodClass)
+        -- PropertySoldSign is a Loose Item (no wood class), so woodClass = false → last arg = true
+        placedStructureRemote:FireServer(
+            "PropertySoldSign",
+            SOLD_SIGN_GOAL_CF,
+            LocalPlayer,
+            false,
+            sign,
+            true
+        )
+
+        if Library and Library.Notify then Library:Notify("SUCCESS", "Sold sign moved!", 3) end
+
+        -- Re-evaluate button state after the sign is consumed/moved
+        task.delay(0.5, UpdateSoldSignButton)
+    end)
+
+    -- Disable immediately if no sign exists yet
+    UpdateSoldSignButton()
+
+    -- Watch PlayerModels so the button enables the moment a sign appears
+    if playerModels then
+        playerModels.ChildAdded:Connect(function(child)
+            local iname = child:FindFirstChild("ItemName")
+            if iname and iname.Value == "PropertySoldSign" then
+                task.defer(UpdateSoldSignButton)
+            end
+        end)
+        playerModels.ChildRemoved:Connect(function(child)
+            local iname = child:FindFirstChild("ItemName")
+            if iname and iname.Value == "PropertySoldSign" then
+                task.defer(UpdateSoldSignButton)
+            end
+        end)
+    end
+
+    -- ==========================================
     -- DYNAMIC EVENT LISTENERS
     -- ==========================================
     if propertiesFolder then
-        -- Watch for new things added to any plot (like new squares or owners)
         propertiesFolder.DescendantAdded:Connect(function(descendant)
-            -- If a new Owner value is created, listen for when it changes
             if descendant.Name == "Owner" and descendant:IsA("ObjectValue") then
                 descendant.Changed:Connect(function()
                     task.defer(UpdateLandButtons)
@@ -204,12 +278,10 @@ function Plot.Init(Tab, Library)
             task.defer(UpdateLandButtons)
         end)
         
-        -- Watch for things removed (like when a plot resets/unclaims)
         propertiesFolder.DescendantRemoving:Connect(function()
             task.defer(UpdateLandButtons)
         end)
         
-        -- Hook onto all the existing Owner values currently in the game
         for _, plot in pairs(propertiesFolder:GetChildren()) do
             local owner = plot:FindFirstChild("Owner")
             if owner and owner:IsA("ObjectValue") then
@@ -219,7 +291,6 @@ function Plot.Init(Tab, Library)
             end
         end
         
-        -- Run the check immediately on load
         UpdateLandButtons()
     end
 end
