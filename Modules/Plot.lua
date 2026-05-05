@@ -102,6 +102,12 @@ function Plot.Init(Tab, Library)
     -- ==========================================
     -- LAND ACTIONS
     -- ==========================================
+
+    -- ==========================================
+    -- SOLD SIGN SECTION
+    -- ==========================================
+    Tab:CreateSection("Property Management")
+
     claimBtn = Tab:CreateAction("Claim Free Land", "Claim", function()
         if not propertiesFolder or not propertyPurchasing then return end
         local claimRemote = propertyPurchasing:FindFirstChild("ClientPurchasedProperty")
@@ -142,6 +148,25 @@ function Plot.Init(Tab, Library)
             if Library and Library.Notify then Library:Notify("SUCCESS", "Plot fully expanded!", 3) end
         end
     end)
+    
+    soldSignBtn = Tab:CreateAction("Delete 'Solt To' Sign", "Delete", function()
+        if not destroyStructure then
+            if Library and Library.Notify then Library:Notify("ERROR", "DestroyStructure remote not found.", 3) end
+            return
+        end
+        local sign = FindOwnedSoldSign()
+        if not sign then
+            if Library and Library.Notify then Library:Notify("ERROR", "No sold property sign found.", 3) end
+            UpdateSoldSignButton()
+            return
+        end
+        destroyStructure:FireServer(sign)
+        if Library and Library.Notify then Library:Notify("SUCCESS", "Sign Deleted!", 3) end
+        task.delay(0.5, UpdateSoldSignButton)
+    end)
+
+    UpdateSoldSignButton()
+    task.delay(2, UpdateSoldSignButton)
 
     Tab:CreateAction("Wipe Plot", "Wipe", function()
         local destroyRemote = interaction and interaction:FindFirstChild("DestroyStructure")
@@ -182,31 +207,7 @@ function Plot.Init(Tab, Library)
         end
         if Library and Library.Notify then Library:Notify("SUCCESS", "Wiped " .. count .. " object(s).", 4) end
     end)
-
-    -- ==========================================
-    -- SOLD SIGN SECTION
-    -- ==========================================
-    Tab:CreateSection("Property Sign")
-
-    soldSignBtn = Tab:CreateAction("Collect Sold Sign", "Collect", function()
-        if not destroyStructure then
-            if Library and Library.Notify then Library:Notify("ERROR", "DestroyStructure remote not found.", 3) end
-            return
-        end
-        local sign = FindOwnedSoldSign()
-        if not sign then
-            if Library and Library.Notify then Library:Notify("ERROR", "No sold property sign found.", 3) end
-            UpdateSoldSignButton()
-            return
-        end
-        destroyStructure:FireServer(sign)
-        if Library and Library.Notify then Library:Notify("SUCCESS", "Sign collected!", 3) end
-        task.delay(0.5, UpdateSoldSignButton)
-    end)
-
-    UpdateSoldSignButton()
-    task.delay(2, UpdateSoldSignButton)
-
+    
     -- ==========================================
     -- SIGN WATCHERS
     -- ==========================================
