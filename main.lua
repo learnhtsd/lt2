@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.425"
+local Version = "v0.0.426"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -1077,7 +1077,7 @@ function Library:CreateWindow()
             return AttachTooltip(TitleLabel, Element)
         end
 
--- ── INFO BOX (v2) ─────────────────────────────────────────────
+        -- ── INFO BOX (v2) ─────────────────────────────────────────────
         function Tab:CreateInfoBox()
             local InfoBox    = {}
             local layoutOrder = 0
@@ -1329,7 +1329,6 @@ function Library:CreateWindow()
                                 + 6
             local TotalHeight   = TopPadding + ScrollHeight + BottomPadding
 
-            -- Pre-compute clip width from SlotSize — no need to wait for AbsoluteSize
             local CLIP_WIDTH = SlotSize.X.Offset - ES(6)
 
             local SlotRegistry = {}
@@ -1465,6 +1464,8 @@ function Library:CreateWindow()
 
             -- ── AddSlot ────────────────────────────────────────────
             function Element:AddSlot(ID, SlotTitle, SlotSubText)
+                local SlotObj = { _enabled = true }   -- returned API object
+
                 local Slot = Instance.new("TextButton")
                 Slot.BackgroundColor3 = T.SurfaceDeep
                 Slot.Text             = ""
@@ -1476,6 +1477,18 @@ function Library:CreateWindow()
                 Stroke.Color           = T.Stroke
                 Stroke.Thickness       = 1.2
                 Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+                -- Disabled overlay — sits on top and blocks interaction visually
+                local DisabledOverlay = Instance.new("Frame")
+                DisabledOverlay.Name                  = "DisabledOverlay"
+                DisabledOverlay.Size                  = UDim2.new(1, 0, 1, 0)
+                DisabledOverlay.BackgroundColor3      = Color3.fromRGB(0, 0, 0)
+                DisabledOverlay.BackgroundTransparency = 0.6
+                DisabledOverlay.BorderSizePixel        = 0
+                DisabledOverlay.ZIndex                 = 10
+                DisabledOverlay.Visible                = false
+                DisabledOverlay.Parent                 = Slot
+                Instance.new("UICorner", DisabledOverlay).CornerRadius = UDim.new(0, 6)
 
                 local Image = Instance.new("ImageLabel")
                 Image.Size                   = UDim2.new(0.75, 0, 0.75, 0)
@@ -1502,7 +1515,6 @@ function Library:CreateWindow()
                     TitleClip.ZIndex                 = 2
                     TitleClip.Parent                 = Slot
 
-                    -- Measure text synchronously — no frame wait needed
                     local textW = TextService:GetTextSize(
                         SlotTitle,
                         FS(10),
@@ -1511,7 +1523,6 @@ function Library:CreateWindow()
                     ).X
 
                     if textW <= CLIP_WIDTH then
-                        -- Text fits — plain label, no scrolling needed
                         local Txt = Instance.new("TextLabel")
                         Txt.Size                   = UDim2.new(1, 0, 1, 0)
                         Txt.BackgroundTransparency = 1
@@ -1522,7 +1533,6 @@ function Library:CreateWindow()
                         Txt.ZIndex                 = 2
                         Txt.Parent                 = TitleClip
                     else
-                        -- Text overflows — set up marquee scroll
                         local GAP    = ES(18)
                         local totalW = textW + GAP
 
@@ -1569,7 +1579,6 @@ function Library:CreateWindow()
                         MakeTitleFade(1, 1, true)
 
                         local scrollDuration = totalW / 28
-
                         task.spawn(function()
                             task.wait(1.2)
                             while Slot.Parent do
@@ -1600,13 +1609,17 @@ function Library:CreateWindow()
                     SubTxt.Parent                 = Slot
                 end
 
-                table.insert(SlotRegistry, {
+                local registryEntry = {
                     slot       = Slot,
                     title      = SlotTitle or "",
                     titleFades = TitleFades,
-                })
+                }
+                table.insert(SlotRegistry, registryEntry)
 
+                -- ── Click handler ──────────────────────────────────
                 Slot.MouseButton1Click:Connect(function()
+                    if not SlotObj._enabled then return end   -- blocked when disabled
+
                     local isSelected = (Slot.BackgroundColor3 == T.Accent)
 
                     if not Multi then
@@ -1647,9 +1660,36 @@ function Library:CreateWindow()
                     Callback(Multi and Element.Selected or Element.Selected[1])
                 end)
 
+                -- ── SetEnabled API ─────────────────────────────────
+                -- SlotObj:SetEnabled(false) → grays out + blocks clicks
+                -- SlotObj:SetEnabled(true)  → restores normal state
+                function SlotObj:SetEnabled(enabled)
+                    self._enabled = enabled
+
+                    -- Show/hide the dark overlay
+                    DisabledOverlay.Visible = not enabled
+
+                    -- If disabling a currently-selected slot, deselect it
+                    if not enabled and Slot.BackgroundColor3 == T.Accent then
+                        TweenService:Create(Slot, TweenInfo.new(0.2), {BackgroundColor3 = T.SurfaceDeep}):Play()
+                        Stroke.Color = T.Stroke
+                        for _, fade in ipairs(TitleFades) do
+                            TweenService:Create(fade, TweenInfo.new(0.2), {BackgroundColor3 = T.SurfaceDeep}):Play()
+                        end
+                        -- Remove from Element.Selected
+                        for i, v in ipairs(Element.Selected) do
+                            if v == (SlotTitle or ID) then
+                                table.remove(Element.Selected, i)
+                                break
+                            end
+                        end
+                        Callback(Multi and Element.Selected or Element.Selected[1])
+                    end
+                end
+
                 ApplySearch(SearchBox.Text)
 
-                return Slot
+                return SlotObj   -- return the API object, not the raw Slot frame
             end
 
             return Element
