@@ -1,7 +1,7 @@
 local User = "learnhtsd"
 local Repo = "lt2"
 local Branch = "main"
-local Version = "v0.0.426"
+local Version = "v0.0.427"
 
 task.spawn(function()
     local ICON_FOLDER  = "DynxeLT2"
@@ -2134,7 +2134,6 @@ local Modules = {
     { name = "AntiRagdoll",         run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
     { name = "AntiAFK",             run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
     { name = "AxeRecovery",         run = function(m) if m and m.Init then m.Init(ProtectionTab) end end },
-    { name = "Shop",                run = function(m) if m and m.Init then m.Init(ShopTab, LooseObjectTeleportModule) end end },
     { name = "LooseObjectTeleport", run = function(m)
         LooseObjectTeleportModule = m
         if m and m.Init then m.Init(ToolTab, Library) end
@@ -2146,6 +2145,7 @@ local Modules = {
     { name = "Help",                run = function(m) if m and m.Init then m.Init(HelpTab) end end },
     { name = "Duplication",         run = function(m) if m and m.Init then m.Init(DuplicationTab) end end },
     { name = "Build",               run = function(m) if m and m.Init then m.Init(BuildTab, LooseObjectTeleportModule) end end },
+    { name = "Shop",                run = function(m) if m and m.Init then m.Init(ShopTab, LooseObjectTeleportModule) end end },
 }
 
 local Theme = loadstring(game:HttpGet(
