@@ -15,7 +15,7 @@ function Plot.Init(Tab, Library)
     local placeStructure = ReplicatedStorage:FindFirstChild("PlaceStructure")
     local placedStructureRemote = placeStructure and placeStructure:FindFirstChild("ClientPlacedStructure")
 
-    local SOLD_SIGN_GOAL_CF = CFrame.new(315, 3, 88)
+    local SOLD_SIGN_GOAL_CF = CFrame.new(315, 3, 86)
 
     -- ==========================================
     -- SAVE & LOAD MANAGEMENT
