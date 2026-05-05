@@ -833,10 +833,34 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
         UpdateDisplay()
     end)
 
+    local BlueprintSlots = {}
+
+    local function GetBlueprintsFolder()
+        local bp = Player:FindFirstChild("PlayerBlueprints")
+        return bp and bp:FindFirstChild("Blueprints")
+    end
+    
+    local function IsBlueprintOwned(boxItemName)
+        local folder = GetBlueprintsFolder()
+        return folder and folder:FindFirstChild(boxItemName) ~= nil
+    end
+    
+    local function UpdateBlueprintSlots()
+        for boxItemName, slotObj in pairs(BlueprintSlots) do
+            slotObj:SetEnabled(not IsBlueprintOwned(boxItemName))
+        end
+    end
+    
     for _, item in pairs(ShopItems) do
         pcall(function()
             local img = GetImage("", item.Image)
-            Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
+            local slotObj = Catalog:AddSlot(img, item.Name, "$" .. tostring(item.Price))
+            if item.Name:find("Blueprint") and item.BoxItemName then
+                BlueprintSlots[item.BoxItemName] = slotObj
+                if IsBlueprintOwned(item.BoxItemName) then
+                    slotObj:SetEnabled(false)
+                end
+            end
         end)
     end
 
@@ -959,6 +983,8 @@ function ShopModule.Init(Tab, lot, GetImageFunc)
             local total = GetTotalBlueprintCost()
             BlueprintBtn:SetText("$" .. tostring(total))
         end
+
+        UpdateBlueprintSlots()
     end
 
     BlueprintBtn = Tab:CreateAction("Purchase All Blueprints", "Buy", function()
