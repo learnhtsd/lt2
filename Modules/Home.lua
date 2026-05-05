@@ -32,25 +32,20 @@ function HomeModule.Init(Tab, Library)
     -- ── 3. Server Management ──────────────────────────────────
     Tab:CreateSection("Server Management")
 
-    -- The queued script checks for a one-time flag file before running.
-    -- This prevents the persistent queue_on_teleport hook from firing
-    -- on every future teleport — it only runs once per button press.
-    local FLAG_FILE   = "dynxe_autoload.txt"
-    local MAIN_URL    = "https://raw.githubusercontent.com/learnhtsd/lt2/main/main.lua"
-
-    local OneTimeScript = string.format([[
-        local ok, val = pcall(readfile, %q)
+    -- Queued script: reads the flag file, clears it, then runs the main script.
+    -- Hardcoded strings avoid any string.format / %q escaping issues.
+    local OneTimeScript = [[
+        local ok, val = pcall(readfile, "dynxe_autoload.txt")
         if ok and val == "1" then
-            pcall(writefile, %q, "0")
-            loadstring(game:HttpGet(%q .. "?t=" .. tick()))()
+            pcall(writefile, "dynxe_autoload.txt", "0")
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/learnhtsd/lt2/main/main.lua?t=" .. tick()))()
         end
-    ]], FLAG_FILE, FLAG_FILE, MAIN_URL)
+    ]]
 
     local function QueueOnce()
-        if queue_on_teleport then
-            pcall(writefile, FLAG_FILE, "1")
-            queue_on_teleport(OneTimeScript)
-        end
+        if not queue_on_teleport then return end
+        writefile("dynxe_autoload.txt", "1")
+        queue_on_teleport(OneTimeScript)
     end
 
     local function ServerHop(order)
@@ -68,8 +63,8 @@ function HomeModule.Init(Tab, Library)
                 end
             end
         end
-        -- No server found — clear the flag so the queue doesn't fire pointlessly
-        pcall(writefile, FLAG_FILE, "0")
+        -- Teleport never happened — clear flag so it doesn't linger
+        pcall(writefile, "dynxe_autoload.txt", "0")
         Library:Notify("Error", "No suitable server found.", 3)
     end
 
