@@ -4,7 +4,29 @@ function HomeModule.Init(Tab, Library)
     local Player          = game:GetService("Players").LocalPlayer
     local TeleportService = game:GetService("TeleportService")
     local HttpService     = game:GetService("HttpService")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage") -- Added for Save Remote
     local Username        = Player.Name
+
+    -- ── Helper: Force Save Logic ──────────────────────────────
+    local function ForceSaveBeforeLeave()
+        local loadSaveRequests = ReplicatedStorage:FindFirstChild("LoadSaveRequests")
+        local currentSlot = Player:FindFirstChild("CurrentSaveSlot") 
+                            or (Player:FindFirstChild("Data") and Player.Data:FindFirstChild("CurrentSaveSlot"))
+
+        if loadSaveRequests and currentSlot and currentSlot.Value ~= -1 then
+            local RequestSaveRemote = loadSaveRequests:FindFirstChild("RequestSave")
+            if RequestSaveRemote then
+                if Library and Library.Notify then 
+                    Library:Notify("SYSTEM", "Saving plot before teleport...", 3) 
+                end
+                -- We use InvokeServer because it yields (waits) until the server confirms the save
+                pcall(function()
+                    RequestSaveRemote:InvokeServer(currentSlot.Value)
+                end)
+                task.wait(0.5) -- Small buffer to ensure data is processed
+            end
+        end
+    end
 
     -- ── 1. Welcome InfoBox ────────────────────────────────────
     local WelcomeBox = Tab:CreateInfoBox()
@@ -23,7 +45,7 @@ function HomeModule.Init(Tab, Library)
     WelcomeBox:AddSpacer(4)
     WelcomeBox:AddDivider()
     WelcomeBox:AddSpacer(2)
-    WelcomeBox:AddText("⚠  EARLY ACCESS", {
+    WelcomeBox:AddText("⚠  EARLY ACCESS - EXPECT ISSUES :(", {
         Bold  = true,
         Size  = 10,
         Color = Color3.fromRGB(190, 130, 30),
@@ -32,8 +54,6 @@ function HomeModule.Init(Tab, Library)
     -- ── 3. Server Management ──────────────────────────────────
     Tab:CreateSection("Server Management")
 
-    -- Queued script: reads the flag file, clears it, then runs the main script.
-    -- Hardcoded strings avoid any string.format / %q escaping issues.
     local OneTimeScript = [[
         local ok, val = pcall(readfile, "dynxe_autoload.txt")
         if ok and val == "1" then
@@ -49,6 +69,7 @@ function HomeModule.Init(Tab, Library)
     end
 
     local function ServerHop(order)
+        ForceSaveBeforeLeave() -- SAVE TRIGGERED HERE
         QueueOnce()
         Library:Notify("System", "Searching for " .. (order == "Asc" and "smallest" or "largest") .. " server...", 4)
         local api = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=" .. order .. "&limit=100"
@@ -63,12 +84,12 @@ function HomeModule.Init(Tab, Library)
                 end
             end
         end
-        -- Teleport never happened — clear flag so it doesn't linger
         pcall(writefile, "dynxe_autoload.txt", "0")
         Library:Notify("Error", "No suitable server found.", 3)
     end
 
     Tab:CreateAction("Rejoin Server", "Rejoin", function()
+        ForceSaveBeforeLeave() -- SAVE TRIGGERED HERE
         QueueOnce()
         TeleportService:Teleport(game.PlaceId, Player)
     end)
@@ -83,15 +104,6 @@ function HomeModule.Init(Tab, Library)
     Tab:CreateAction("Discord Server", "Copy", function()
         setclipboard("https://discord.gg/bSaWYeaw7Q")
         Library:Notify("System", "Discord link copied to clipboard!", 3)
-    end)
-
-    Tab:CreateAction("YouTube Channel", "Open", function()
-        if request then
-            request({ Url = "https://youtube.com/@yourchannel", Method = "GET" })
-        else
-            setclipboard("https://youtube.com/@yourchannel")
-            Library:Notify("System", "Link copied to clipboard!", 3)
-        end
     end)
 end
 
