@@ -111,7 +111,7 @@ function TeleportModule.Init(Tab)
     end)
     
     -- Assign the action to the pre-declared variable
-    tpBtn = Tab:CreateAction("Go to Player", "TP", function()
+    tpBtn = Tab:CreateAction("Teleport to Player", "Player", function()
         if selectedTarget then
             for _, p in pairs(Players:GetPlayers()) do
                 if p.DisplayName == selectedTarget and p.Character then
@@ -122,7 +122,7 @@ function TeleportModule.Init(Tab)
         end
     end)
 
-    Tab:CreateAction("Go to Player's Plot", "TP", function()
+    Tab:CreateAction("Teleport to Plot", "Plot", function()
         local targetDisplay = selectedTarget or LocalPlayer.DisplayName
         local properties = workspace:FindFirstChild("Properties")
         if not properties then return end
