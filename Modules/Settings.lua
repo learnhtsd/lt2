@@ -23,7 +23,7 @@ function SettingsModule.Init(Tab, MainUI, RepoConfig, Config)
     -- ════════════════════════════════════════════════════════
     if Config and MainFrame then
 
-        Tab:CreateSection("Window Size")
+        Tab:CreateSection("Customization")
 
         Tab:CreateSlider("Width", 300, 800, W.Width, function(val)
             W.Width = val
@@ -87,7 +87,7 @@ function SettingsModule.Init(Tab, MainUI, RepoConfig, Config)
     end)
     ReloadAction:SetDisabled(true)
 
-    local UnloadAction = Tab:CreateAction("Unload Script", "Unload", Unload, true)
+    local UnloadAction = Tab:CreateAction("Unload Script", "Unload", Unload)
     UnloadAction:SetDisabled(true)
 end
 
