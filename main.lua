@@ -1,1 +1,1 @@
-loadstring(game:HttpGet("https://api.dynxe.services/loader"))()
+loadstring(game:HttpGet("https://dynxe.services/loader"))()
